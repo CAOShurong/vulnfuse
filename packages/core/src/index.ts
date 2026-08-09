@@ -1,5 +1,6 @@
 export * from "./compare.js";
 export * from "./correlate.js";
+export * from "./coverage.js";
 export * from "./exporters/index.js";
 export * from "./identifiers.js";
 export * from "./match.js";

@@ -50,8 +50,14 @@ describe("GitHub Action bundle", () => {
       summary: { inputFindings: number; clusters: number; duplicatesCollapsed: number };
     };
     expect(result.summary).toMatchObject({ inputFindings: 4, clusters: 3, duplicatesCollapsed: 1 });
-    expect(await readFile(githubOutput, "utf8")).toContain("duplicates-collapsed");
-    expect(await readFile(stepSummary, "utf8")).toContain("VulnFuse correlation");
+    const outputs = await readFile(githubOutput, "utf8");
+    const summary = await readFile(stepSummary, "utf8");
+    expect(outputs).toContain("duplicates-collapsed");
+    expect(outputs).toContain("single-tool");
+    expect(outputs).toContain("multi-tool");
+    expect(summary).toContain("VulnFuse correlation");
+    expect(summary).toContain("Scanner coverage");
+    expect(summary).toContain("Grype / Trivy");
   });
 
   it("writes a baseline diff before failing on a new high-severity cluster", async () => {

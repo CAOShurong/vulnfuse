@@ -2,7 +2,7 @@
 
 VulnFuse normalizes scanner reports into one canonical finding model. Parsers are intentionally defensive: missing optional fields become unknown evidence, while malformed documents or unsupported shapes fail with a clear error.
 
-All JSON inputs must contain an object. CycloneDX XML and generic arrays are not supported in v0.3.x.
+All JSON inputs must contain an object. CycloneDX XML and generic arrays are not supported in v0.4.x.
 
 ## Canonical finding
 
@@ -105,7 +105,9 @@ Canonical VulnFuse JSON can be supplied again as input. Valid cluster members ar
 
 A plain correlation exports the complete `CorrelationResult`. A baseline comparison exports a `BaselineDiffResult` containing baseline/current summaries and one item per `new`, `updated`, `unchanged`, or `absent` cluster. JSON preserves full evidence; CSV adds `baseline_state` and changed fields; Markdown focuses on changes; SARIF writes `baselineState` on every result and a stable `primaryLocationLineHash` partial fingerprint.
 
-HTML is a self-contained review surface rather than a machine-ingestion format. It embeds no report JSON and loads no remote assets. All report-controlled text and attributes are escaped before rendering; its fixed inline script only filters and expands already-rendered findings. The file supports search and severity, baseline-state, and asset filters while retaining match evidence, blockers, source records, and safe HTTP(S) references.
+Every correlation summary includes a deterministic `coverage` object. Its per-tool rows count input reports, source findings, resulting clusters, clusters reported only by that tool, and clusters shared with another tool. Pair rows record the shared cluster count, the union count, and Jaccard overlap (`shared / union`). Pairwise rows are omitted when more than 20 distinct tools are present to bound quadratic output; complete per-tool counts remain available. These values describe attribution and overlap, not scanner accuracy, false-positive rate, or majority truth.
+
+HTML is a self-contained review surface rather than a machine-ingestion format. It embeds no report JSON and loads no remote assets. All report-controlled text and attributes are escaped before rendering; its fixed inline script only filters and expands already-rendered findings. The file supports search and severity, baseline-state, asset, scanner, and one-tool/multi-tool filters while retaining match evidence, blockers, source records, and safe HTTP(S) references.
 
 Baseline comparison output is an audit artifact, not a raw scanner input. Supply the previous raw reports or a plain VulnFuse correlation JSON when constructing the next baseline.
 

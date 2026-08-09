@@ -14,6 +14,8 @@ A large August 2026 preprint covering 52,895 high-exposure Docker Hub repositori
 
 VulnFuse therefore does not turn disagreement into a single verdict. It retains source records and makes the correlation claim inspectable.
 
+The same boundary applies to scanner comparison. In a Trivy discussion, one project produced 10 findings in Trivy, 14 in Grype, and 45 in Dependency-Check; 31 of the extra findings were later traced to false package matches, and a Trivy maintainer warned that different matching policies make raw-count comparisons unreliable. See [Trivy discussion #7572](https://github.com/aquasecurity/trivy/discussions/7572). VulnFuse therefore reports per-tool exclusive/shared clusters and pairwise Jaccard overlap, while explicitly refusing to call a one-tool finding wrong or a multi-tool finding correct.
+
 The queue also needs a time dimension. The OASIS SARIF 2.1 specification defines `new`, `unchanged`, `updated`, and `absent` baseline states so producers can distinguish newly introduced results from a standing backlog. GitHub code scanning similarly relies on stable partial fingerprints to track logical results across runs, and DefectDojo's reimport workflow distinguishes untouched, closed, and reactivated findings. See the SARIF [`baselineState` definition](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), GitHub's [data for preventing duplicated alerts](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support#data-for-preventing-duplicated-alerts), and DefectDojo's [reimport behavior](https://docs.defectdojo.com/import_data/import_intro/reimport/).
 
 ## Why portable HTML is a product surface
@@ -45,6 +47,7 @@ These standards do not provide a complete cross-scanner correlation policy. They
 6. **Determinism matters in CI.** Stable outputs can be reviewed as diffs, pinned by release, and reproduced without a model or live database.
 7. **A severity gate needs a baseline.** Failing on every known high-severity issue makes adoption harder and hides whether a change introduced risk. A baseline comparison can gate new clusters while still reporting updated, unchanged, and missing evidence.
 8. **A review artifact should survive outside the tool.** A self-contained HTML file gives a reviewer search, filters, provenance, and baseline context without deploying VulnFuse or uploading the underlying reports.
+9. **Scanner coverage is not a vote.** Exclusive and shared clusters reveal tool divergence, but correctness still depends on package identity, advisory applicability, asset context, and the retained source evidence.
 
 ## What this project intentionally does not claim
 

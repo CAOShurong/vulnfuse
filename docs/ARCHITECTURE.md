@@ -39,6 +39,7 @@ The core has no Node-only dependency. It contains:
 - canonical schemas and TypeScript types;
 - match scoring and blockers;
 - candidate indexing and union-find clustering;
+- deterministic per-tool attribution and bounded pairwise overlap analytics;
 - deterministic one-to-one comparison of baseline and current clusters;
 - JSON, SARIF, CSV, Markdown, and self-contained HTML exporters.
 
@@ -54,7 +55,7 @@ The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action r
 
 ### `@vulnfuse/web`
 
-The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, baseline states, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
+The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, scanner coverage, pairwise overlap, baseline states, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
 
 ## Trust boundaries
 
@@ -69,6 +70,8 @@ Finding IDs use a stable FNV-1a hash over normalized source identity and evidenc
 Parsing is linear in input size. Candidate indexing avoids complete all-pairs comparison at practical thresholds. Within each candidate bucket, pair comparison is quadratic in the bucket size; this is necessary when many records genuinely share an identity key. A hard comparison limit fails visibly instead of returning a partial result.
 
 Baseline comparison uses a second candidate index over clusters and a deterministic greedy one-to-one assignment ordered by exact identity and match score. This is deliberately explainable; it is not a global statistical optimizer.
+
+Coverage totals are accumulated in one pass over reports and cluster attribution. Pairwise rows are complete for up to 20 tools and omitted above that boundary so a large set of tool labels cannot force quadratic report output.
 
 The browser keeps inputs and results in memory. For very large reports, use the CLI and split work by asset.
 

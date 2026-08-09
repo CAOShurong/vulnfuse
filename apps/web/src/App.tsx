@@ -20,6 +20,7 @@ import { demoBaselineReports, demoReports } from "./demo.js";
 const maxFileBytes = 100 * 1024 * 1024;
 const accepted = ".json,.sarif,.csv,application/json,text/csv";
 const severityFilters = ["all", "critical", "high", "medium", "low", "info", "unknown"] as const;
+type CoverageFilter = "all" | "multi" | "single";
 
 export function App() {
   const [inputs, setInputs] = useState<ReportInput[]>([]);
@@ -29,6 +30,8 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string>();
   const [query, setQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState<(typeof severityFilters)[number]>("all");
+  const [toolFilter, setToolFilter] = useState("all");
+  const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
   const [dropActive, setDropActive] = useState(false);
   const [fileError, setFileError] = useState<string>();
   const picker = useRef<HTMLInputElement>(null);
@@ -70,6 +73,12 @@ export function App() {
     const normalizedQuery = query.trim().toLowerCase();
     return (analysis.result?.clusters ?? []).filter((cluster) => {
       if (severityFilter !== "all" && cluster.severity !== severityFilter) return false;
+      if (toolFilter !== "all" && !cluster.sourceTools.includes(toolFilter)) return false;
+      if (
+        coverageFilter !== "all" &&
+        (cluster.sourceTools.length > 1 ? "multi" : "single") !== coverageFilter
+      )
+        return false;
       if (!normalizedQuery) return true;
       return [
         cluster.primary.title,
@@ -84,17 +93,23 @@ export function App() {
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [analysis.result, query, severityFilter]);
+  }, [analysis.result, coverageFilter, query, severityFilter, toolFilter]);
 
   useEffect(() => {
     if (!analysis.result) {
       setSelectedId(undefined);
       return;
     }
-    if (!analysis.result.clusters.some((cluster) => cluster.id === selectedId)) {
-      setSelectedId(analysis.result.clusters[0]?.id);
+    if (!visibleClusters.some((cluster) => cluster.id === selectedId)) {
+      setSelectedId(visibleClusters[0]?.id);
     }
-  }, [analysis.result, selectedId]);
+  }, [analysis.result, selectedId, visibleClusters]);
+
+  useEffect(() => {
+    if (toolFilter !== "all" && !analysis.result?.summary.sourceTools.includes(toolFilter)) {
+      setToolFilter("all");
+    }
+  }, [analysis.result, toolFilter]);
 
   const selected = analysis.result?.clusters.find((cluster) => cluster.id === selectedId);
   const selectedDiff = selectedId ? baselineItemsByClusterId.get(selectedId) : undefined;
@@ -176,7 +191,7 @@ export function App() {
         <a className="brand" href="#top" aria-label="VulnFuse home">
           <Logo />
           <span>VulnFuse</span>
-          <span className="version">alpha · 0.3</span>
+          <span className="version">alpha · 0.4</span>
         </a>
         <nav aria-label="Project links">
           <a href="#workbench">Workbench</a>
@@ -439,6 +454,7 @@ export function App() {
 
             <SummaryCards result={analysis.result} />
             {analysis.diff && <BaselineSummary diff={analysis.diff} />}
+            <CoveragePanel result={analysis.result} />
 
             <div className="result-grid">
               <div className="cluster-browser">
@@ -463,6 +479,27 @@ export function App() {
                         {severity === "all" ? "All severities" : severity}
                       </option>
                     ))}
+                  </select>
+                  <select
+                    aria-label="Filter by scanner"
+                    value={toolFilter}
+                    onChange={(event) => setToolFilter(event.target.value)}
+                  >
+                    <option value="all">All scanners</option>
+                    {analysis.result.summary.sourceTools.map((tool) => (
+                      <option key={tool} value={tool}>
+                        {tool}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filter by scanner coverage"
+                    value={coverageFilter}
+                    onChange={(event) => setCoverageFilter(event.target.value as CoverageFilter)}
+                  >
+                    <option value="all">All evidence</option>
+                    <option value="multi">Multiple scanners</option>
+                    <option value="single">One scanner only</option>
                   </select>
                 </div>
                 <div className="cluster-count">
@@ -611,6 +648,90 @@ function BaselineSummary({ diff }: { diff: NonNullable<ReturnType<typeof compare
         </article>
       ))}
     </div>
+  );
+}
+
+function CoveragePanel({ result }: { result: NonNullable<ReturnType<typeof correlateReports>> }) {
+  const coverage = result.summary.coverage;
+  return (
+    <section className="coverage-summary" aria-label="Scanner coverage and overlap">
+      <div className="coverage-summary-head">
+        <div>
+          <span>Scanner divergence</span>
+          <h3>What each tool actually reported</h3>
+          <p>
+            One-tool findings deserve review; they are not automatically false positives. Overlap
+            measures shared evidence, not truth by majority vote.
+          </p>
+        </div>
+        <div className="coverage-summary-totals">
+          <strong>{coverage.singleToolClusters}</strong>
+          <small>one-tool clusters</small>
+          <strong>{coverage.multiToolClusters}</strong>
+          <small>multi-tool clusters</small>
+        </div>
+      </div>
+      <div className="coverage-summary-tables">
+        <div className="coverage-table">
+          <table>
+            <caption>Per-tool coverage</caption>
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Findings</th>
+                <th>Clusters</th>
+                <th>Only tool</th>
+                <th>Shared</th>
+              </tr>
+            </thead>
+            <tbody>
+              {coverage.tools.map((tool) => (
+                <tr key={tool.tool}>
+                  <td>{tool.tool}</td>
+                  <td>{tool.sourceFindings}</td>
+                  <td>{tool.clusters}</td>
+                  <td>{tool.exclusiveClusters}</td>
+                  <td>{tool.sharedClusters}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {coverage.pairwiseOmitted ? (
+          <p className="coverage-limit">
+            Pairwise rows are omitted when more than 20 tools are present.
+          </p>
+        ) : coverage.pairs.length > 0 ? (
+          <div className="coverage-table pairwise">
+            <table>
+              <caption>Pairwise overlap</caption>
+              <thead>
+                <tr>
+                  <th>Tool pair</th>
+                  <th>Shared</th>
+                  <th>Union</th>
+                  <th title="Shared clusters divided by clusters seen by either tool">Jaccard</th>
+                </tr>
+              </thead>
+              <tbody>
+                {coverage.pairs.map((pair) => (
+                  <tr key={`${pair.leftTool}:${pair.rightTool}`}>
+                    <td>
+                      {pair.leftTool} / {pair.rightTool}
+                    </td>
+                    <td>{pair.sharedClusters}</td>
+                    <td>{pair.unionClusters}</td>
+                    <td>{(pair.overlapRatio * 100).toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="coverage-limit">Add a second scanner to measure overlap.</p>
+        )}
+      </div>
+    </section>
   );
 }
 

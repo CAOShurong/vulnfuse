@@ -69,6 +69,8 @@ export async function run(): Promise<void> {
     core.setOutput("findings", result.summary.inputFindings);
     core.setOutput("clusters", result.summary.clusters);
     core.setOutput("duplicates-collapsed", result.summary.duplicatesCollapsed);
+    core.setOutput("single-tool", result.summary.coverage.singleToolClusters);
+    core.setOutput("multi-tool", result.summary.coverage.multiToolClusters);
     core.setOutput("new", baselineDiff?.summary.new ?? 0);
     core.setOutput("updated", baselineDiff?.summary.updated ?? 0);
     core.setOutput("absent", baselineDiff?.summary.absent ?? 0);
@@ -77,6 +79,9 @@ export async function run(): Promise<void> {
     await writeSummary(result, output, baselineDiff);
     core.info(
       `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters; ${result.summary.duplicatesCollapsed} duplicates collapsed.`,
+    );
+    core.info(
+      `Coverage: ${result.summary.coverage.singleToolClusters} one-tool clusters and ${result.summary.coverage.multiToolClusters} multi-tool clusters.`,
     );
     if (baselineDiff) {
       core.info(
@@ -157,6 +162,30 @@ async function writeSummary(
       String(result.summary.bySeverity[severity]),
     ]),
   ];
+  const coverageTable = [
+    [
+      { data: "Tool", header: true },
+      { data: "Findings", header: true },
+      { data: "Clusters", header: true },
+      { data: "Only tool", header: true },
+      { data: "Shared", header: true },
+    ],
+    ...result.summary.coverage.tools.map((tool) => [
+      escapeSummary(tool.tool),
+      String(tool.sourceFindings),
+      String(tool.clusters),
+      String(tool.exclusiveClusters),
+      String(tool.sharedClusters),
+    ]),
+  ];
+  const pairwiseCoverage = result.summary.coverage.pairwiseOmitted
+    ? "Pairwise rows are omitted when more than 20 tools are present."
+    : result.summary.coverage.pairs
+        .map(
+          (pair) =>
+            `- ${escapeSummary(pair.leftTool)} / ${escapeSummary(pair.rightTool)}: ${pair.sharedClusters} shared of ${pair.unionClusters} union clusters (${(pair.overlapRatio * 100).toFixed(1)}% Jaccard)`,
+        )
+        .join("\n") || "Add a second scanner to measure overlap.";
   await core.summary
     .addHeading("VulnFuse correlation", 2)
     .addRaw(
@@ -164,6 +193,13 @@ async function writeSummary(
       true,
     )
     .addTable(table)
+    .addHeading("Scanner coverage", 3)
+    .addRaw(
+      `**${result.summary.coverage.singleToolClusters} one-tool clusters** and **${result.summary.coverage.multiToolClusters} multi-tool clusters**. Agreement is evidence coverage, not a correctness vote.`,
+      true,
+    )
+    .addTable(coverageTable)
+    .addDetails("Pairwise scanner overlap", pairwiseCoverage)
     .addRaw(
       baselineDiff
         ? `Baseline: **${baselineDiff.summary.new} new**, **${baselineDiff.summary.updated} updated**, **${baselineDiff.summary.absent} absent**, and ${baselineDiff.summary.unchanged} unchanged.`

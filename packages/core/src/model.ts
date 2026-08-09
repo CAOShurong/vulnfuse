@@ -146,6 +146,31 @@ export interface FindingCluster {
   edges: ClusterEdge[];
 }
 
+export interface ToolCoverage {
+  tool: string;
+  reports: number;
+  sourceFindings: number;
+  clusters: number;
+  exclusiveClusters: number;
+  sharedClusters: number;
+}
+
+export interface ToolPairCoverage {
+  leftTool: string;
+  rightTool: string;
+  sharedClusters: number;
+  unionClusters: number;
+  overlapRatio: number;
+}
+
+export interface CoverageSummary {
+  singleToolClusters: number;
+  multiToolClusters: number;
+  tools: ToolCoverage[];
+  pairs: ToolPairCoverage[];
+  pairwiseOmitted: boolean;
+}
+
 export interface CorrelationSummary {
   inputReports: number;
   inputFindings: number;
@@ -154,6 +179,7 @@ export interface CorrelationSummary {
   sourceTools: string[];
   bySeverity: Record<Severity, number>;
   byKind: Record<FindingKind, number>;
+  coverage: CoverageSummary;
 }
 
 export interface CorrelationResult {

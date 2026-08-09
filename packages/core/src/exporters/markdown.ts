@@ -1,4 +1,4 @@
-import type { CorrelationResult, FindingCluster } from "../model.js";
+import type { CorrelationResult, CoverageSummary, FindingCluster } from "../model.js";
 
 export function exportMarkdown(result: CorrelationResult): string {
   const lines = [
@@ -13,6 +13,7 @@ export function exportMarkdown(result: CorrelationResult): string {
         `| ${severity} | ${result.summary.bySeverity[severity as keyof typeof result.summary.bySeverity]} |`,
     ),
     "",
+    ...coverageMarkdownLines(result.summary.coverage),
     "## Findings",
     "",
   ];
@@ -24,6 +25,44 @@ export function exportMarkdown(result: CorrelationResult): string {
     "",
   );
   return lines.join("\n");
+}
+
+export function coverageMarkdownLines(
+  coverage: CoverageSummary,
+  heading = "Scanner coverage",
+): string[] {
+  return [
+    `## ${heading}`,
+    "",
+    `> ${coverage.singleToolClusters} clusters were reported by one tool and ${coverage.multiToolClusters} by multiple tools. Tool agreement is evidence coverage, not a correctness vote.`,
+    "",
+    "| Tool | Reports | Source findings | Clusters | Only this tool | Shared |",
+    "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ...coverage.tools.map(
+      (tool) =>
+        `| ${escapeMarkdown(tool.tool)} | ${tool.reports} | ${tool.sourceFindings} | ${tool.clusters} | ${tool.exclusiveClusters} | ${tool.sharedClusters} |`,
+    ),
+    "",
+    ...(coverage.pairwiseOmitted
+      ? ["_Pairwise overlap is omitted when more than 20 tools are present._", ""]
+      : coverage.pairs.length > 0
+        ? [
+            "### Pairwise overlap",
+            "",
+            "| Tool pair | Shared clusters | Union clusters | Jaccard overlap |",
+            "| --- | ---: | ---: | ---: |",
+            ...coverage.pairs.map(
+              (pair) =>
+                `| ${escapeMarkdown(pair.leftTool)} / ${escapeMarkdown(pair.rightTool)} | ${pair.sharedClusters} | ${pair.unionClusters} | ${formatPercent(pair.overlapRatio)} |`,
+            ),
+            "",
+          ]
+        : []),
+  ];
+}
+
+function formatPercent(ratio: number): string {
+  return `${(ratio * 100).toFixed(1)}%`;
 }
 
 function clusterMarkdown(cluster: FindingCluster): string[] {

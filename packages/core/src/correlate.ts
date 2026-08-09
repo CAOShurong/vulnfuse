@@ -12,6 +12,7 @@ import type {
   Severity,
 } from "./model.js";
 import { defaultCorrelationOptions, severityOrder } from "./model.js";
+import { analyzeCoverage } from "./coverage.js";
 import { explainMatch } from "./match.js";
 import { identifierKey, isVulnerabilityIdentifier, uniqueIdentifiers } from "./identifiers.js";
 import {
@@ -170,16 +171,18 @@ export function correlateReports(
     byKind[cluster.primary.kind] += 1;
   }
 
+  const reportSummaries = reports.map((report) => ({
+    name: report.sourceName,
+    format: report.format,
+    tool: report.tool,
+    findings: report.findings.length,
+    warnings: report.warnings,
+  }));
+
   return {
     schemaVersion: "1.0",
     options: resolved,
-    reports: reports.map((report) => ({
-      name: report.sourceName,
-      format: report.format,
-      tool: report.tool,
-      findings: report.findings.length,
-      warnings: report.warnings,
-    })),
+    reports: reportSummaries,
     clusters,
     rejectedCandidates: rejectedCandidates
       .sort((left, right) => right.explanation.score - left.explanation.score)
@@ -192,6 +195,7 @@ export function correlateReports(
       sourceTools: [...new Set(reports.map((report) => report.tool))].sort(),
       bySeverity,
       byKind,
+      coverage: analyzeCoverage(reportSummaries, clusters),
     },
   };
 }

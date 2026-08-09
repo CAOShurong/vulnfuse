@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  analyzeCoverage,
   compareCorrelations,
   correlateReports,
   explainMatch,
@@ -67,6 +68,65 @@ describe("explainable correlation", () => {
       correlateReports(reports).clusters.map((cluster) => cluster.id),
     );
   });
+
+  it("quantifies single-tool findings and pairwise overlap without voting on truth", () => {
+    const coverage = correlateReports([report("trivy.json"), report("grype.json")]).summary
+      .coverage;
+    expect(coverage).toEqual({
+      singleToolClusters: 2,
+      multiToolClusters: 1,
+      tools: [
+        {
+          tool: "Grype",
+          reports: 1,
+          sourceFindings: 2,
+          clusters: 2,
+          exclusiveClusters: 1,
+          sharedClusters: 1,
+        },
+        {
+          tool: "Trivy",
+          reports: 1,
+          sourceFindings: 2,
+          clusters: 2,
+          exclusiveClusters: 1,
+          sharedClusters: 1,
+        },
+      ],
+      pairs: [
+        {
+          leftTool: "Grype",
+          rightTool: "Trivy",
+          sharedClusters: 1,
+          unionClusters: 3,
+          overlapRatio: 0.3333,
+        },
+      ],
+      pairwiseOmitted: false,
+    });
+  });
+
+  it("reports zero overlap when tools produce no clusters", () => {
+    expect(
+      analyzeCoverage(
+        [
+          { tool: "Empty A", findings: 0 },
+          { tool: "Empty B", findings: 0 },
+        ],
+        [],
+      ).pairs[0],
+    ).toMatchObject({ sharedClusters: 0, unionClusters: 0, overlapRatio: 0 });
+  });
+
+  it("omits quadratic pair rows when a report set names many tools", () => {
+    const coverage = analyzeCoverage(
+      Array.from({ length: 21 }, (_, index) => ({ tool: `Tool ${index}`, findings: 0 })),
+      [],
+    );
+    expect(coverage.pairs).toEqual([]);
+    expect(coverage.pairwiseOmitted).toBe(true);
+    expect(coverage.tools).toHaveLength(21);
+  });
 });
 
 describe("exports", () => {
@@ -87,7 +147,10 @@ describe("exports", () => {
   });
 
   it("exports reviewable Markdown and CSV", () => {
-    expect(exportCorrelation(result, "markdown")).toContain("Why merged");
+    const markdown = exportCorrelation(result, "markdown");
+    expect(markdown).toContain("Why merged");
+    expect(markdown).toContain("## Scanner coverage");
+    expect(markdown).toContain("Grype / Trivy | 1 | 3 | 33.3%");
     expect(exportCorrelation(result, "csv")).toContain("duplicates_collapsed");
   });
 
@@ -103,6 +166,12 @@ describe("exports", () => {
     expect(html).toContain("<!doctype html>");
     expect(html).toContain("Content-Security-Policy");
     expect(html).toContain('id="search"');
+    expect(html).toContain('id="tool-filter"');
+    expect(html).toContain('id="coverage-filter"');
+    expect(html).toContain("Scanner divergence");
+    expect(html).toContain("Grype / Trivy");
+    expect(html).toContain('data-coverage="multi"');
+    expect(html).toContain('data-coverage="single"');
     expect(html).toContain("This self-contained file makes no network requests.");
     expect(html).toContain("https://example.com/member-only-evidence");
     expect(html).not.toMatch(/<(script|link)[^>]+src=/i);
@@ -113,7 +182,7 @@ describe("exports", () => {
     const special = parseReport({
       name: "hostile.csv",
       content:
-        'title,severity,component,tool\n"</script><img src=x onerror=alert(1)>",high,widget,Tool',
+        'title,severity,component,tool\n"</script><img src=x onerror=alert(1)>",high,widget,"</option><script>alert(2)</script>"',
     });
     const correlated = correlateReports([special]);
     const first = correlated.clusters[0];
@@ -123,7 +192,9 @@ describe("exports", () => {
     const html = exportCorrelation(correlated, "html");
     expect(html).not.toContain("<img src=x");
     expect(html).not.toContain("javascript:alert(1)");
+    expect(html).not.toContain("</option><script>alert(2)</script>");
     expect(html).toContain("&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).toContain("&lt;/option&gt;&lt;script&gt;alert(2)&lt;/script&gt;");
     expect(html).toContain("https://example.com/advisory?q=%3Cx%3E");
   });
 
@@ -176,12 +247,15 @@ describe("baseline comparison", () => {
     };
     expect(sarif.runs[0]?.results.every((result) => result.baselineState)).toBe(true);
     expect(sarif.runs[0]?.results.every((result) => result.partialFingerprints)).toBe(true);
-    expect(exportBaselineDiff(diff, "markdown")).toContain("VulnFuse baseline comparison");
+    const markdown = exportBaselineDiff(diff, "markdown");
+    expect(markdown).toContain("VulnFuse baseline comparison");
+    expect(markdown).toContain("## Current-run scanner coverage");
     expect(exportBaselineDiff(diff, "csv")).toContain("baseline_state");
     const html = exportBaselineDiff(diff, "html");
     expect(html).toContain('id="state-filter"');
     expect(html).toContain('data-state="new"');
     expect(html).toContain("absent means a cluster was not observed");
+    expect(html).toContain("Coverage below describes current-run clusters");
   });
 
   it("rejects comparisons made with different scopes", () => {

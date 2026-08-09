@@ -46,6 +46,10 @@ outputs:
     description: Number of correlated vulnerability clusters.
   duplicates-collapsed:
     description: Number of duplicate source records collapsed.
+  single-tool:
+    description: Number of clusters reported by exactly one scanner.
+  multi-tool:
+    description: Number of clusters reported by more than one scanner.
   new:
     description: Number of clusters not present in the baseline.
   updated:
