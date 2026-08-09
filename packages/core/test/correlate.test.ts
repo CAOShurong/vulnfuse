@@ -4,8 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  compareCorrelations,
   correlateReports,
   explainMatch,
+  exportBaselineDiff,
   exportCorrelation,
   parseReport,
   type CanonicalFinding,
@@ -97,5 +99,74 @@ describe("exports", () => {
     const markdown = exportCorrelation(correlateReports([special]), "markdown");
     expect(markdown).toContain("### Backtick \\` and \\*");
     expect(markdown).toContain("**Component:** ``pkg\\name`part@1.0``");
+  });
+});
+
+describe("baseline comparison", () => {
+  it("marks stable clusters unchanged and new evidence as new", () => {
+    const baseline = correlateReports([report("trivy.json"), report("grype.json")]);
+    const unchanged = compareCorrelations(
+      baseline,
+      correlateReports([report("trivy.json"), report("grype.json")]),
+    );
+    expect(unchanged.summary).toMatchObject({ new: 0, updated: 0, absent: 0, unchanged: 3 });
+
+    const current = correlateReports([
+      report("trivy.json"),
+      report("grype.json"),
+      report("generic.csv"),
+    ]);
+    const diff = compareCorrelations(baseline, current);
+    expect(diff.summary.new).toBeGreaterThan(0);
+    expect(diff.items.filter((item) => item.state === "new")).not.toHaveLength(0);
+  });
+
+  it("distinguishes updated evidence from findings absent in the current run", () => {
+    const baseline = correlateReports([report("trivy.json"), report("grype.json")]);
+    const current = correlateReports([report("trivy.json")]);
+    const diff = compareCorrelations(baseline, current);
+    expect(diff.summary).toMatchObject({ new: 0, updated: 1, absent: 1, unchanged: 1 });
+    expect(diff.items.find((item) => item.state === "updated")?.changedFields).toEqual(
+      expect.arrayContaining(["source-tools", "source-records"]),
+    );
+  });
+
+  it("exports baseline states in SARIF, Markdown, and CSV", () => {
+    const baseline = correlateReports([report("trivy.json")]);
+    const current = correlateReports([report("trivy.json"), report("generic.csv")]);
+    const diff = compareCorrelations(baseline, current);
+    const sarif = JSON.parse(exportBaselineDiff(diff, "sarif")) as {
+      runs: Array<{ results: Array<{ baselineState?: string; partialFingerprints?: unknown }> }>;
+    };
+    expect(sarif.runs[0]?.results.every((result) => result.baselineState)).toBe(true);
+    expect(sarif.runs[0]?.results.every((result) => result.partialFingerprints)).toBe(true);
+    expect(exportBaselineDiff(diff, "markdown")).toContain("VulnFuse baseline comparison");
+    expect(exportBaselineDiff(diff, "csv")).toContain("baseline_state");
+  });
+
+  it("rejects comparisons made with different scopes", () => {
+    const baseline = correlateReports([report("trivy.json")], { scope: "instance" });
+    const current = correlateReports([report("trivy.json")], { scope: "root-cause" });
+    expect(() => compareCorrelations(baseline, current)).toThrow(/scope/);
+  });
+
+  it("fails visibly before a giant cluster can trigger excessive member comparisons", () => {
+    const original = correlateReports([report("trivy.json")]);
+    const firstCluster = original.clusters[0];
+    const firstMember = firstCluster?.members[0];
+    expect(firstCluster).toBeDefined();
+    expect(firstMember).toBeDefined();
+    if (!firstCluster || !firstMember) return;
+    const baseline = {
+      ...original,
+      clusters: [
+        { ...firstCluster, id: "baseline-large", members: Array(2_000).fill(firstMember) },
+      ],
+    };
+    const current = {
+      ...original,
+      clusters: [{ ...firstCluster, id: "current-large", members: Array(1_001).fill(firstMember) }],
+    };
+    expect(() => compareCorrelations(baseline, current)).toThrow(/source-record comparisons/);
   });
 });

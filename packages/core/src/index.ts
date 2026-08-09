@@ -1,3 +1,4 @@
+export * from "./compare.js";
 export * from "./correlate.js";
 export * from "./exporters/index.js";
 export * from "./identifiers.js";

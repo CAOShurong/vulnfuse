@@ -11,6 +11,7 @@ const action = resolve(import.meta.dirname, "../dist/index.cjs");
 const repository = resolve(import.meta.dirname, "../../..");
 const trivy = resolve(repository, "packages/core/test/fixtures/trivy.json");
 const grype = resolve(repository, "packages/core/test/fixtures/grype.json");
+const csv = resolve(repository, "packages/core/test/fixtures/generic.csv");
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -51,5 +52,40 @@ describe("GitHub Action bundle", () => {
     expect(result.summary).toMatchObject({ inputFindings: 4, clusters: 3, duplicatesCollapsed: 1 });
     expect(await readFile(githubOutput, "utf8")).toContain("duplicates-collapsed");
     expect(await readFile(stepSummary, "utf8")).toContain("VulnFuse correlation");
+  });
+
+  it("writes a baseline diff before failing on a new high-severity cluster", async () => {
+    const outputReport = join(testDirectory, "baseline.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: `${trivy}\n${csv}`,
+          "INPUT_BASELINE-REPORTS": trivy,
+          INPUT_OUTPUT: outputReport,
+          INPUT_FORMAT: "json",
+          INPUT_THRESHOLD: "70",
+          INPUT_SCOPE: "instance",
+          "INPUT_FAIL-ON-NEW": "high",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+
+    const diff = JSON.parse(await readFile(outputReport, "utf8")) as {
+      summary: { new: number; unchanged: number };
+    };
+    expect(diff.summary).toMatchObject({ new: 1, unchanged: 2 });
+    expect(await readFile(githubOutput, "utf8")).toContain("new<<");
+    expect(await readFile(stepSummary, "utf8")).toContain("Baseline:");
   });
 });

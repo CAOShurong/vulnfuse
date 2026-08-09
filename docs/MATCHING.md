@@ -59,7 +59,7 @@ OSV aliases are treated as peer identities only when a shared alias is present i
 
 Package URLs are parsed and serialized with `packageurl-js` before comparison. When no valid PURL exists, VulnFuse uses a lowercase `ecosystem:name:version` key. A component with no PURL or name does not contribute component evidence.
 
-This fallback is intentionally strict about the version. A policy-driven version-range relationship is planned but not silently inferred in v0.1.x.
+This fallback is intentionally strict about the version. A policy-driven version-range relationship is planned but not silently inferred in v0.2.x.
 
 ## Candidate indexing and limits
 
@@ -79,6 +79,21 @@ The primary record is selected deterministically by:
 
 Cluster IDs hash the sorted member IDs and identifiers. They remain stable when input order changes, but can change when source evidence changes.
 
+## Baseline comparison
+
+VulnFuse first correlates the baseline reports and current reports independently with the same scope and policy. It then matches the resulting clusters using the same explainable evidence and blockers used within a run. Exact cluster IDs take priority; remaining candidates are sorted by match score and assigned one-to-one in a deterministic order.
+
+Every cluster receives one state:
+
+- `new`: no baseline cluster matched the current cluster;
+- `unchanged`: a baseline cluster matched and its significant evidence is unchanged;
+- `updated`: a baseline cluster matched, but severity, title, kind, identifiers, components, assets, locations, remediation, source tools, or source-record count changed;
+- `absent`: a baseline cluster did not match any current cluster.
+
+`absent` means only that the evidence is missing from the supplied current reports. It does not prove remediation; a scanner might have failed, changed scope, or stopped reporting the affected asset.
+
+Baseline candidate indexing uses stable IDs, vulnerability identifiers, components, scanner fingerprints, and—when the threshold allows weaker evidence—asset, path, and rule context. A comparison is capped at 1,000,000 cluster pairs and 2,000,000 underlying source-record pairs, and fails visibly rather than returning a partial diff.
+
 ## Example
 
 Two records share `CVE-2021-44228` (+40), the same Log4j PURL (+25), the same image (+15), and compatible SCA/container kinds. Their score is at least 80, so they merge at the default threshold.
@@ -87,4 +102,4 @@ If one record instead says `CVE-2022-0778`, the explicit advisory conflict block
 
 ## Policy versioning
 
-The output records `schemaVersion`, threshold, scope, line window, and title weight. The score weights are code-level policy in v0.1.x. A declarative policy-file format is planned; until then, pin the VulnFuse release in CI when stable behavior matters.
+The output records `schemaVersion`, threshold, scope, line window, and title weight. The score weights are code-level policy in v0.2.x. A declarative policy-file format is planned; until then, pin the VulnFuse release in CI when stable behavior matters.

@@ -98,6 +98,7 @@ export interface ReportInput {
 }
 
 export type MatchScope = "instance" | "root-cause";
+export type OutputFormat = "json" | "sarif" | "csv" | "markdown";
 
 export interface CorrelationOptions {
   threshold: number;
@@ -168,6 +169,35 @@ export interface CorrelationResult {
   clusters: FindingCluster[];
   rejectedCandidates: ClusterEdge[];
   summary: CorrelationSummary;
+}
+
+export type BaselineState = "new" | "unchanged" | "updated" | "absent";
+
+export interface BaselineDiffItem {
+  state: BaselineState;
+  cluster: FindingCluster;
+  baselineCluster?: FindingCluster;
+  explanation?: MatchExplanation;
+  changedFields: string[];
+}
+
+export interface BaselineDiffSummary {
+  baselineClusters: number;
+  currentClusters: number;
+  new: number;
+  updated: number;
+  unchanged: number;
+  absent: number;
+  newBySeverity: Record<Severity, number>;
+}
+
+export interface BaselineDiffResult {
+  schemaVersion: "1.0";
+  options: CorrelationOptions;
+  baselineSummary: CorrelationSummary;
+  currentSummary: CorrelationSummary;
+  items: BaselineDiffItem[];
+  summary: BaselineDiffSummary;
 }
 
 export const defaultCorrelationOptions: CorrelationOptions = {

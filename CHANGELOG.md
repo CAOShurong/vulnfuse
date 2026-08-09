@@ -4,6 +4,20 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-09
+
+### Added
+
+- Deterministic comparison of independently correlated baseline and current reports with `new`, `updated`, `unchanged`, and `absent` states.
+- CLI `diff` command with repeatable baseline inputs, four output formats, atomic writes, and `--fail-on-new` severity gates.
+- GitHub Action baseline globs, new-only failure policy, baseline counts, and a baseline-aware job summary.
+- Browser workbench baseline picker, state summaries, cluster badges, evidence changes, and comparison downloads without report upload.
+
+### Changed
+
+- SARIF exports now include stable `partialFingerprints.primaryLocationLineHash` values; baseline SARIF includes the standard `baselineState` field on every result.
+- Research, architecture, matching, input/output, threat-model, and usage documentation now cover cross-run evidence.
+
 ## [0.1.1] - 2026-08-09
 
 ### Security
@@ -30,6 +44,7 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.2.0
 [0.1.1]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.1.1
 [0.1.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.1.0
