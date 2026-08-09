@@ -33,9 +33,18 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 
 Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or more reports, inspect the proposed clusters, and export the result. Choose **Load safe demo** first if you want to explore without using your own data.
 
-### CLI from source
+### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer.
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.1.0 packages directly from the GitHub release:
+
+```bash
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.1.0/vulnfuse-core-0.1.0.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.1.0/vulnfuse-0.1.0.tgz
+vulnfuse --version
+```
+
+The paired install matters because the CLI and shared core are separate packages. Every release also includes `SHA256SUMS.txt` and a CycloneDX SBOM.
+
+### CLI from source
 
 ```bash
 git clone https://github.com/CAOShurong/vulnfuse.git
