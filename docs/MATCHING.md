@@ -59,7 +59,7 @@ OSV aliases are treated as peer identities only when a shared alias is present i
 
 Package URLs are parsed and serialized with `packageurl-js` before comparison. When no valid PURL exists, VulnFuse uses a lowercase `ecosystem:name:version` key. A component with no PURL or name does not contribute component evidence.
 
-This fallback is intentionally strict about the version. A policy-driven version-range relationship is planned but not silently inferred in v0.2.x.
+This fallback is intentionally strict about the version. A policy-driven version-range relationship is planned but not silently inferred in v0.3.x.
 
 ## Candidate indexing and limits
 
@@ -102,4 +102,4 @@ If one record instead says `CVE-2022-0778`, the explicit advisory conflict block
 
 ## Policy versioning
 
-The output records `schemaVersion`, threshold, scope, line window, and title weight. The score weights are code-level policy in v0.2.x. A declarative policy-file format is planned; until then, pin the VulnFuse release in CI when stable behavior matters.
+The output records `schemaVersion`, threshold, scope, line window, and title weight. The score weights are code-level policy in v0.3.x. A declarative policy-file format is planned; until then, pin the VulnFuse release in CI when stable behavior matters.

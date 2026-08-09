@@ -98,7 +98,7 @@ export interface ReportInput {
 }
 
 export type MatchScope = "instance" | "root-cause";
-export type OutputFormat = "json" | "sarif" | "csv" | "markdown";
+export type OutputFormat = "json" | "sarif" | "csv" | "markdown" | "html";
 
 export interface CorrelationOptions {
   threshold: number;

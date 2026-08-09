@@ -91,6 +91,42 @@ describe("exports", () => {
     expect(exportCorrelation(result, "csv")).toContain("duplicates_collapsed");
   });
 
+  it("exports a self-contained interactive HTML report", () => {
+    const htmlInput = structuredClone(result);
+    const merged = htmlInput.clusters.find((cluster) => cluster.members.length > 1);
+    const nonPrimary = merged?.members.find((member) => member.id !== merged.primary.id);
+    expect(nonPrimary).toBeDefined();
+    if (!nonPrimary) return;
+    nonPrimary.references.push("https://example.com/member-only-evidence");
+
+    const html = exportCorrelation(htmlInput, "html");
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain("Content-Security-Policy");
+    expect(html).toContain('id="search"');
+    expect(html).toContain("This self-contained file makes no network requests.");
+    expect(html).toContain("https://example.com/member-only-evidence");
+    expect(html).not.toMatch(/<(script|link)[^>]+src=/i);
+    expect(html).not.toMatch(/<link[^>]+href=/i);
+  });
+
+  it("escapes untrusted HTML and refuses active reference schemes", () => {
+    const special = parseReport({
+      name: "hostile.csv",
+      content:
+        'title,severity,component,tool\n"</script><img src=x onerror=alert(1)>",high,widget,Tool',
+    });
+    const correlated = correlateReports([special]);
+    const first = correlated.clusters[0];
+    expect(first).toBeDefined();
+    if (!first) return;
+    first.primary.references = ["javascript:alert(1)", "https://example.com/advisory?q=<x>"];
+    const html = exportCorrelation(correlated, "html");
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("javascript:alert(1)");
+    expect(html).toContain("&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).toContain("https://example.com/advisory?q=%3Cx%3E");
+  });
+
   it("uses valid code spans for untrusted component text", () => {
     const special = parseReport({
       name: "special.csv",
@@ -131,7 +167,7 @@ describe("baseline comparison", () => {
     );
   });
 
-  it("exports baseline states in SARIF, Markdown, and CSV", () => {
+  it("exports baseline states in SARIF, Markdown, CSV, and portable HTML", () => {
     const baseline = correlateReports([report("trivy.json")]);
     const current = correlateReports([report("trivy.json"), report("generic.csv")]);
     const diff = compareCorrelations(baseline, current);
@@ -142,6 +178,10 @@ describe("baseline comparison", () => {
     expect(sarif.runs[0]?.results.every((result) => result.partialFingerprints)).toBe(true);
     expect(exportBaselineDiff(diff, "markdown")).toContain("VulnFuse baseline comparison");
     expect(exportBaselineDiff(diff, "csv")).toContain("baseline_state");
+    const html = exportBaselineDiff(diff, "html");
+    expect(html).toContain('id="state-filter"');
+    expect(html).toContain('data-state="new"');
+    expect(html).toContain("absent means a cluster was not observed");
   });
 
   it("rejects comparisons made with different scopes", () => {

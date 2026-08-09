@@ -20,7 +20,7 @@ canonical findings → candidate index → pair explanations
                          │
              ┌───────────┼───────────┐
              ▼           ▼           ▼
-          JSON/SARIF     CSV      Markdown
+          JSON/SARIF     CSV      Markdown/HTML
 
 shared core ──► CLI
             ├─► GitHub Action
@@ -40,7 +40,7 @@ The core has no Node-only dependency. It contains:
 - match scoring and blockers;
 - candidate indexing and union-find clustering;
 - deterministic one-to-one comparison of baseline and current clusters;
-- JSON, SARIF, CSV, and Markdown exporters.
+- JSON, SARIF, CSV, Markdown, and self-contained HTML exporters.
 
 The browser and Node runtimes execute the same correlation code.
 
@@ -54,7 +54,7 @@ The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action r
 
 ### `@vulnfuse/web`
 
-The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, baseline states, and evidence. Exports use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
+The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, baseline states, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
 
 ## Trust boundaries
 

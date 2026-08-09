@@ -92,4 +92,22 @@ describe("CLI", () => {
     expect(markdown).toContain("**1 new**");
     expect(markdown).toContain("[NEW]");
   });
+
+  it("writes a portable HTML report from the same CLI workflow", async () => {
+    const output = join(testDirectory, "portable.html");
+    await execute(process.execPath, [
+      cli,
+      "merge",
+      trivy,
+      grype,
+      "--format",
+      "html",
+      "--output",
+      output,
+    ]);
+    const html = await readFile(output, "utf8");
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain('id="asset-filter"');
+    expect(html).toContain("This self-contained file makes no network requests.");
+  });
 });

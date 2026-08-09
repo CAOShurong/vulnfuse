@@ -150,6 +150,7 @@ export function App() {
       sarif: "sarif",
       csv: "csv",
       markdown: "md",
+      html: "html",
     };
     const blob = new Blob(
       [
@@ -158,7 +159,7 @@ export function App() {
           : exportCorrelation(analysis.result, format),
       ],
       {
-        type: "text/plain;charset=utf-8",
+        type: format === "html" ? "text/html;charset=utf-8" : "text/plain;charset=utf-8",
       },
     );
     const url = URL.createObjectURL(blob);
@@ -175,7 +176,7 @@ export function App() {
         <a className="brand" href="#top" aria-label="VulnFuse home">
           <Logo />
           <span>VulnFuse</span>
-          <span className="version">alpha · 0.2</span>
+          <span className="version">alpha · 0.3</span>
         </a>
         <nav aria-label="Project links">
           <a href="#workbench">Workbench</a>
@@ -789,7 +790,7 @@ function ExportMenu({ onExport }: { onExport: (format: OutputFormat) => void }) 
   return (
     <div className="export-menu">
       <span>Export</span>
-      {(["sarif", "json", "csv", "markdown"] as OutputFormat[]).map((format) => (
+      {(["html", "sarif", "json", "csv", "markdown"] as OutputFormat[]).map((format) => (
         <button type="button" key={format} onClick={() => onExport(format)}>
           {format === "markdown" ? "MD" : format.toUpperCase()}
         </button>

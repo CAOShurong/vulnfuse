@@ -30,9 +30,9 @@ const packages = await Promise.all(
   packageFiles.map(async (path) => JSON.parse(await readFile(resolve(root, path), "utf8"))),
 );
 const versions = new Set(packages.map((manifest) => manifest.version).filter(Boolean));
-if (versions.size !== 1 || !versions.has("0.2.0")) {
+if (versions.size !== 1 || !versions.has("0.3.0")) {
   throw new Error(
-    `Workspace package versions must all be 0.2.0; found ${[...versions].join(", ")}.`,
+    `Workspace package versions must all be 0.3.0; found ${[...versions].join(", ")}.`,
   );
 }
 

@@ -16,7 +16,7 @@ inputs:
     required: false
     default: vulnfuse-results.sarif
   format:
-    description: "Output format: json, sarif, csv, or markdown."
+    description: "Output format: json, sarif, csv, markdown, or html."
     required: false
     default: sarif
   threshold:

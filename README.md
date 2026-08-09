@@ -20,11 +20,12 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 
 ## What makes it useful
 
-- **Seven input families, four outputs.** Read SARIF 2.1, Trivy JSON, Grype JSON, Snyk JSON, CycloneDX VDR/VEX, OSV-Scanner JSON, and ordinary CSV. Write VulnFuse JSON, SARIF, CSV, or Markdown.
+- **Seven input families, five outputs.** Read SARIF 2.1, Trivy JSON, Grype JSON, Snyk JSON, CycloneDX VDR/VEX, OSV-Scanner JSON, and ordinary CSV. Write VulnFuse JSON, SARIF, CSV, Markdown, or one self-contained interactive HTML file.
 - **Every merge is reviewable.** Match edges retain the score, confidence, evidence, and exact reasons such as a shared CVE, PURL, asset, location, rule, or scanner fingerprint.
 - **Conflicts are first-class.** Explicitly different vulnerability IDs, packages, assets, or finding kinds can block a merge even when titles look similar.
 - **Two honest scopes.** `instance` keeps different assets separate. `root-cause` can connect the same vulnerable component across images, repositories, or applications.
 - **Baseline-aware gates.** Compare previous and current reports as `new`, `updated`, `unchanged`, or `absent`, then fail CI only when a genuinely new cluster crosses your severity threshold.
+- **A report people can actually review.** Portable HTML needs no server or CDN and includes local search, severity/state/asset filters, evidence, blockers, and every source record.
 - **No report upload.** The hosted workbench runs entirely in the browser. The CLI and Action run in your own environment. No AI, API key, telemetry, or remote correlation service is required.
 - **Deterministic output.** Identical input and policy yield stable finding and cluster IDs, which makes diffs and CI review practical.
 
@@ -36,10 +37,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.2.0 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.3.0 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.2.0/vulnfuse-core-0.2.0.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.2.0/vulnfuse-0.2.0.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.3.0/vulnfuse-core-0.3.0.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.3.0/vulnfuse-0.3.0.tgz
 vulnfuse --version
 ```
 
@@ -91,6 +92,18 @@ node packages/cli/dist/index.js diff \
 
 The comparison preserves matched evidence and labels every cluster as `new`, `updated`, `unchanged`, or `absent`. SARIF export writes the standard `baselineState` field for every result.
 
+Create a single portable report that a reviewer can open offline, search, filter, and expand without installing VulnFuse or sending evidence to a server:
+
+```bash
+node packages/cli/dist/index.js diff \
+  --baseline previous/trivy.json \
+  current/trivy.json current/grype.json \
+  --format html \
+  --output vulnfuse-review.html
+```
+
+The file contains its own styles and interaction code, makes no network requests, escapes report-controlled content, and keeps cluster and source-record evidence visible. Protect it like the original reports.
+
 ### GitHub Action
 
 The Action accepts paths or newline-separated glob patterns. Generate scanner reports in earlier steps, correlate them, then upload the result as SARIF or retain it as an artifact.
@@ -98,7 +111,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.2.0
+  uses: CAOShurong/vulnfuse@v0.3.0
   with:
     reports: |
       reports/trivy.json
@@ -177,7 +190,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.2.0` is a public alpha with cross-run baseline comparison in the core library, CLI, browser workbench, and GitHub Action. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.3.0` is a public alpha with cross-run baseline comparison and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 
