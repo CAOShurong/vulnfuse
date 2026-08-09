@@ -24,7 +24,8 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
   const rootComponent = asRecord(metadata?.["component"]);
   const rootName = asString(rootComponent?.["name"]);
   const rootAsset = asset("application", rootName ?? asString(root["serialNumber"]));
-  const toolName = cycloneToolName(metadata) ?? "CycloneDX";
+  const tool = cycloneTool(metadata);
+  const toolName = tool?.name ?? "CycloneDX";
 
   for (const [index, value] of asArray(root["vulnerabilities"]).entries()) {
     const vulnerability = asRecord(value);
@@ -73,7 +74,7 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
 
     findings.push(
       makeFinding({
-        source: source(toolName, reportName, asString(root["specVersion"])),
+        source: source(toolName, reportName, tool?.version),
         kind: "sca",
         title: vulnerabilityId
           ? `${vulnerabilityId} in ${componentName ?? affectedRef ?? "component"}`
@@ -116,6 +117,7 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
     format: "cyclonedx",
     sourceName: reportName,
     tool: toolName,
+    tools: [toolName],
     findings,
     warnings:
       findings.length === 0
@@ -135,11 +137,19 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
   };
 }
 
-function cycloneToolName(metadata: Record<string, unknown> | undefined): string | undefined {
+function cycloneTool(
+  metadata: Record<string, unknown> | undefined,
+): { name: string; version?: string } | undefined {
   const tools = metadata ? metadata["tools"] : undefined;
-  const toolArray = Array.isArray(tools) ? tools : asArray(asRecord(tools)?.["components"]);
+  const structured = asRecord(tools);
+  const toolArray = Array.isArray(tools)
+    ? tools
+    : [...asArray(structured?.["components"]), ...asArray(structured?.["services"])];
   const first = asRecord(toolArray[0]);
-  return asString(first?.["name"]);
+  const name = asString(first?.["name"]);
+  if (!name) return undefined;
+  const version = asString(first?.["version"]);
+  return { name, ...(version ? { version } : {}) };
 }
 
 function affectedVersion(affected: Record<string, unknown> | undefined): string | undefined {

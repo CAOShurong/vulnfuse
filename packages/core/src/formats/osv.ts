@@ -109,6 +109,7 @@ export function parseOsv(root: Record<string, unknown>, reportName: string): Par
     format: "osv-scanner",
     sourceName: reportName,
     tool: "OSV-Scanner",
+    tools: ["OSV-Scanner"],
     findings,
     warnings:
       findings.length === 0

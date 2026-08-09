@@ -116,6 +116,7 @@ export function parseGrype(root: Record<string, unknown>, reportName: string): P
     format: "grype",
     sourceName: reportName,
     tool: "Grype",
+    tools: ["Grype"],
     findings,
     warnings:
       findings.length === 0

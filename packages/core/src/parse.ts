@@ -96,10 +96,19 @@ function parseVulnFuse(root: Record<string, unknown>, reportName: string): Parse
   const metadata: Record<string, JsonValue> = {
     originalClusters: Number(summary?.["clusters"] ?? asArray(root["clusters"]).length),
   };
+  const tools = [
+    ...new Set([
+      ...asArray(summary?.["sourceTools"])
+        .map(asString)
+        .filter((tool): tool is string => Boolean(tool)),
+      ...findings.map((finding) => finding.source.tool),
+    ]),
+  ].sort();
   return {
     format: "vulnfuse",
     sourceName: reportName,
-    tool: asString(asArray(asRecord(root["summary"])?.["sourceTools"])[0]) ?? "VulnFuse",
+    tool: tools[0] ?? "VulnFuse",
+    tools: tools.length > 0 ? tools : ["VulnFuse"],
     findings,
     warnings,
     metadata,

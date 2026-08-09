@@ -24995,7 +24995,12 @@ function zeroSeverityCounts() {
 // ../core/dist/coverage.js
 var maximumPairwiseTools = 20;
 function analyzeCoverage(reports, clusters) {
-  const toolNames = [...new Set(reports.map((report) => report.tool))].sort();
+  const toolNames = [
+    ...new Set(reports.flatMap((report) => {
+      const attributedTools = Object.keys(report.sourceToolFindings ?? {});
+      return attributedTools.length > 0 ? attributedTools : [report.tool];
+    }))
+  ].sort();
   const stats = new Map(toolNames.map((tool) => [
     tool,
     {
@@ -25008,11 +25013,22 @@ function analyzeCoverage(reports, clusters) {
     }
   ]));
   for (const report of reports) {
-    const tool = stats.get(report.tool);
-    if (!tool)
+    const attributed = Object.entries(report.sourceToolFindings ?? {});
+    if (attributed.length === 0) {
+      const tool = stats.get(report.tool);
+      if (!tool)
+        continue;
+      tool.reports += 1;
+      tool.sourceFindings += report.findings;
       continue;
-    tool.reports += 1;
-    tool.sourceFindings += report.findings;
+    }
+    for (const [toolName, findingCount] of attributed) {
+      const tool = stats.get(toolName);
+      if (!tool)
+        continue;
+      tool.reports += 1;
+      tool.sourceFindings += findingCount;
+    }
   }
   for (const cluster of clusters) {
     for (const toolName of cluster.sourceTools) {
@@ -25194,13 +25210,29 @@ function correlateReports(reports, options = {}) {
     bySeverity[cluster.severity] += 1;
     byKind[cluster.primary.kind] += 1;
   }
-  const reportSummaries = reports.map((report) => ({
-    name: report.sourceName,
-    format: report.format,
-    tool: report.tool,
-    findings: report.findings.length,
-    warnings: report.warnings
-  }));
+  const coverageInputs = [];
+  const reportSummaries = reports.map((report) => {
+    const declaredTools = report.tools?.length ? report.tools : [report.tool];
+    const sourceToolFindings = Object.fromEntries(declaredTools.map((tool) => [tool, 0]));
+    for (const finding of report.findings) {
+      sourceToolFindings[finding.source.tool] = (sourceToolFindings[finding.source.tool] ?? 0) + 1;
+    }
+    const tools = Object.keys(sourceToolFindings).sort();
+    coverageInputs.push({
+      tool: report.tool,
+      findings: report.findings.length,
+      sourceToolFindings
+    });
+    return {
+      name: report.sourceName,
+      format: report.format,
+      tool: report.tool,
+      tools,
+      findings: report.findings.length,
+      warnings: report.warnings
+    };
+  });
+  const coverage = analyzeCoverage(coverageInputs, clusters);
   return {
     schemaVersion: "1.0",
     options: resolved,
@@ -25212,10 +25244,10 @@ function correlateReports(reports, options = {}) {
       inputFindings: findings.length,
       clusters: clusters.length,
       duplicatesCollapsed: findings.length - clusters.length,
-      sourceTools: [...new Set(reports.map((report) => report.tool))].sort(),
+      sourceTools: coverage.tools.map((tool) => tool.tool),
       bySeverity,
       byKind,
-      coverage: analyzeCoverage(reportSummaries, clusters)
+      coverage
     }
   };
 }
@@ -25363,7 +25395,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.0">
+  <meta name="generator" content="VulnFuse 0.4.1">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -25810,7 +25842,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.0",
+            semanticVersion: "0.4.1",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -25953,7 +25985,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.0",
+            semanticVersion: "0.4.1",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor2(cluster))
           }
@@ -40786,10 +40818,12 @@ function parseCsv(content, reportName) {
       nativeId: `${index}:${vulnerabilityId ?? title}`
     });
   }).filter((entry) => Boolean(entry));
+  const tools = [...new Set(findings.map((finding) => finding.source.tool))].sort();
   return {
     format: "csv",
     sourceName: reportName,
     tool: findings[0]?.source.tool ?? "CSV",
+    tools: tools.length > 0 ? tools : ["CSV"],
     findings,
     warnings: parsed.errors.map((error52) => ({
       code: `csv.${error52.code}`,
@@ -40818,7 +40852,8 @@ function parseCycloneDx(root, reportName) {
   const rootComponent = asRecord(metadata?.["component"]);
   const rootName = asString(rootComponent?.["name"]);
   const rootAsset = asset("application", rootName ?? asString(root["serialNumber"]));
-  const toolName = cycloneToolName(metadata) ?? "CycloneDX";
+  const tool = cycloneTool(metadata);
+  const toolName = tool?.name ?? "CycloneDX";
   for (const [index, value2] of asArray(root["vulnerabilities"]).entries()) {
     const vulnerability = asRecord(value2);
     if (!vulnerability)
@@ -40857,7 +40892,7 @@ function parseCycloneDx(root, reportName) {
       affects: vulnerability["affects"]
     });
     findings.push(makeFinding({
-      source: source(toolName, reportName, asString(root["specVersion"])),
+      source: source(toolName, reportName, tool?.version),
       kind: "sca",
       title: vulnerabilityId ? `${vulnerabilityId} in ${componentName ?? affectedRef ?? "component"}` : "CycloneDX vulnerability",
       ...asString(vulnerability["description"] ?? vulnerability["detail"]) ? { description: asString(vulnerability["description"] ?? vulnerability["detail"]) } : {},
@@ -40888,6 +40923,7 @@ function parseCycloneDx(root, reportName) {
     format: "cyclonedx",
     sourceName: reportName,
     tool: toolName,
+    tools: [toolName],
     findings,
     warnings: findings.length === 0 ? [
       {
@@ -40901,11 +40937,16 @@ function parseCycloneDx(root, reportName) {
     }
   };
 }
-function cycloneToolName(metadata) {
+function cycloneTool(metadata) {
   const tools = metadata ? metadata["tools"] : void 0;
-  const toolArray = Array.isArray(tools) ? tools : asArray(asRecord(tools)?.["components"]);
+  const structured = asRecord(tools);
+  const toolArray = Array.isArray(tools) ? tools : [...asArray(structured?.["components"]), ...asArray(structured?.["services"])];
   const first = asRecord(toolArray[0]);
-  return asString(first?.["name"]);
+  const name = asString(first?.["name"]);
+  if (!name)
+    return void 0;
+  const version2 = asString(first?.["version"]);
+  return { name, ...version2 ? { version: version2 } : {} };
 }
 function affectedVersion(affected) {
   const range2 = asRecord(asArray(affected?.["versions"])[0]);
@@ -41055,6 +41096,7 @@ function parseGrype(root, reportName) {
     format: "grype",
     sourceName: reportName,
     tool: "Grype",
+    tools: ["Grype"],
     findings,
     warnings: findings.length === 0 ? [{ code: "grype.no-findings", message: "No Grype matches were found." }] : [],
     metadata: {
@@ -41144,6 +41186,7 @@ function parseOsv(root, reportName) {
     format: "osv-scanner",
     sourceName: reportName,
     tool: "OSV-Scanner",
+    tools: ["OSV-Scanner"],
     findings,
     warnings: findings.length === 0 ? [{ code: "osv.no-findings", message: "No OSV-Scanner findings were found." }] : [],
     metadata: { results: results.length }
@@ -41190,11 +41233,14 @@ function sarifKind(tags, properties) {
 function parseSarif(root, reportName) {
   const findings = [];
   const warnings = [];
+  const reportTools = [];
   for (const [runIndex, runValue] of asArray(root["runs"]).entries()) {
     const run2 = asRecord(runValue);
     const tool = asRecord(run2?.["tool"]);
     const driver = asRecord(tool?.["driver"]);
     const toolName = asString(driver?.["name"]) ?? "SARIF tool";
+    if (!reportTools.includes(toolName))
+      reportTools.push(toolName);
     const toolVersion = asString(driver?.["semanticVersion"]) ?? asString(driver?.["version"]);
     const rules = /* @__PURE__ */ new Map();
     for (const ruleValue of asArray(driver?.["rules"])) {
@@ -41275,7 +41321,8 @@ function parseSarif(root, reportName) {
   return {
     format: "sarif",
     sourceName: reportName,
-    tool: findings[0]?.source.tool ?? "SARIF",
+    tool: reportTools[0] ?? "SARIF",
+    tools: reportTools.length > 0 ? [...reportTools].sort() : ["SARIF"],
     findings,
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown" }
@@ -41386,6 +41433,7 @@ function parseSnyk(root, reportName) {
     format: "snyk",
     sourceName: reportName,
     tool: "Snyk",
+    tools: ["Snyk"],
     findings,
     warnings: findings.length === 0 ? [{ code: "snyk.no-findings", message: "No Snyk vulnerabilities were found." }] : [],
     metadata: {
@@ -41412,7 +41460,8 @@ function parseTrivy(root, reportName) {
   const findings = [];
   const reportAsset = asString(root["ArtifactName"]);
   const artifactType = asString(root["ArtifactType"]);
-  const version2 = asString(root["SchemaVersion"]);
+  const trivy = asRecord(root["Trivy"]);
+  const version2 = asString(trivy?.["Version"] ?? trivy?.["version"]);
   for (const [resultIndex, resultValue] of asArray(root["Results"]).entries()) {
     const result = asRecord(resultValue);
     if (!result)
@@ -41537,11 +41586,14 @@ function parseTrivy(root, reportName) {
     format: "trivy",
     sourceName: reportName,
     tool: "Trivy",
+    tools: ["Trivy"],
     findings,
     warnings: findings.length === 0 ? [{ code: "trivy.no-findings", message: "No supported Trivy findings were found." }] : [],
     metadata: {
+      schemaVersion: asString(root["SchemaVersion"]) ?? "unknown",
       ...reportAsset ? { artifact: reportAsset } : {},
-      ...artifactType ? { artifactType } : {}
+      ...artifactType ? { artifactType } : {},
+      ...asString(root["CreatedAt"]) ? { createdAt: asString(root["CreatedAt"]) } : {}
     }
   };
 }
@@ -41611,10 +41663,17 @@ function parseVulnFuse(root, reportName) {
   const metadata = {
     originalClusters: Number(summary2?.["clusters"] ?? asArray(root["clusters"]).length)
   };
+  const tools = [
+    .../* @__PURE__ */ new Set([
+      ...asArray(summary2?.["sourceTools"]).map(asString).filter((tool) => Boolean(tool)),
+      ...findings.map((finding) => finding.source.tool)
+    ])
+  ].sort();
   return {
     format: "vulnfuse",
     sourceName: reportName,
-    tool: asString(asArray(asRecord(root["summary"])?.["sourceTools"])[0]) ?? "VulnFuse",
+    tool: tools[0] ?? "VulnFuse",
+    tools: tools.length > 0 ? tools : ["VulnFuse"],
     findings,
     warnings,
     metadata

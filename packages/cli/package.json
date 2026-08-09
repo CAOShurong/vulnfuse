@@ -1,6 +1,6 @@
 {
   "name": "vulnfuse",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Merge and explain duplicate findings across vulnerability scanners",
   "type": "module",
   "license": "Apache-2.0",
@@ -24,7 +24,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@vulnfuse/core": "0.4.0",
+    "@vulnfuse/core": "0.4.1",
     "commander": "15.0.0"
   }
 }

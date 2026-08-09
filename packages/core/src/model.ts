@@ -87,6 +87,7 @@ export interface ParsedReport {
   format: ReportFormat;
   sourceName: string;
   tool: string;
+  tools?: string[];
   findings: CanonicalFinding[];
   warnings: ParseWarning[];
   metadata: Record<string, JsonValue>;
@@ -189,6 +190,7 @@ export interface CorrelationResult {
     name: string;
     format: ReportFormat;
     tool: string;
+    tools: string[];
     findings: number;
     warnings: ParseWarning[];
   }>;

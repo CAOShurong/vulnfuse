@@ -3,6 +3,7 @@ import type { CoverageSummary, FindingCluster, ToolCoverage, ToolPairCoverage } 
 interface ReportCoverageInput {
   tool: string;
   findings: number;
+  sourceToolFindings?: Record<string, number>;
 }
 
 const maximumPairwiseTools = 20;
@@ -11,7 +12,14 @@ export function analyzeCoverage(
   reports: ReportCoverageInput[],
   clusters: FindingCluster[],
 ): CoverageSummary {
-  const toolNames = [...new Set(reports.map((report) => report.tool))].sort();
+  const toolNames = [
+    ...new Set(
+      reports.flatMap((report) => {
+        const attributedTools = Object.keys(report.sourceToolFindings ?? {});
+        return attributedTools.length > 0 ? attributedTools : [report.tool];
+      }),
+    ),
+  ].sort();
   const stats = new Map<string, ToolCoverage>(
     toolNames.map((tool) => [
       tool,
@@ -26,10 +34,20 @@ export function analyzeCoverage(
     ]),
   );
   for (const report of reports) {
-    const tool = stats.get(report.tool);
-    if (!tool) continue;
-    tool.reports += 1;
-    tool.sourceFindings += report.findings;
+    const attributed = Object.entries(report.sourceToolFindings ?? {});
+    if (attributed.length === 0) {
+      const tool = stats.get(report.tool);
+      if (!tool) continue;
+      tool.reports += 1;
+      tool.sourceFindings += report.findings;
+      continue;
+    }
+    for (const [toolName, findingCount] of attributed) {
+      const tool = stats.get(toolName);
+      if (!tool) continue;
+      tool.reports += 1;
+      tool.sourceFindings += findingCount;
+    }
   }
   for (const cluster of clusters) {
     for (const toolName of cluster.sourceTools) {
