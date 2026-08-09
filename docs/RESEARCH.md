@@ -16,6 +16,14 @@ VulnFuse therefore does not turn disagreement into a single verdict. It retains 
 
 The queue also needs a time dimension. The OASIS SARIF 2.1 specification defines `new`, `unchanged`, `updated`, and `absent` baseline states so producers can distinguish newly introduced results from a standing backlog. GitHub code scanning similarly relies on stable partial fingerprints to track logical results across runs, and DefectDojo's reimport workflow distinguishes untouched, closed, and reactivated findings. See the SARIF [`baselineState` definition](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), GitHub's [data for preventing duplicated alerts](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support#data-for-preventing-duplicated-alerts), and DefectDojo's [reimport behavior](https://docs.defectdojo.com/import_data/import_intro/reimport/).
 
+## Why portable HTML is a product surface
+
+Readable offline reporting is a recurring scanner-adoption problem rather than a decorative export. Trivy users asked for interactive severity filtering, grouping, totals, and a way to turn existing JSON into HTML; the resulting discussion produced a separate interactive-report plugin rather than a built-in aggregation layer. Another Trivy user asked how to turn a Kubernetes JSON scan into a viewable report grouped by image or namespace and was directed toward third-party tooling. See [Trivy #2298](https://github.com/aquasecurity/trivy/issues/2298), [Trivy #2661](https://github.com/aquasecurity/trivy/issues/2661), and [Trivy discussion #3591](https://github.com/aquasecurity/trivy/discussions/3591).
+
+The multi-report boundary is even clearer in Grype. A user requested one HTML report aggregated from JSON outputs produced by several container jobs; a maintainer described aggregation as outside Grype's scope and explicitly encouraged a separate tool that could consume multiple generated reports. See [Grype #2101](https://github.com/anchore/grype/issues/2101).
+
+These threads are practical evidence, not a usage forecast. The design inference is that VulnFuse can fill a narrow gap scanners intentionally leave open: combine several already-generated reports, preserve provenance, and produce one searchable file without requiring a hosted dashboard, database, template installation, or live service.
+
 ## Why a shared identity layer is feasible
 
 The ecosystem already provides useful identity primitives:
@@ -36,6 +44,7 @@ These standards do not provide a complete cross-scanner correlation policy. They
 5. **A hard blocker is clearer than a negative score.** Two explicit, disjoint CVEs should not merge merely because they occur in the same package.
 6. **Determinism matters in CI.** Stable outputs can be reviewed as diffs, pinned by release, and reproduced without a model or live database.
 7. **A severity gate needs a baseline.** Failing on every known high-severity issue makes adoption harder and hides whether a change introduced risk. A baseline comparison can gate new clusters while still reporting updated, unchanged, and missing evidence.
+8. **A review artifact should survive outside the tool.** A self-contained HTML file gives a reviewer search, filters, provenance, and baseline context without deploying VulnFuse or uploading the underlying reports.
 
 ## What this project intentionally does not claim
 

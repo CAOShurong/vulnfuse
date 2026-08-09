@@ -88,4 +88,34 @@ describe("GitHub Action bundle", () => {
     expect(await readFile(githubOutput, "utf8")).toContain("new<<");
     expect(await readFile(stepSummary, "utf8")).toContain("Baseline:");
   });
+
+  it("allows the Action to emit a self-contained baseline HTML report", async () => {
+    const outputReport = join(testDirectory, "baseline.html");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: `${trivy}\n${grype}`,
+        "INPUT_BASELINE-REPORTS": trivy,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "html",
+        INPUT_THRESHOLD: "70",
+        INPUT_SCOPE: "instance",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+
+    const html = await readFile(outputReport, "utf8");
+    expect(html).toContain("VulnFuse baseline comparison");
+    expect(html).toContain('id="state-filter"');
+    expect(html).toContain("Content-Security-Policy");
+  });
 });

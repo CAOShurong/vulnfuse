@@ -1,6 +1,7 @@
 import type { CorrelationResult, OutputFormat } from "../model.js";
 import { exportBaselineDiff } from "./baseline.js";
 import { exportCsv } from "./csv.js";
+import { exportBaselineHtml, exportHtml } from "./html.js";
 import { exportJson } from "./json.js";
 import { exportMarkdown } from "./markdown.js";
 import { exportSarif } from "./sarif.js";
@@ -15,7 +16,17 @@ export function exportCorrelation(result: CorrelationResult, format: OutputForma
       return exportCsv(result);
     case "markdown":
       return exportMarkdown(result);
+    case "html":
+      return exportHtml(result);
   }
 }
 
-export { exportBaselineDiff, exportCsv, exportJson, exportMarkdown, exportSarif };
+export {
+  exportBaselineDiff,
+  exportBaselineHtml,
+  exportCsv,
+  exportHtml,
+  exportJson,
+  exportMarkdown,
+  exportSarif,
+};

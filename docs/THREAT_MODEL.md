@@ -1,6 +1,6 @@
 # Threat model
 
-VulnFuse processes potentially sensitive and attacker-controlled scanner reports. This document describes the v0.2.x trust boundary and remaining risks.
+VulnFuse processes potentially sensitive and attacker-controlled scanner reports. This document describes the v0.3.x trust boundary and remaining risks.
 
 ## Assets to protect
 
@@ -29,26 +29,27 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 
 ## Implemented safeguards
 
-| Risk                                   | Mitigation                                                                                        |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Oversized report memory exhaustion     | 100 MiB per-report default in browser, CLI, and Action                                            |
-| Excessive file expansion               | 1,000-report limit in CLI/Action/browser                                                          |
-| Quadratic matching denial of service   | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
-| Output destroys an input               | CLI and Action reject identical resolved input/output paths                                       |
-| Symlink escape in Action globbing      | Symbolic-link following is disabled                                                               |
-| Script or HTML injection in workbench  | React text rendering; no `dangerouslySetInnerHTML`                                                |
-| Unsafe advisory schemes                | Only HTTP(S) references survive parser normalization                                              |
-| Spreadsheet formula injection          | CSV exporter enables formula escaping                                                             |
-| Remote code execution from report data | No template evaluation, dynamic import, shell construction, or executable deserialization         |
-| Silent evidence loss                   | Source members and actual match edges remain attached to clusters                                 |
-| Unsafe false merge                     | Explicit identity, component, asset, and kind conflicts can block merging                         |
+| Risk                                    | Mitigation                                                                                        |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Oversized report memory exhaustion      | 100 MiB per-report default in browser, CLI, and Action                                            |
+| Excessive file expansion                | 1,000-report limit in CLI/Action/browser                                                          |
+| Quadratic matching denial of service    | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
+| Output destroys an input                | CLI and Action reject identical resolved input/output paths                                       |
+| Symlink escape in Action globbing       | Symbolic-link following is disabled                                                               |
+| Script or HTML injection in workbench   | React text rendering; no `dangerouslySetInnerHTML`                                                |
+| Script or HTML injection in HTML export | Contextual escaping; fixed data-free script/style blocks; restrictive Content Security Policy     |
+| Unsafe advisory schemes                 | Only HTTP(S) references are rendered as links in portable HTML                                    |
+| Spreadsheet formula injection           | CSV exporter enables formula escaping                                                             |
+| Remote code execution from report data  | No template evaluation, dynamic import, shell construction, or executable deserialization         |
+| Silent evidence loss                    | Source members and actual match edges remain attached to clusters                                 |
+| Unsafe false merge                      | Explicit identity, component, asset, and kind conflicts can block merging                         |
 
 ## Important residual risks
 
 1. **Browser extensions and compromised hosting can observe page data.** A malicious extension with page access or a compromised browser profile is outside the application's control. Use the CLI in an isolated environment for highly sensitive reports.
 2. **Memory use remains proportional to report and finding count.** The browser reads each accepted file fully into memory. The size limit is per file, not a guarantee that a device can handle the aggregate.
 3. **Correlation can still be wrong.** Vendor reports can contain incomplete or incorrect identifiers. Transitive clustering can connect A to C through B. Review match edges before using a cluster for remediation or compliance.
-4. **Exports can propagate sensitive content.** Downloaded JSON, SARIF, CSV, and Markdown retain evidence. Protect them as you would the original reports.
+4. **Exports can propagate sensitive content.** Downloaded JSON, SARIF, CSV, Markdown, and HTML retain evidence. Protect them as you would the original reports. The portable HTML makes no network request by itself, but opening an advisory link is an explicit navigation and browser extensions can still observe the page.
 5. **References are not validated for safety or truth.** HTTP(S) allowlisting prevents active schemes, but a reference can still point to a malicious or misleading site. Opening it is an explicit user action.
 6. **The Action bundle includes dependencies.** Review `packages/action/dist/index.cjs`, pin a release or commit SHA, and use normal GitHub Actions supply-chain controls.
 7. **An absent finding is not proof of a fix.** A baseline cluster can disappear because a scanner failed, changed configuration, or did not scan the same asset. Treat `absent` as missing current evidence until another control verifies remediation.

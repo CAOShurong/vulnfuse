@@ -4,6 +4,19 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-09
+
+### Added
+
+- Self-contained interactive HTML reports for plain correlations and baseline comparisons in the core, CLI, GitHub Action, and browser workbench.
+- Offline search plus severity, baseline-state, and asset filters; expandable evidence, blockers, source records, and safe advisory links.
+- CLI and Action end-to-end coverage for portable HTML output, plus manual Edge visual and interaction checks.
+
+### Security
+
+- Contextually escape all report-controlled HTML text and attributes, refuse non-HTTP(S) references, and keep report data out of the inline script and style blocks.
+- Ship a restrictive Content Security Policy and no external fonts, scripts, styles, images, analytics, or network requests.
+
 ## [0.2.0] - 2026-08-09
 
 ### Added
@@ -44,7 +57,8 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.3.0
 [0.2.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.2.0
 [0.1.1]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.1.1
 [0.1.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.1.0

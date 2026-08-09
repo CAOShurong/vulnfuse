@@ -17,7 +17,7 @@ import {
 } from "@vulnfuse/core";
 import { Command, InvalidArgumentError, Option } from "commander";
 
-const version = "0.2.0";
+const version = "0.3.0";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -51,7 +51,7 @@ export function createProgram(): Command {
     .argument("<reports...>", "Report paths, or '-' for standard input")
     .addOption(
       new Option("-f, --format <format>", "Output format")
-        .choices(["json", "sarif", "csv", "markdown"])
+        .choices(["json", "sarif", "csv", "markdown", "html"])
         .default("json"),
     )
     .option("-o, --output <path>", "Write output atomically to a file instead of stdout")
@@ -113,7 +113,7 @@ export function createProgram(): Command {
     )
     .addOption(
       new Option("-f, --format <format>", "Output format")
-        .choices(["json", "sarif", "csv", "markdown"])
+        .choices(["json", "sarif", "csv", "markdown", "html"])
         .default("json"),
     )
     .option("-o, --output <path>", "Write output atomically to a file instead of stdout")

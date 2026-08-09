@@ -1,6 +1,6 @@
 {
   "name": "@vulnfuse/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Canonical vulnerability model, report parsers, and explainable correlation engine",
   "type": "module",
   "license": "Apache-2.0",

@@ -1,6 +1,6 @@
 {
   "name": "@vulnfuse/web",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@vulnfuse/core": "0.2.0",
+    "@vulnfuse/core": "0.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

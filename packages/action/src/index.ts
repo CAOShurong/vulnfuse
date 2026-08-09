@@ -17,7 +17,7 @@ import {
   type Severity,
 } from "@vulnfuse/core";
 
-const allowedFormats = new Set<OutputFormat>(["json", "sarif", "csv", "markdown"]);
+const allowedFormats = new Set<OutputFormat>(["json", "sarif", "csv", "markdown", "html"]);
 const allowedScopes = new Set<MatchScope>(["instance", "root-cause"]);
 const allowedFailOn = new Set<Severity | "none">([
   "none",

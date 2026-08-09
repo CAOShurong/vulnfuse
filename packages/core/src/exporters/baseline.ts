@@ -6,6 +6,7 @@ import type {
   FindingCluster,
   OutputFormat,
 } from "../model.js";
+import { exportBaselineHtml } from "./html.js";
 
 export function exportBaselineDiff(result: BaselineDiffResult, format: OutputFormat): string {
   switch (format) {
@@ -17,6 +18,8 @@ export function exportBaselineDiff(result: BaselineDiffResult, format: OutputFor
       return exportDiffCsv(result);
     case "markdown":
       return exportDiffMarkdown(result);
+    case "html":
+      return exportBaselineHtml(result);
   }
 }
 
@@ -106,7 +109,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.2.0",
+            semanticVersion: "0.3.0",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor),
           },

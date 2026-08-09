@@ -2,7 +2,7 @@
 
 VulnFuse normalizes scanner reports into one canonical finding model. Parsers are intentionally defensive: missing optional fields become unknown evidence, while malformed documents or unsupported shapes fail with a clear error.
 
-All JSON inputs must contain an object. CycloneDX XML and generic arrays are not supported in v0.2.x.
+All JSON inputs must contain an object. CycloneDX XML and generic arrays are not supported in v0.3.x.
 
 ## Canonical finding
 
@@ -104,6 +104,8 @@ Canonical VulnFuse JSON can be supplied again as input. Valid cluster members ar
 ## Output contracts
 
 A plain correlation exports the complete `CorrelationResult`. A baseline comparison exports a `BaselineDiffResult` containing baseline/current summaries and one item per `new`, `updated`, `unchanged`, or `absent` cluster. JSON preserves full evidence; CSV adds `baseline_state` and changed fields; Markdown focuses on changes; SARIF writes `baselineState` on every result and a stable `primaryLocationLineHash` partial fingerprint.
+
+HTML is a self-contained review surface rather than a machine-ingestion format. It embeds no report JSON and loads no remote assets. All report-controlled text and attributes are escaped before rendering; its fixed inline script only filters and expands already-rendered findings. The file supports search and severity, baseline-state, and asset filters while retaining match evidence, blockers, source records, and safe HTTP(S) references.
 
 Baseline comparison output is an audit artifact, not a raw scanner input. Supply the previous raw reports or a plain VulnFuse correlation JSON when constructing the next baseline.
 

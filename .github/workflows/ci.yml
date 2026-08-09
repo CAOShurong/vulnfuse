@@ -108,10 +108,13 @@ jobs:
           mkdir clean-install
           cd clean-install
           npm init -y
-          npm install ../package-artifacts/vulnfuse-core-0.2.0.tgz ../package-artifacts/vulnfuse-0.2.0.tgz
+          npm install ../package-artifacts/vulnfuse-core-0.3.0.tgz ../package-artifacts/vulnfuse-0.3.0.tgz
           npx vulnfuse --version
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md
+          npx vulnfuse diff --baseline ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format html --output portable.html
+          grep -q "Content-Security-Policy" portable.html
+          grep -q "VulnFuse baseline comparison" portable.html
       - uses: actions/upload-artifact@v7
         with:
           name: npm-tarballs
