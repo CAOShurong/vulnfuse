@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -123,5 +123,16 @@ describe("CLI", () => {
     expect(html).toContain('id="coverage-filter"');
     expect(html).toContain("Scanner divergence");
     expect(html).toContain("This self-contained file makes no network requests.");
+  });
+
+  it("accepts JSON files with a UTF-8 BOM", async () => {
+    const input = join(testDirectory, "bom.json");
+    const output = join(testDirectory, "bom-result.json");
+    await writeFile(input, `\uFEFF${await readFile(trivy, "utf8")}`, "utf8");
+    await execute(process.execPath, [cli, "merge", input, "--format", "json", "--output", output]);
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      reports: Array<{ format: string; tool: string }>;
+    };
+    expect(result.reports[0]).toMatchObject({ format: "trivy", tool: "Trivy" });
   });
 });

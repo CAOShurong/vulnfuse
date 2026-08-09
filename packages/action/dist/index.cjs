@@ -25395,7 +25395,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.1">
+  <meta name="generator" content="VulnFuse 0.4.2">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -25842,7 +25842,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.1",
+            semanticVersion: "0.4.2",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -25985,7 +25985,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.1",
+            semanticVersion: "0.4.2",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor2(cluster))
           }
@@ -41606,15 +41606,16 @@ function parseReport(input, options = {}) {
   if (byteLength > maxBytes) {
     throw new Error(`${input.name} is ${byteLength.toLocaleString()} bytes; the configured limit is ${maxBytes.toLocaleString()} bytes.`);
   }
-  const format = options.format ?? detectFormat(input.content, input.name);
+  const content = input.content.startsWith("\uFEFF") ? input.content.slice(1) : input.content;
+  const format = options.format ?? detectFormat(content, input.name);
   if (format === "csv")
-    return parseCsv(input.content, input.name);
+    return parseCsv(content, input.name);
   if (format === "unknown") {
     throw new Error(`Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OSV-Scanner, CSV, and VulnFuse JSON.`);
   }
   let parsed;
   try {
-    parsed = JSON.parse(input.content);
+    parsed = JSON.parse(content);
   } catch (error52) {
     throw new Error(`${input.name} is not valid JSON: ${error52 instanceof Error ? error52.message : String(error52)}`, { cause: error52 });
   }

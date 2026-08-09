@@ -31,8 +31,9 @@ export function parseReport(input: ReportInput, options: ParseOptions = {}): Par
       `${input.name} is ${byteLength.toLocaleString()} bytes; the configured limit is ${maxBytes.toLocaleString()} bytes.`,
     );
   }
-  const format = options.format ?? detectFormat(input.content, input.name);
-  if (format === "csv") return parseCsv(input.content, input.name);
+  const content = input.content.startsWith("\uFEFF") ? input.content.slice(1) : input.content;
+  const format = options.format ?? detectFormat(content, input.name);
+  if (format === "csv") return parseCsv(content, input.name);
   if (format === "unknown") {
     throw new Error(
       `Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OSV-Scanner, CSV, and VulnFuse JSON.`,
@@ -41,7 +42,7 @@ export function parseReport(input: ReportInput, options: ParseOptions = {}): Par
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(input.content);
+    parsed = JSON.parse(content);
   } catch (error) {
     throw new Error(
       `${input.name} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
