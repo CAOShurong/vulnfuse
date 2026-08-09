@@ -15,7 +15,7 @@ import {
 } from "@vulnfuse/core";
 import { Command, InvalidArgumentError, Option } from "commander";
 
-const version = "0.1.0";
+const version = "0.1.1";
 const maxReports = 1_000;
 
 interface MergeOptions {

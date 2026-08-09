@@ -1,6 +1,6 @@
 # Threat model
 
-VulnFuse processes potentially sensitive and attacker-controlled scanner reports. This document describes the v0.1.0 trust boundary and remaining risks.
+VulnFuse processes potentially sensitive and attacker-controlled scanner reports. This document describes the v0.1.x trust boundary and remaining risks.
 
 ## Assets to protect
 

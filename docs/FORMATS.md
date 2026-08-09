@@ -2,7 +2,7 @@
 
 VulnFuse normalizes scanner reports into one canonical finding model. Parsers are intentionally defensive: missing optional fields become unknown evidence, while malformed documents or unsupported shapes fail with a clear error.
 
-All JSON inputs must contain an object. CycloneDX XML and generic arrays are not supported in v0.1.0.
+All JSON inputs must contain an object. CycloneDX XML and generic arrays are not supported in v0.1.x.
 
 ## Canonical finding
 

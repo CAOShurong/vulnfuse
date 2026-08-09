@@ -19,9 +19,7 @@ export function normalizeIdentifier(
   relationship: FindingIdentifier["relationship"] = "primary",
   schemeHint?: string,
 ): FindingIdentifier | undefined {
-  const normalized = normalizeWhitespace(value)
-    .replace(/[),.;:]+$/, "")
-    .toUpperCase();
+  const normalized = stripTrailingPunctuation(normalizeWhitespace(value)).toUpperCase();
   if (!normalized) return undefined;
 
   let scheme = schemeHint?.trim().toUpperCase();
@@ -35,6 +33,12 @@ export function normalizeIdentifier(
 
   const inferredRelationship = scheme === "CWE" ? "weakness" : relationship;
   return { scheme, value: normalized, relationship: inferredRelationship };
+}
+
+function stripTrailingPunctuation(value: string): string {
+  let end = value.length;
+  while (end > 0 && "),.;:".includes(value[end - 1] ?? "")) end -= 1;
+  return value.slice(0, end);
 }
 
 export function extractIdentifiers(

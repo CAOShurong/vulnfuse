@@ -35,10 +35,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.1.0 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.1.1 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.1.0/vulnfuse-core-0.1.0.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.1.0/vulnfuse-0.1.0.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.1.1/vulnfuse-core-0.1.1.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.1.1/vulnfuse-0.1.1.tgz
 vulnfuse --version
 ```
 
@@ -83,7 +83,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.1.0
+  uses: CAOShurong/vulnfuse@v0.1.1
   with:
     reports: |
       reports/trivy.json
@@ -155,7 +155,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.1.0` is an initial public alpha. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.1.1` is an initial public alpha. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

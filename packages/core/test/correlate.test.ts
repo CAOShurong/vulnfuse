@@ -88,4 +88,14 @@ describe("exports", () => {
     expect(exportCorrelation(result, "markdown")).toContain("Why merged");
     expect(exportCorrelation(result, "csv")).toContain("duplicates_collapsed");
   });
+
+  it("uses valid code spans for untrusted component text", () => {
+    const special = parseReport({
+      name: "special.csv",
+      content: 'title,component,version,tool\n"Backtick ` and *","pkg\\name`part","1.0",Tool',
+    });
+    const markdown = exportCorrelation(correlateReports([special]), "markdown");
+    expect(markdown).toContain("### Backtick \\` and \\*");
+    expect(markdown).toContain("**Component:** ``pkg\\name`part@1.0``");
+  });
 });

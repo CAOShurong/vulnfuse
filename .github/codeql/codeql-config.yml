@@ -1,0 +1,6 @@
+name: VulnFuse CodeQL configuration
+
+# The committed Action bundle contains generated copies of audited dependencies.
+# Analyze the TypeScript source instead; CI separately verifies that the bundle is current.
+paths-ignore:
+  - packages/action/dist/**

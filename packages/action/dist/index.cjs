@@ -24498,7 +24498,7 @@ var identifierPatterns = [
   }
 ];
 function normalizeIdentifier(value2, relationship = "primary", schemeHint) {
-  const normalized = normalizeWhitespace(value2).replace(/[),.;:]+$/, "").toUpperCase();
+  const normalized = stripTrailingPunctuation(normalizeWhitespace(value2)).toUpperCase();
   if (!normalized)
     return void 0;
   let scheme = schemeHint?.trim().toUpperCase();
@@ -24514,6 +24514,12 @@ function normalizeIdentifier(value2, relationship = "primary", schemeHint) {
   }
   const inferredRelationship = scheme === "CWE" ? "weakness" : relationship;
   return { scheme, value: normalized, relationship: inferredRelationship };
+}
+function stripTrailingPunctuation(value2) {
+  let end = value2.length;
+  while (end > 0 && "),.;:".includes(value2[end - 1] ?? ""))
+    end -= 1;
+  return value2.slice(0, end);
 }
 function extractIdentifiers(values, relationship = "related") {
   const identifiers = [];
@@ -24998,7 +25004,7 @@ function clusterMarkdown(cluster) {
     `- **Cluster:** \`${cluster.id}\``,
     `- **Severity:** ${cluster.severity}`,
     `- **Identifiers:** ${escapeMarkdown(identifiers)}`,
-    `- **Component:** \`${escapeCode(component)}\``,
+    `- **Component:** ${inlineCode(component)}`,
     `- **Assets:** ${escapeMarkdown(assets)}`,
     `- **Sources:** ${cluster.sourceTools.join(", ")} (${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"})`,
     `- **Match confidence:** ${cluster.confidence}`,
@@ -25010,8 +25016,11 @@ function clusterMarkdown(cluster) {
 function escapeMarkdown(value2) {
   return value2.replace(/([\\`*_{}[\]()<>#+.!|])/g, "\\$1");
 }
-function escapeCode(value2) {
-  return value2.replace(/`/g, "\\`");
+function inlineCode(value2) {
+  const longestRun = Math.max(0, ...(value2.match(/`+/g) ?? []).map((run2) => run2.length));
+  const delimiter = "`".repeat(longestRun + 1);
+  const needsPadding = /^[ `]|[ `]$/.test(value2);
+  return `${delimiter}${needsPadding ? " " : ""}${value2}${needsPadding ? " " : ""}${delimiter}`;
 }
 
 // ../core/dist/exporters/sarif.js
@@ -25024,7 +25033,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.1.0",
+            semanticVersion: "0.1.1",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor(cluster))
           }

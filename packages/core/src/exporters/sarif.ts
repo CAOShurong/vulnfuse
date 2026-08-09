@@ -9,7 +9,7 @@ export function exportSarif(result: CorrelationResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.1.0",
+            semanticVersion: "0.1.1",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor(cluster)),
           },

@@ -47,7 +47,7 @@ function clusterMarkdown(cluster: FindingCluster): string[] {
     `- **Cluster:** \`${cluster.id}\``,
     `- **Severity:** ${cluster.severity}`,
     `- **Identifiers:** ${escapeMarkdown(identifiers)}`,
-    `- **Component:** \`${escapeCode(component)}\``,
+    `- **Component:** ${inlineCode(component)}`,
     `- **Assets:** ${escapeMarkdown(assets)}`,
     `- **Sources:** ${cluster.sourceTools.join(", ")} (${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"})`,
     `- **Match confidence:** ${cluster.confidence}`,
@@ -63,6 +63,9 @@ function escapeMarkdown(value: string): string {
   return value.replace(/([\\`*_{}[\]()<>#+.!|])/g, "\\$1");
 }
 
-function escapeCode(value: string): string {
-  return value.replace(/`/g, "\\`");
+function inlineCode(value: string): string {
+  const longestRun = Math.max(0, ...(value.match(/`+/g) ?? []).map((run) => run.length));
+  const delimiter = "`".repeat(longestRun + 1);
+  const needsPadding = /^[ `]|[ `]$/.test(value);
+  return `${delimiter}${needsPadding ? " " : ""}${value}${needsPadding ? " " : ""}${delimiter}`;
 }
