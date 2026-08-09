@@ -106,6 +106,45 @@ describe("explainable correlation", () => {
     });
   });
 
+  it("attributes a mixed report to the tool on each source finding", () => {
+    const mixed = parseReport({
+      name: "mixed.csv",
+      content: [
+        "title,severity,component,tool",
+        "Alpha finding,high,alpha-package,Alpha Scanner",
+        "Beta finding,medium,beta-package,Beta Scanner",
+      ].join("\n"),
+    });
+    const result = correlateReports([mixed]);
+    expect(result.reports[0]?.tools).toEqual(["Alpha Scanner", "Beta Scanner"]);
+    expect(result.summary.sourceTools).toEqual(["Alpha Scanner", "Beta Scanner"]);
+    expect(result.summary.coverage.tools).toEqual([
+      expect.objectContaining({ tool: "Alpha Scanner", reports: 1, sourceFindings: 1 }),
+      expect.objectContaining({ tool: "Beta Scanner", reports: 1, sourceFindings: 1 }),
+    ]);
+  });
+
+  it("retains tool attribution for empty multi-run SARIF", () => {
+    const empty = parseReport({
+      name: "empty.sarif",
+      content: JSON.stringify({
+        version: "2.1.0",
+        runs: [
+          { tool: { driver: { name: "Alpha", semanticVersion: "1.0.0" } }, results: [] },
+          { tool: { driver: { name: "Beta", version: "2.0" } }, results: [] },
+        ],
+      }),
+    });
+    const result = correlateReports([empty]);
+    expect(empty.tool).toBe("Alpha");
+    expect(empty.tools).toEqual(["Alpha", "Beta"]);
+    expect(result.summary.sourceTools).toEqual(["Alpha", "Beta"]);
+    expect(result.summary.coverage.tools).toEqual([
+      expect.objectContaining({ tool: "Alpha", reports: 1, sourceFindings: 0 }),
+      expect.objectContaining({ tool: "Beta", reports: 1, sourceFindings: 0 }),
+    ]);
+  });
+
   it("reports zero overlap when tools produce no clusters", () => {
     expect(
       analyzeCoverage(

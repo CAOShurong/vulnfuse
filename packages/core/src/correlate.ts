@@ -171,13 +171,35 @@ export function correlateReports(
     byKind[cluster.primary.kind] += 1;
   }
 
-  const reportSummaries = reports.map((report) => ({
-    name: report.sourceName,
-    format: report.format,
-    tool: report.tool,
-    findings: report.findings.length,
-    warnings: report.warnings,
-  }));
+  const coverageInputs: Array<{
+    tool: string;
+    findings: number;
+    sourceToolFindings: Record<string, number>;
+  }> = [];
+  const reportSummaries = reports.map((report) => {
+    const declaredTools = report.tools?.length ? report.tools : [report.tool];
+    const sourceToolFindings: Record<string, number> = Object.fromEntries(
+      declaredTools.map((tool) => [tool, 0]),
+    );
+    for (const finding of report.findings) {
+      sourceToolFindings[finding.source.tool] = (sourceToolFindings[finding.source.tool] ?? 0) + 1;
+    }
+    const tools = Object.keys(sourceToolFindings).sort();
+    coverageInputs.push({
+      tool: report.tool,
+      findings: report.findings.length,
+      sourceToolFindings,
+    });
+    return {
+      name: report.sourceName,
+      format: report.format,
+      tool: report.tool,
+      tools,
+      findings: report.findings.length,
+      warnings: report.warnings,
+    };
+  });
+  const coverage = analyzeCoverage(coverageInputs, clusters);
 
   return {
     schemaVersion: "1.0",
@@ -192,10 +214,10 @@ export function correlateReports(
       inputFindings: findings.length,
       clusters: clusters.length,
       duplicatesCollapsed: findings.length - clusters.length,
-      sourceTools: [...new Set(reports.map((report) => report.tool))].sort(),
+      sourceTools: coverage.tools.map((tool) => tool.tool),
       bySeverity,
       byKind,
-      coverage: analyzeCoverage(reportSummaries, clusters),
+      coverage,
     },
   };
 }

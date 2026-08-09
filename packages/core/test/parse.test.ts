@@ -40,6 +40,26 @@ describe("report parsing", () => {
     expect(finding?.remediation?.fixedVersion).toBe("2.17.1");
   });
 
+  it("keeps scanner versions separate from report schema versions", () => {
+    const cyclonedx = parseReport({ name: "cyclonedx.json", content: fixture("cyclonedx.json") });
+    expect(cyclonedx.findings[0]?.source.version).toBe("1.0.0");
+    expect(cyclonedx.metadata["specVersion"]).toBe("1.6");
+
+    const trivyDocument = JSON.parse(fixture("trivy.json")) as Record<string, unknown>;
+    trivyDocument["Trivy"] = { Version: "0.66.0" };
+    const trivy = parseReport({
+      name: "trivy-modern.json",
+      content: JSON.stringify(trivyDocument),
+    });
+    expect(trivy.findings.every((finding) => finding.source.version === "0.66.0")).toBe(true);
+    expect(trivy.metadata["schemaVersion"]).toBe("2");
+
+    const legacyTrivy = parseReport({ name: "trivy.json", content: fixture("trivy.json") });
+    expect(legacyTrivy.findings.every((finding) => finding.source.version === undefined)).toBe(
+      true,
+    );
+  });
+
   it("rejects unknown documents and oversized inputs", () => {
     expect(() => parseReport({ name: "mystery.json", content: '{"hello":"world"}' })).toThrow(
       /Could not detect/,

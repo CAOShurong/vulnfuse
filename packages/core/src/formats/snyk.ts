@@ -139,6 +139,7 @@ export function parseSnyk(root: Record<string, unknown>, reportName: string): Pa
     format: "snyk",
     sourceName: reportName,
     tool: "Snyk",
+    tools: ["Snyk"],
     findings,
     warnings:
       findings.length === 0

@@ -98,10 +98,12 @@ export function parseCsv(content: string, reportName: string): ParsedReport {
     })
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
+  const tools = [...new Set(findings.map((finding) => finding.source.tool))].sort();
   return {
     format: "csv",
     sourceName: reportName,
     tool: findings[0]?.source.tool ?? "CSV",
+    tools: tools.length > 0 ? tools : ["CSV"],
     findings,
     warnings: parsed.errors.map((error) => ({
       code: `csv.${error.code}`,

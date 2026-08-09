@@ -29,7 +29,8 @@ export function parseTrivy(root: Record<string, unknown>, reportName: string): P
   const findings: CanonicalFinding[] = [];
   const reportAsset = asString(root["ArtifactName"]);
   const artifactType = asString(root["ArtifactType"]);
-  const version = asString(root["SchemaVersion"]);
+  const trivy = asRecord(root["Trivy"]);
+  const version = asString(trivy?.["Version"] ?? trivy?.["version"]);
 
   for (const [resultIndex, resultValue] of asArray(root["Results"]).entries()) {
     const result = asRecord(resultValue);
@@ -193,14 +194,17 @@ export function parseTrivy(root: Record<string, unknown>, reportName: string): P
     format: "trivy",
     sourceName: reportName,
     tool: "Trivy",
+    tools: ["Trivy"],
     findings,
     warnings:
       findings.length === 0
         ? [{ code: "trivy.no-findings", message: "No supported Trivy findings were found." }]
         : [],
     metadata: {
+      schemaVersion: asString(root["SchemaVersion"]) ?? "unknown",
       ...(reportAsset ? { artifact: reportAsset } : {}),
       ...(artifactType ? { artifactType } : {}),
+      ...(asString(root["CreatedAt"]) ? { createdAt: asString(root["CreatedAt"]) as string } : {}),
     },
   };
 }

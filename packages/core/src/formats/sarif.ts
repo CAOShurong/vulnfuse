@@ -33,12 +33,14 @@ function sarifKind(tags: string[], properties: Record<string, unknown>): Finding
 export function parseSarif(root: Record<string, unknown>, reportName: string): ParsedReport {
   const findings: CanonicalFinding[] = [];
   const warnings: ParsedReport["warnings"] = [];
+  const reportTools: string[] = [];
 
   for (const [runIndex, runValue] of asArray(root["runs"]).entries()) {
     const run = asRecord(runValue);
     const tool = asRecord(run?.["tool"]);
     const driver = asRecord(tool?.["driver"]);
     const toolName = asString(driver?.["name"]) ?? "SARIF tool";
+    if (!reportTools.includes(toolName)) reportTools.push(toolName);
     const toolVersion = asString(driver?.["semanticVersion"]) ?? asString(driver?.["version"]);
     const rules = new Map<string, Record<string, unknown>>();
     for (const ruleValue of asArray(driver?.["rules"])) {
@@ -140,7 +142,8 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
   return {
     format: "sarif",
     sourceName: reportName,
-    tool: findings[0]?.source.tool ?? "SARIF",
+    tool: reportTools[0] ?? "SARIF",
+    tools: reportTools.length > 0 ? [...reportTools].sort() : ["SARIF"],
     findings,
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown" },
