@@ -4,6 +4,12 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-09
+
+### Fixed
+
+- Accept JSON reports with a leading UTF-8 byte-order mark, including files and standard input produced by common Windows PowerShell workflows.
+
 ## [0.4.1] - 2026-08-09
 
 ### Fixed
@@ -83,7 +89,8 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.2
 [0.4.1]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.1
 [0.4.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.0
 [0.3.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.3.0

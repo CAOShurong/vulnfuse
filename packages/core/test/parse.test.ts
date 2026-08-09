@@ -60,6 +60,14 @@ describe("report parsing", () => {
     );
   });
 
+  it("accepts a UTF-8 BOM before JSON input", () => {
+    const content = `\uFEFF${fixture("sarif.json")}`;
+    expect(detectFormat(content, "stdin")).toBe("sarif");
+    const report = parseReport({ name: "stdin", content });
+    expect(report.format).toBe("sarif");
+    expect(report.tool).toBe("CodeQL");
+  });
+
   it("rejects unknown documents and oversized inputs", () => {
     expect(() => parseReport({ name: "mystery.json", content: '{"hello":"world"}' })).toThrow(
       /Could not detect/,
