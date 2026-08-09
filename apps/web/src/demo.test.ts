@@ -11,6 +11,15 @@ describe("safe browser demo", () => {
     const rootCause = correlateReports(reports, { scope: "root-cause" });
     expect(instance.summary.inputFindings).toBe(5);
     expect(instance.summary.duplicatesCollapsed).toBe(1);
+    expect(instance.summary.coverage).toMatchObject({
+      singleToolClusters: 3,
+      multiToolClusters: 1,
+    });
+    expect(
+      instance.summary.coverage.pairs.find(
+        (pair) => pair.leftTool === "Grype" && pair.rightTool === "Trivy",
+      ),
+    ).toMatchObject({ sharedClusters: 1, unionClusters: 3, overlapRatio: 0.3333 });
     expect(rootCause.summary.duplicatesCollapsed).toBe(2);
   });
 

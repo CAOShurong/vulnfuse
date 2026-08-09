@@ -7,6 +7,7 @@ import type {
   OutputFormat,
 } from "../model.js";
 import { exportBaselineHtml } from "./html.js";
+import { coverageMarkdownLines } from "./markdown.js";
 
 export function exportBaselineDiff(result: BaselineDiffResult, format: OutputFormat): string {
   switch (format) {
@@ -54,6 +55,7 @@ function exportDiffMarkdown(result: BaselineDiffResult): string {
     `| Absent | ${result.summary.absent} |`,
     `| Unchanged | ${result.summary.unchanged} |`,
     "",
+    ...coverageMarkdownLines(result.currentSummary.coverage, "Current-run scanner coverage"),
     "## Changes",
     "",
   ];
@@ -109,7 +111,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.3.0",
+            semanticVersion: "0.4.0",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor),
           },

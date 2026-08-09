@@ -4,6 +4,20 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-09
+
+### Added
+
+- Deterministic scanner-coverage analytics with per-tool report, finding, cluster, exclusive, and shared counts.
+- Pairwise shared/union cluster counts and Jaccard overlap in canonical JSON, Markdown, portable HTML, the browser workbench, and GitHub Action summaries.
+- Scanner and one-tool/multi-tool filters in both interactive review surfaces.
+- `single-tool` and `multi-tool` GitHub Action outputs for downstream workflow policy.
+
+### Safety
+
+- Describe overlap as evidence coverage rather than a correctness vote; a one-tool cluster is not automatically a false positive.
+- Omit quadratic pairwise rows above 20 tools while retaining complete per-tool coverage statistics.
+
 ## [0.3.0] - 2026-08-09
 
 ### Added
@@ -57,7 +71,8 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.0
 [0.3.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.3.0
 [0.2.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.2.0
 [0.1.1]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.1.1

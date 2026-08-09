@@ -1,6 +1,6 @@
 # Threat model
 
-VulnFuse processes potentially sensitive and attacker-controlled scanner reports. This document describes the v0.3.x trust boundary and remaining risks.
+VulnFuse processes potentially sensitive and attacker-controlled scanner reports. This document describes the v0.4.x trust boundary and remaining risks.
 
 ## Assets to protect
 
@@ -34,6 +34,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 | Oversized report memory exhaustion      | 100 MiB per-report default in browser, CLI, and Action                                            |
 | Excessive file expansion                | 1,000-report limit in CLI/Action/browser                                                          |
 | Quadratic matching denial of service    | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
+| Quadratic scanner-pair output           | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
 | Output destroys an input                | CLI and Action reject identical resolved input/output paths                                       |
 | Symlink escape in Action globbing       | Symbolic-link following is disabled                                                               |
 | Script or HTML injection in workbench   | React text rendering; no `dangerouslySetInnerHTML`                                                |
@@ -54,6 +55,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 6. **The Action bundle includes dependencies.** Review `packages/action/dist/index.cjs`, pin a release or commit SHA, and use normal GitHub Actions supply-chain controls.
 7. **An absent finding is not proof of a fix.** A baseline cluster can disappear because a scanner failed, changed configuration, or did not scan the same asset. Treat `absent` as missing current evidence until another control verifies remediation.
 8. **Baseline mode retains two report sets.** Browser and runner memory use can approach the combined size of the baseline and current inputs, plus their parsed models and comparison output.
+9. **Coverage statistics can be misread.** A tool may appear exclusive because it scanned a different asset, package inventory, configuration, database snapshot, or advisory namespace. Pairwise overlap is not an accuracy score.
 
 ## Non-goals
 

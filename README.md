@@ -25,7 +25,8 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 - **Conflicts are first-class.** Explicitly different vulnerability IDs, packages, assets, or finding kinds can block a merge even when titles look similar.
 - **Two honest scopes.** `instance` keeps different assets separate. `root-cause` can connect the same vulnerable component across images, repositories, or applications.
 - **Baseline-aware gates.** Compare previous and current reports as `new`, `updated`, `unchanged`, or `absent`, then fail CI only when a genuinely new cluster crosses your severity threshold.
-- **A report people can actually review.** Portable HTML needs no server or CDN and includes local search, severity/state/asset filters, evidence, blockers, and every source record.
+- **Scanner disagreement becomes measurable.** See what each tool found alone, what several tools shared, and the pairwise overlap instead of comparing misleading raw totals.
+- **A report people can actually review.** Portable HTML needs no server or CDN and includes local search, severity/state/asset/scanner/coverage filters, evidence, blockers, and every source record.
 - **No report upload.** The hosted workbench runs entirely in the browser. The CLI and Action run in your own environment. No AI, API key, telemetry, or remote correlation service is required.
 - **Deterministic output.** Identical input and policy yield stable finding and cluster IDs, which makes diffs and CI review practical.
 
@@ -33,14 +34,14 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 
 ### Browser
 
-Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or more current reports, inspect the proposed clusters, and export the result. Add optional reports from a previous run to see a local baseline comparison. Choose **Load safe demo** to explore both correlation and baseline states without using your own data.
+Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or more current reports, inspect the proposed clusters and scanner-overlap tables, and export the result. Add optional reports from a previous run to see a local baseline comparison. Choose **Load safe demo** to explore correlation, scanner divergence, and baseline states without using your own data.
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.3.0 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.0 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.3.0/vulnfuse-core-0.3.0.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.3.0/vulnfuse-0.3.0.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.0/vulnfuse-core-0.4.0.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.0/vulnfuse-0.4.0.tgz
 vulnfuse --version
 ```
 
@@ -111,7 +112,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.3.0
+  uses: CAOShurong/vulnfuse@v0.4.0
   with:
     reports: |
       reports/trivy.json
@@ -136,7 +137,7 @@ baseline-reports: previous-reports/*.json
 fail-on-new: high
 ```
 
-When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action writes a job summary and exposes `findings`, `clusters`, `duplicates-collapsed`, `new`, `updated`, `absent`, `unchanged`, and `report` outputs.
+When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action writes a job summary and exposes `findings`, `clusters`, `duplicates-collapsed`, `single-tool`, `multi-tool`, `new`, `updated`, `absent`, `unchanged`, and `report` outputs.
 
 ## Supported input
 
@@ -190,7 +191,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.3.0` is a public alpha with cross-run baseline comparison and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.0` is a public alpha with explainable cross-scanner correlation, scanner coverage/overlap analytics, cross-run baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

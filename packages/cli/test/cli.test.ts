@@ -39,9 +39,21 @@ describe("CLI", () => {
       output,
     ]);
     const result = JSON.parse(await readFile(output, "utf8")) as {
-      summary: { inputFindings: number; clusters: number; duplicatesCollapsed: number };
+      summary: {
+        inputFindings: number;
+        clusters: number;
+        duplicatesCollapsed: number;
+        coverage: { singleToolClusters: number; multiToolClusters: number };
+      };
     };
     expect(result.summary).toMatchObject({ inputFindings: 4, clusters: 3, duplicatesCollapsed: 1 });
+    expect(result.summary.coverage).toEqual({
+      singleToolClusters: 2,
+      multiToolClusters: 1,
+      tools: expect.any(Array),
+      pairs: expect.any(Array),
+      pairwiseOmitted: false,
+    });
   });
 
   it("writes the report before applying the fail-on exit code", async () => {
@@ -108,6 +120,8 @@ describe("CLI", () => {
     const html = await readFile(output, "utf8");
     expect(html).toContain("<!doctype html>");
     expect(html).toContain('id="asset-filter"');
+    expect(html).toContain('id="coverage-filter"');
+    expect(html).toContain("Scanner divergence");
     expect(html).toContain("This self-contained file makes no network requests.");
   });
 });
