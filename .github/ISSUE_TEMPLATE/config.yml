@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/CAOShurong/vulnfuse/security/advisories/new
+    about: Report code execution, data disclosure, evidence suppression, or filesystem impact privately.
+  - name: Matching and format documentation
+    url: https://github.com/CAOShurong/vulnfuse/tree/main/docs
+    about: Check documented score policy, boundaries, and supported fields first.

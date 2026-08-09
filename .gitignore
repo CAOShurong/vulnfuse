@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+work/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# The bundled JavaScript action is intentionally committed.
+!packages/action/dist/
+!packages/action/dist/index.cjs
+packages/core/LICENSE
+packages/cli/LICENSE

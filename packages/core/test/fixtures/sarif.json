@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "CodeQL",
+          "semanticVersion": "2.20.0",
+          "rules": [
+            {
+              "id": "js/sql-injection",
+              "shortDescription": { "text": "Database query built from user-controlled sources" },
+              "fullDescription": {
+                "text": "Building SQL with untrusted input can allow injection."
+              },
+              "helpUri": "https://codeql.github.com/codeql-query-help/javascript/js-sql-injection/",
+              "properties": {
+                "tags": ["security", "external/cwe/cwe-089"],
+                "security-severity": "8.8"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "js/sql-injection",
+          "level": "error",
+          "message": { "text": "User-controlled data reaches a SQL query" },
+          "partialFingerprints": { "primaryLocationLineHash": "fixture-hash" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/server.ts" },
+                "region": { "startLine": 42, "startColumn": 7 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "matches": [
+    {
+      "vulnerability": {
+        "id": "CVE-2021-44228",
+        "aliases": ["GHSA-jfh8-c2jp-5v3q"],
+        "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2021-44228",
+        "namespace": "nvd:cpe",
+        "severity": "Critical",
+        "description": "Log4Shell remote code execution in Apache Log4j2.",
+        "urls": ["https://logging.apache.org/log4j/2.x/security.html"],
+        "fix": { "versions": ["2.17.1"], "state": "fixed" }
+      },
+      "artifact": {
+        "id": "sha256:log4j-fixture",
+        "name": "org.apache.logging.log4j:log4j-core",
+        "version": "2.14.1",
+        "type": "java-archive",
+        "language": "java",
+        "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1",
+        "locations": [{ "path": "app.jar" }]
+      },
+      "matchDetails": [{ "type": "exact-direct-match" }]
+    },
+    {
+      "vulnerability": {
+        "id": "CVE-2023-45853",
+        "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2023-45853",
+        "namespace": "nvd:cpe",
+        "severity": "Medium",
+        "description": "Integer overflow in MiniZip.",
+        "fix": { "versions": [], "state": "not-fixed" }
+      },
+      "artifact": {
+        "id": "sha256:zlib-fixture",
+        "name": "zlib",
+        "version": "1.2.13",
+        "type": "apk",
+        "purl": "pkg:apk/alpine/zlib@1.2.13",
+        "locations": [{ "path": "/lib/apk/db/installed" }]
+      }
+    }
+  ],
+  "source": {
+    "type": "image",
+    "target": "registry.example.com/acme/payments:1.0.0"
+  },
+  "descriptor": { "name": "grype", "version": "0.99.0" }
+}

@@ -1,0 +1,25 @@
+{
+  "ok": false,
+  "projectName": "acme/payments-source",
+  "displayTargetFile": "pom.xml",
+  "packageManager": "maven",
+  "vulnerabilities": [
+    {
+      "id": "SNYK-JAVA-LOG4J-2314720",
+      "title": "Remote Code Execution in Apache Log4j",
+      "description": "CVE-2021-44228 allows remote code execution through JNDI lookups.",
+      "severity": "critical",
+      "packageName": "org.apache.logging.log4j:log4j-core",
+      "version": "2.14.1",
+      "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1",
+      "from": ["payments@1.0.0", "org.apache.logging.log4j:log4j-core@2.14.1"],
+      "fixedIn": ["2.17.1"],
+      "identifiers": {
+        "CVE": ["CVE-2021-44228"],
+        "CWE": ["CWE-502"],
+        "GHSA": ["GHSA-jfh8-c2jp-5v3q"]
+      },
+      "url": "https://security.snyk.io/vuln/SNYK-JAVA-LOG4J-2314720"
+    }
+  ]
+}

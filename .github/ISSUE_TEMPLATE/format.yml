@@ -1,0 +1,60 @@
+name: Scanner format compatibility
+description: Request support for a legitimate report variant using a sanitized fixture.
+title: "format: "
+labels: [format, triage]
+body:
+  - type: input
+    id: scanner
+    attributes:
+      label: Scanner and version
+      placeholder: Example Scanner 4.2.0
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Report command or export family
+      placeholder: scanner image --format json
+    validations:
+      required: true
+  - type: dropdown
+    id: family
+    attributes:
+      label: Closest supported family
+      options:
+        [
+          SARIF,
+          Trivy JSON,
+          Grype JSON,
+          Snyk JSON,
+          CycloneDX JSON,
+          OSV-Scanner JSON,
+          CSV,
+          New format,
+        ]
+    validations:
+      required: true
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Minimal sanitized structure
+      description: Paste only the smallest synthetic JSON/CSV structure that reproduces the mapping gap.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: mapping
+    attributes:
+      label: Expected canonical mapping
+      placeholder: One high-severity SCA finding, CVE-..., package PURL..., asset...
+    validations:
+      required: true
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: Publication safety
+      options:
+        - label: This fixture is synthetic or I have the right to publish it.
+          required: true
+        - label: It contains no credentials, customer data, proprietary inventory, source fragments, or real secret values.
+          required: true

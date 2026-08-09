@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">VulnFuse shield</title>
+  <desc id="desc">A green shield containing two evidence lines that merge into one check mark.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#102c24"/>
+      <stop offset="1" stop-color="#07110f"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#9affcf"/>
+      <stop offset="1" stop-color="#37e39b"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="34" fill="url(#bg)"/>
+  <path d="M80 22 128 42v35c0 31-19 52-48 63-29-11-48-32-48-63V42l48-20Z" fill="#37e39b" fill-opacity=".08" stroke="url(#mark)" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M52 80h17l11 11 28-31" fill="none" stroke="url(#mark)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="52" cy="80" r="6" fill="#9affcf"/>
+  <circle cx="108" cy="60" r="6" fill="#37e39b"/>
+</svg>

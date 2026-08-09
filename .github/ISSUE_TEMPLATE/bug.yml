@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible CLI, browser, Action, parser, or exporter failure.
+title: "bug: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach proprietary scanner reports, source code, tokens, or live secrets. Use synthetic values that preserve the failing structure.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options: [Browser workbench, CLI, GitHub Action, Core library, Exported output]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: VulnFuse version or commit
+      placeholder: v0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include commands, a synthetic report fragment, and the smallest steps needed.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the exact non-sensitive error or output difference.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data safety
+      options:
+        - label: I removed organization names, credentials, proprietary paths, source fragments, and real secret matches.
+          required: true

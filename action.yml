@@ -1,0 +1,46 @@
+name: VulnFuse
+description: Correlate duplicate vulnerability findings across scanners while preserving every source record.
+author: CAOShurong
+branding:
+  icon: shield
+  color: purple
+inputs:
+  reports:
+    description: Newline-separated file paths or glob patterns for scanner reports.
+    required: true
+  output:
+    description: Destination for the correlated report.
+    required: false
+    default: vulnfuse-results.sarif
+  format:
+    description: "Output format: json, sarif, csv, or markdown."
+    required: false
+    default: sarif
+  threshold:
+    description: Minimum explainable match score from 0 to 100.
+    required: false
+    default: "70"
+  scope:
+    description: Correlate the same asset instance or the root cause across assets.
+    required: false
+    default: instance
+  fail-on:
+    description: "Fail on none, info, low, medium, high, or critical clusters."
+    required: false
+    default: none
+  max-bytes:
+    description: Maximum bytes accepted for each input report.
+    required: false
+    default: "104857600"
+outputs:
+  findings:
+    description: Number of original source findings.
+  clusters:
+    description: Number of correlated vulnerability clusters.
+  duplicates-collapsed:
+    description: Number of duplicate source records collapsed.
+  report:
+    description: Path to the generated report.
+runs:
+  using: node24
+  main: packages/action/dist/index.cjs

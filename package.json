@@ -1,0 +1,37 @@
+{
+  "name": "vulnfuse-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first, explainable cross-scanner vulnerability correlation",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "npm run build -w @vulnfuse/core && npm run build -w vulnfuse && npm run build -w @vulnfuse/web && npm run build -w @vulnfuse/action",
+    "dev": "npm run dev -w @vulnfuse/web",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:repo": "node scripts/check-repository.mjs",
+    "test": "npm run test --workspaces --if-present",
+    "test:coverage": "npm run test:coverage --workspaces --if-present",
+    "typecheck": "npm run build -w @vulnfuse/core && npm run typecheck --workspaces --if-present",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run check:repo",
+    "demo:cli": "node packages/cli/dist/index.js merge packages/core/test/fixtures/trivy.json packages/core/test/fixtures/grype.json --format markdown"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "eslint": "10.8.1",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.66.0",
+    "vitest": "4.1.10"
+  }
+}

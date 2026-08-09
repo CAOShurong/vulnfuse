@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Node ${{ matrix.node }} verification
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - name: Audit production dependency tree
+        run: npm audit --omit=dev --audit-level=high
+      - name: Ensure the committed Action bundle is current
+        if: matrix.node == '24'
+        run: git diff --exit-code -- packages/action/dist
+
+  windows-smoke:
+    name: Windows CLI smoke test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Correlate fixture reports
+        shell: pwsh
+        run: |
+          node packages/cli/dist/index.js merge packages/core/test/fixtures/trivy.json packages/core/test/fixtures/grype.json --format json --output "${{ runner.temp }}/vulnfuse.json"
+          $result = Get-Content -Raw "${{ runner.temp }}/vulnfuse.json" | ConvertFrom-Json
+          if ($result.summary.inputFindings -ne 4 -or $result.summary.clusters -ne 3 -or $result.summary.duplicatesCollapsed -ne 1) {
+            throw "Unexpected fixture correlation summary"
+          }
+
+  action-smoke:
+    name: Bundled GitHub Action smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: fuse
+        name: Correlate fixture reports with the repository Action
+        uses: ./
+        with:
+          reports: |
+            packages/core/test/fixtures/trivy.json
+            packages/core/test/fixtures/grype.json
+          format: json
+          output: ${{ runner.temp }}/vulnfuse-action.json
+      - name: Validate report and Action outputs
+        env:
+          FINDINGS: ${{ steps.fuse.outputs.findings }}
+          CLUSTERS: ${{ steps.fuse.outputs.clusters }}
+          COLLAPSED: ${{ steps.fuse.outputs.duplicates-collapsed }}
+          REPORT: ${{ steps.fuse.outputs.report }}
+        run: |
+          test "$FINDINGS" = "4"
+          test "$CLUSTERS" = "3"
+          test "$COLLAPSED" = "1"
+          test -s "$REPORT"
+
+  package-smoke:
+    name: Clean package install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack workspaces
+        run: |
+          mkdir -p package-artifacts
+          npm pack -w @vulnfuse/core --pack-destination package-artifacts
+          npm pack -w vulnfuse --pack-destination package-artifacts
+      - name: Install both tarballs in a clean project
+        run: |
+          mkdir clean-install
+          cd clean-install
+          npm init -y
+          npm install ../package-artifacts/vulnfuse-core-0.1.0.tgz ../package-artifacts/vulnfuse-0.1.0.tgz
+          npx vulnfuse --version
+          npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
+          grep -q "1 duplicate records were collapsed" report.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: npm-tarballs
+          path: package-artifacts/*.tgz

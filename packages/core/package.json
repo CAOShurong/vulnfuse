@@ -1,0 +1,36 @@
+{
+  "name": "@vulnfuse/core",
+  "version": "0.1.0",
+  "description": "Canonical vulnerability model, report parsers, and explainable correlation engine",
+  "type": "module",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepack": "node ../../scripts/sync-package-license.mjs",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "packageurl-js": "2.0.1",
+    "papaparse": "5.5.4",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/papaparse": "5.5.2"
+  }
+}

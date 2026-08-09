@@ -1,0 +1,2 @@
+vulnerability_id,title,severity,component,version,purl,asset,path,fixed_version,tool
+CVE-2021-44228,Log4Shell remote code execution,critical,org.apache.logging.log4j:log4j-core,2.14.1,pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1,acme/payments-source,pom.xml,2.17.1,Legacy Scanner

@@ -1,0 +1,38 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "metadata": {
+    "component": { "type": "application", "name": "payments-api", "version": "1.0.0" },
+    "tools": { "components": [{ "type": "application", "name": "Syft", "version": "1.0.0" }] }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:apk/alpine/openssl@1.1.1k",
+      "type": "library",
+      "name": "openssl",
+      "version": "1.1.1k",
+      "purl": "pkg:apk/alpine/openssl@1.1.1k"
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "id": "CVE-2022-0778",
+      "source": { "name": "NVD", "url": "https://nvd.nist.gov/vuln/detail/CVE-2022-0778" },
+      "ratings": [
+        { "source": { "name": "NVD" }, "score": 7.5, "severity": "high", "method": "CVSSv3" }
+      ],
+      "description": "A malformed certificate can cause an infinite loop.",
+      "recommendation": "Upgrade OpenSSL.",
+      "affects": [
+        {
+          "ref": "pkg:apk/alpine/openssl@1.1.1k",
+          "versions": [
+            { "version": "1.1.1k", "status": "affected" },
+            { "version": "1.1.1n", "status": "unaffected" }
+          ]
+        }
+      ]
+    }
+  ]
+}
