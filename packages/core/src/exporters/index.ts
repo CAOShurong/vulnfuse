@@ -1,10 +1,9 @@
-import type { CorrelationResult } from "../model.js";
+import type { CorrelationResult, OutputFormat } from "../model.js";
+import { exportBaselineDiff } from "./baseline.js";
 import { exportCsv } from "./csv.js";
 import { exportJson } from "./json.js";
 import { exportMarkdown } from "./markdown.js";
 import { exportSarif } from "./sarif.js";
-
-export type OutputFormat = "json" | "sarif" | "csv" | "markdown";
 
 export function exportCorrelation(result: CorrelationResult, format: OutputFormat): string {
   switch (format) {
@@ -19,4 +18,4 @@ export function exportCorrelation(result: CorrelationResult, format: OutputForma
   }
 }
 
-export { exportCsv, exportJson, exportMarkdown, exportSarif };
+export { exportBaselineDiff, exportCsv, exportJson, exportMarkdown, exportSarif };

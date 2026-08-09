@@ -8,6 +8,9 @@ inputs:
   reports:
     description: Newline-separated file paths or glob patterns for scanner reports.
     required: true
+  baseline-reports:
+    description: Optional newline-separated paths or globs for reports from a previous run.
+    required: false
   output:
     description: Destination for the correlated report.
     required: false
@@ -28,6 +31,10 @@ inputs:
     description: "Fail on none, info, low, medium, high, or critical clusters."
     required: false
     default: none
+  fail-on-new:
+    description: "With baseline-reports, fail only when a new cluster meets this severity."
+    required: false
+    default: none
   max-bytes:
     description: Maximum bytes accepted for each input report.
     required: false
@@ -39,6 +46,14 @@ outputs:
     description: Number of correlated vulnerability clusters.
   duplicates-collapsed:
     description: Number of duplicate source records collapsed.
+  new:
+    description: Number of clusters not present in the baseline.
+  updated:
+    description: Number of matched clusters whose significant evidence changed.
+  absent:
+    description: Number of baseline clusters absent from the current reports.
+  unchanged:
+    description: Number of clusters unchanged from the baseline.
   report:
     description: Path to the generated report.
 runs:

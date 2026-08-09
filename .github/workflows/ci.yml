@@ -63,18 +63,28 @@ jobs:
           reports: |
             packages/core/test/fixtures/trivy.json
             packages/core/test/fixtures/grype.json
+          baseline-reports: packages/core/test/fixtures/trivy.json
           format: json
           output: ${{ runner.temp }}/vulnfuse-action.json
+          fail-on-new: high
       - name: Validate report and Action outputs
         env:
           FINDINGS: ${{ steps.fuse.outputs.findings }}
           CLUSTERS: ${{ steps.fuse.outputs.clusters }}
           COLLAPSED: ${{ steps.fuse.outputs.duplicates-collapsed }}
+          NEW: ${{ steps.fuse.outputs.new }}
+          UPDATED: ${{ steps.fuse.outputs.updated }}
+          ABSENT: ${{ steps.fuse.outputs.absent }}
+          UNCHANGED: ${{ steps.fuse.outputs.unchanged }}
           REPORT: ${{ steps.fuse.outputs.report }}
         run: |
           test "$FINDINGS" = "4"
           test "$CLUSTERS" = "3"
           test "$COLLAPSED" = "1"
+          test "$NEW" = "1"
+          test "$UPDATED" = "1"
+          test "$ABSENT" = "0"
+          test "$UNCHANGED" = "1"
           test -s "$REPORT"
 
   package-smoke:
@@ -98,7 +108,7 @@ jobs:
           mkdir clean-install
           cd clean-install
           npm init -y
-          npm install ../package-artifacts/vulnfuse-core-0.1.1.tgz ../package-artifacts/vulnfuse-0.1.1.tgz
+          npm install ../package-artifacts/vulnfuse-core-0.2.0.tgz ../package-artifacts/vulnfuse-0.2.0.tgz
           npx vulnfuse --version
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md

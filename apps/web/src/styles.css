@@ -388,6 +388,10 @@ main {
     Consolas,
     monospace;
 }
+.file-mark.baseline {
+  color: #9fc2ff;
+  background: rgba(113, 161, 255, 0.1);
+}
 .file-chip > span:nth-child(2) {
   min-width: 0;
 }
@@ -416,6 +420,55 @@ main {
 }
 .file-chip button:hover {
   color: #ff9cad;
+}
+.baseline-loader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: rgba(11, 24, 21, 0.45);
+}
+.baseline-loader.active {
+  border-style: solid;
+  border-color: rgba(113, 161, 255, 0.3);
+  background: rgba(113, 161, 255, 0.035);
+}
+.baseline-loader strong,
+.baseline-loader small {
+  display: block;
+}
+.baseline-loader strong {
+  margin-bottom: 5px;
+  font-size: 11px;
+}
+.baseline-loader small {
+  max-width: 700px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.baseline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.baseline-actions button:not(.text-button) {
+  padding: 9px 12px;
+  border: 1px solid rgba(113, 161, 255, 0.35);
+  border-radius: 6px;
+  color: #b7ceff;
+  background: rgba(113, 161, 255, 0.08);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 650;
+}
+.baseline-files {
+  margin-top: 8px;
 }
 
 .results-section {
@@ -554,6 +607,50 @@ main {
 .summary-cards small {
   color: #668077;
   font-size: 9px;
+}
+.baseline-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: -4px 0 16px;
+}
+.baseline-summary article {
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(11, 24, 21, 0.72);
+}
+.baseline-summary span,
+.baseline-summary strong,
+.baseline-summary small {
+  display: block;
+}
+.baseline-summary span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.baseline-summary strong {
+  margin: 7px 0 4px;
+  font-size: 21px;
+}
+.baseline-summary small {
+  color: #627a71;
+  font-size: 8px;
+}
+.baseline-summary .new {
+  border-color: rgba(255, 147, 107, 0.28);
+}
+.baseline-summary .new strong {
+  color: var(--high);
+}
+.baseline-summary .updated strong {
+  color: var(--medium);
+}
+.baseline-summary .absent strong {
+  color: var(--info);
 }
 .severity-card {
   display: flex;
@@ -724,6 +821,25 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.baseline-state {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: #8ca69c;
+  background: #14261f;
+  font-size: 7px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.baseline-state.new {
+  color: var(--high);
+  background: rgba(255, 147, 107, 0.09);
+}
+.baseline-state.updated {
+  color: var(--medium);
+  background: rgba(255, 200, 107, 0.08);
+}
 .cluster-copy strong {
   font-size: 11px;
   line-height: 1.3;
@@ -799,6 +915,28 @@ main {
 .detail-head code {
   color: #536c62;
   font-size: 8px;
+}
+.baseline-detail {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #81978e;
+  background: rgba(7, 19, 15, 0.75);
+  font-size: 9px;
+}
+.baseline-detail strong {
+  color: var(--mint);
+  text-transform: uppercase;
+}
+.baseline-detail.new strong {
+  color: var(--high);
+}
+.baseline-detail.updated strong {
+  color: var(--medium);
 }
 .severity-pill {
   padding: 5px 8px;
@@ -1124,6 +1262,9 @@ footer span:last-child {
   .summary-cards {
     grid-template-columns: 1fr 1fr;
   }
+  .baseline-summary {
+    grid-template-columns: 1fr 1fr;
+  }
   .result-grid {
     grid-template-columns: 1fr;
   }
@@ -1183,8 +1324,13 @@ footer span:last-child {
     flex-direction: column;
   }
   .control-strip,
-  .summary-cards {
+  .summary-cards,
+  .baseline-summary {
     grid-template-columns: 1fr;
+  }
+  .baseline-loader {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .browser-tools {
     grid-template-columns: 1fr;

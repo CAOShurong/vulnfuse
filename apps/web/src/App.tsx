@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  compareCorrelations,
   correlateReports,
+  exportBaselineDiff,
   exportCorrelation,
   parseReport,
   severityOrder,
+  type BaselineDiffItem,
   type FindingCluster,
   type MatchScope,
   type OutputFormat,
@@ -12,7 +15,7 @@ import {
   type Severity,
 } from "@vulnfuse/core";
 
-import { demoReports } from "./demo.js";
+import { demoBaselineReports, demoReports } from "./demo.js";
 
 const maxFileBytes = 100 * 1024 * 1024;
 const accepted = ".json,.sarif,.csv,application/json,text/csv";
@@ -20,6 +23,7 @@ const severityFilters = ["all", "critical", "high", "medium", "low", "info", "un
 
 export function App() {
   const [inputs, setInputs] = useState<ReportInput[]>([]);
+  const [baselineInputs, setBaselineInputs] = useState<ReportInput[]>([]);
   const [threshold, setThreshold] = useState(70);
   const [scope, setScope] = useState<MatchScope>("instance");
   const [selectedId, setSelectedId] = useState<string>();
@@ -28,20 +32,39 @@ export function App() {
   const [dropActive, setDropActive] = useState(false);
   const [fileError, setFileError] = useState<string>();
   const picker = useRef<HTMLInputElement>(null);
+  const baselinePicker = useRef<HTMLInputElement>(null);
 
   const analysis = useMemo(() => {
     try {
       const reports = inputs.map((input) => parseReport(input));
       const result = correlateReports(reports, { threshold, scope });
-      return { reports, result, error: undefined };
+      const baselineReports = baselineInputs.map((input) => parseReport(input));
+      const baselineResult =
+        baselineReports.length > 0
+          ? correlateReports(baselineReports, { threshold, scope })
+          : undefined;
+      const diff = baselineResult ? compareCorrelations(baselineResult, result) : undefined;
+      return { reports, baselineReports, result, diff, error: undefined };
     } catch (error) {
       return {
         reports: [],
+        baselineReports: [],
         result: undefined,
+        diff: undefined,
         error: error instanceof Error ? error.message : String(error),
       };
     }
-  }, [inputs, scope, threshold]);
+  }, [baselineInputs, inputs, scope, threshold]);
+
+  const baselineItemsByClusterId = useMemo(
+    () =>
+      new Map(
+        (analysis.diff?.items ?? [])
+          .filter((item) => item.state !== "absent")
+          .map((item) => [item.cluster.id, item]),
+      ),
+    [analysis.diff],
+  );
 
   const visibleClusters = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -74,12 +97,13 @@ export function App() {
   }, [analysis.result, selectedId]);
 
   const selected = analysis.result?.clusters.find((cluster) => cluster.id === selectedId);
+  const selectedDiff = selectedId ? baselineItemsByClusterId.get(selectedId) : undefined;
 
   async function addFiles(files: FileList | File[]) {
     setFileError(undefined);
     const candidates = [...files];
-    if (inputs.length + candidates.length > 1_000) {
-      setFileError("A maximum of 1,000 reports can be processed at once.");
+    if (inputs.length + baselineInputs.length + candidates.length > 1_000) {
+      setFileError("A maximum of 1,000 current and baseline reports can be processed at once.");
       return;
     }
     const oversized = candidates.find((file) => file.size > maxFileBytes);
@@ -97,6 +121,28 @@ export function App() {
     }
   }
 
+  async function addBaselineFiles(files: FileList | File[]) {
+    setFileError(undefined);
+    const candidates = [...files];
+    if (inputs.length + baselineInputs.length + candidates.length > 1_000) {
+      setFileError("A maximum of 1,000 current and baseline reports can be processed at once.");
+      return;
+    }
+    const oversized = candidates.find((file) => file.size > maxFileBytes);
+    if (oversized) {
+      setFileError(`${oversized.name} exceeds the 100 MiB per-file safety limit.`);
+      return;
+    }
+    try {
+      const next = await Promise.all(
+        candidates.map(async (file) => ({ name: file.name, content: await file.text() })),
+      );
+      setBaselineInputs((current) => [...current, ...next]);
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   function download(format: OutputFormat) {
     if (!analysis.result) return;
     const extensions: Record<OutputFormat, string> = {
@@ -105,13 +151,20 @@ export function App() {
       csv: "csv",
       markdown: "md",
     };
-    const blob = new Blob([exportCorrelation(analysis.result, format)], {
-      type: "text/plain;charset=utf-8",
-    });
+    const blob = new Blob(
+      [
+        analysis.diff
+          ? exportBaselineDiff(analysis.diff, format)
+          : exportCorrelation(analysis.result, format),
+      ],
+      {
+        type: "text/plain;charset=utf-8",
+      },
+    );
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `vulnfuse-report.${extensions[format]}`;
+    anchor.download = `vulnfuse-${analysis.diff ? "baseline-diff" : "report"}.${extensions[format]}`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -122,7 +175,7 @@ export function App() {
         <a className="brand" href="#top" aria-label="VulnFuse home">
           <Logo />
           <span>VulnFuse</span>
-          <span className="version">alpha · 0.1</span>
+          <span className="version">alpha · 0.2</span>
         </a>
         <nav aria-label="Project links">
           <a href="#workbench">Workbench</a>
@@ -149,7 +202,14 @@ export function App() {
             <button className="primary" type="button" onClick={() => picker.current?.click()}>
               Add scanner reports
             </button>
-            <button className="secondary" type="button" onClick={() => setInputs(demoReports)}>
+            <button
+              className="secondary"
+              type="button"
+              onClick={() => {
+                setInputs(demoReports);
+                setBaselineInputs(demoBaselineReports);
+              }}
+            >
               Load safe demo
             </button>
           </div>
@@ -197,6 +257,17 @@ export function App() {
             multiple
             onChange={(event) => {
               if (event.target.files) void addFiles(event.target.files);
+              event.target.value = "";
+            }}
+          />
+          <input
+            ref={baselinePicker}
+            className="visually-hidden"
+            type="file"
+            accept={accepted}
+            multiple
+            onChange={(event) => {
+              if (event.target.files) void addBaselineFiles(event.target.files);
               event.target.value = "";
             }}
           />
@@ -262,6 +333,56 @@ export function App() {
               })}
             </div>
           )}
+          <div className={`baseline-loader ${baselineInputs.length > 0 ? "active" : ""}`}>
+            <div>
+              <strong>Optional baseline</strong>
+              <small>
+                Add reports from a previous run to label current clusters as new, updated, or
+                unchanged, and to count findings that disappeared.
+              </small>
+            </div>
+            <div className="baseline-actions">
+              <button type="button" onClick={() => baselinePicker.current?.click()}>
+                {baselineInputs.length > 0 ? "Add baseline reports" : "Choose baseline reports"}
+              </button>
+              {baselineInputs.length > 0 && (
+                <button className="text-button" type="button" onClick={() => setBaselineInputs([])}>
+                  Clear baseline
+                </button>
+              )}
+            </div>
+          </div>
+          {baselineInputs.length > 0 && (
+            <div className="file-list baseline-files" aria-label="Loaded baseline reports">
+              {baselineInputs.map((input, index) => {
+                const report = analysis.baselineReports[index];
+                return (
+                  <div className="file-chip" key={`baseline-${input.name}-${index}`}>
+                    <span className="file-mark baseline">B</span>
+                    <span>
+                      <strong>{input.name}</strong>
+                      <small>
+                        {report
+                          ? `${report.tool} · ${report.findings.length} baseline findings`
+                          : "Waiting to parse"}
+                      </small>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Remove baseline ${input.name}`}
+                      onClick={() =>
+                        setBaselineInputs((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {analysis.result && analysis.result.summary.inputFindings > 0 && (
@@ -316,6 +437,7 @@ export function App() {
             </div>
 
             <SummaryCards result={analysis.result} />
+            {analysis.diff && <BaselineSummary diff={analysis.diff} />}
 
             <div className="result-grid">
               <div className="cluster-browser">
@@ -360,6 +482,13 @@ export function App() {
                           {cluster.identifiers[0]?.value ??
                             cluster.primary.component?.name ??
                             "No advisory ID"}
+                          {analysis.diff && (
+                            <b
+                              className={`baseline-state ${baselineItemsByClusterId.get(cluster.id)?.state ?? "new"}`}
+                            >
+                              {baselineItemsByClusterId.get(cluster.id)?.state ?? "new"}
+                            </b>
+                          )}
                         </small>
                       </span>
                       <span className="source-stack">
@@ -379,6 +508,7 @@ export function App() {
               </div>
               <ClusterDetail
                 cluster={selected}
+                baselineItem={selectedDiff}
                 rejectedCandidates={analysis.result.rejectedCandidates}
               />
             </div>
@@ -463,6 +593,26 @@ function SummaryCards({ result }: { result: NonNullable<ReturnType<typeof correl
   );
 }
 
+function BaselineSummary({ diff }: { diff: NonNullable<ReturnType<typeof compareCorrelations>> }) {
+  const cards = [
+    ["new", diff.summary.new, "not present before"],
+    ["updated", diff.summary.updated, "matched, evidence changed"],
+    ["absent", diff.summary.absent, "missing from this run"],
+    ["unchanged", diff.summary.unchanged, "stable across runs"],
+  ] as const;
+  return (
+    <div className="baseline-summary" aria-label="Baseline comparison summary">
+      {cards.map(([state, count, note]) => (
+        <article className={state} key={state}>
+          <span>{state}</span>
+          <strong>{count}</strong>
+          <small>{note}</small>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function SeverityBar({ counts }: { counts: Record<Severity, number> }) {
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0) || 1;
   return (
@@ -484,9 +634,11 @@ function SeverityBar({ counts }: { counts: Record<Severity, number> }) {
 
 function ClusterDetail({
   cluster,
+  baselineItem,
   rejectedCandidates,
 }: {
   cluster: FindingCluster | undefined;
+  baselineItem: BaselineDiffItem | undefined;
   rejectedCandidates: ReturnType<typeof correlateReports>["rejectedCandidates"];
 }) {
   if (!cluster)
@@ -513,6 +665,18 @@ function ClusterDetail({
         <span className={`severity-pill ${cluster.severity}`}>{cluster.severity}</span>
         <code>{cluster.id}</code>
       </div>
+      {baselineItem && (
+        <div className={`baseline-detail ${baselineItem.state}`}>
+          <strong>{baselineItem.state}</strong>
+          <span>
+            {baselineItem.changedFields.length > 0
+              ? `Changed: ${baselineItem.changedFields.join(", ")}`
+              : baselineItem.state === "new"
+                ? "No matching baseline cluster."
+                : `Matched baseline at ${baselineItem.explanation?.score ?? 100}/100.`}
+          </span>
+        </div>
+      )}
       <h3>{cluster.primary.title}</h3>
       {cluster.primary.description && <p className="description">{cluster.primary.description}</p>}
       <dl className="fact-grid">

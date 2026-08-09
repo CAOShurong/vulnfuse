@@ -10,6 +10,7 @@ const execute = promisify(execFile);
 const cli = resolve(import.meta.dirname, "../dist/index.js");
 const trivy = resolve(import.meta.dirname, "../../core/test/fixtures/trivy.json");
 const grype = resolve(import.meta.dirname, "../../core/test/fixtures/grype.json");
+const csv = resolve(import.meta.dirname, "../../core/test/fixtures/generic.csv");
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -67,5 +68,28 @@ describe("CLI", () => {
     await expect(
       execute(process.execPath, [cli, "merge", trivy, "--output", trivy]),
     ).rejects.toMatchObject({ code: 1 });
+  });
+
+  it("compares a baseline and fails only for a new severe cluster", async () => {
+    const output = join(testDirectory, "baseline.md");
+    await expect(
+      execute(process.execPath, [
+        cli,
+        "diff",
+        "--baseline",
+        trivy,
+        trivy,
+        csv,
+        "--format",
+        "markdown",
+        "--output",
+        output,
+        "--fail-on-new",
+        "high",
+      ]),
+    ).rejects.toMatchObject({ code: 1 });
+    const markdown = await readFile(output, "utf8");
+    expect(markdown).toContain("**1 new**");
+    expect(markdown).toContain("[NEW]");
   });
 });

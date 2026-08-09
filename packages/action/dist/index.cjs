@@ -19985,30 +19985,30 @@ var require_papaparse = __commonJS({
       function getWorkerBlob() {
         var URL2 = global2.URL || global2.webkitURL || null;
         var code = moduleFactory.toString();
-        return Papa3.BLOB_URL || (Papa3.BLOB_URL = URL2.createObjectURL(new Blob(["var global = (function() { if (typeof self !== 'undefined') { return self; } if (typeof window !== 'undefined') { return window; } if (typeof global !== 'undefined') { return global; } return {}; })(); global.IS_PAPA_WORKER=true; ", "(", code, ")();"], { type: "text/javascript" })));
+        return Papa4.BLOB_URL || (Papa4.BLOB_URL = URL2.createObjectURL(new Blob(["var global = (function() { if (typeof self !== 'undefined') { return self; } if (typeof window !== 'undefined') { return window; } if (typeof global !== 'undefined') { return global; } return {}; })(); global.IS_PAPA_WORKER=true; ", "(", code, ")();"], { type: "text/javascript" })));
       }
       var IS_WORKER = !global2.document && !!global2.postMessage, IS_PAPA_WORKER = global2.IS_PAPA_WORKER || false;
       var workers = {}, workerIdCounter = 0;
-      var Papa3 = {};
-      Papa3.parse = CsvToJson;
-      Papa3.unparse = JsonToCsv;
-      Papa3.RECORD_SEP = String.fromCharCode(30);
-      Papa3.UNIT_SEP = String.fromCharCode(31);
-      Papa3.BYTE_ORDER_MARK = "\uFEFF";
-      Papa3.BAD_DELIMITERS = ["\r", "\n", '"', Papa3.BYTE_ORDER_MARK];
-      Papa3.WORKERS_SUPPORTED = !IS_WORKER && !!global2.Worker;
-      Papa3.NODE_STREAM_INPUT = 1;
-      Papa3.LocalChunkSize = 1024 * 1024 * 10;
-      Papa3.RemoteChunkSize = 1024 * 1024 * 5;
-      Papa3.DefaultDelimiter = ",";
-      Papa3.Parser = Parser;
-      Papa3.ParserHandle = ParserHandle;
-      Papa3.NetworkStreamer = NetworkStreamer;
-      Papa3.FileStreamer = FileStreamer;
-      Papa3.StringStreamer = StringStreamer;
-      Papa3.ReadableStreamStreamer = ReadableStreamStreamer;
+      var Papa4 = {};
+      Papa4.parse = CsvToJson;
+      Papa4.unparse = JsonToCsv;
+      Papa4.RECORD_SEP = String.fromCharCode(30);
+      Papa4.UNIT_SEP = String.fromCharCode(31);
+      Papa4.BYTE_ORDER_MARK = "\uFEFF";
+      Papa4.BAD_DELIMITERS = ["\r", "\n", '"', Papa4.BYTE_ORDER_MARK];
+      Papa4.WORKERS_SUPPORTED = !IS_WORKER && !!global2.Worker;
+      Papa4.NODE_STREAM_INPUT = 1;
+      Papa4.LocalChunkSize = 1024 * 1024 * 10;
+      Papa4.RemoteChunkSize = 1024 * 1024 * 5;
+      Papa4.DefaultDelimiter = ",";
+      Papa4.Parser = Parser;
+      Papa4.ParserHandle = ParserHandle;
+      Papa4.NetworkStreamer = NetworkStreamer;
+      Papa4.FileStreamer = FileStreamer;
+      Papa4.StringStreamer = StringStreamer;
+      Papa4.ReadableStreamStreamer = ReadableStreamStreamer;
       if (typeof PAPA_BROWSER_CONTEXT === "undefined") {
-        Papa3.DuplexStreamStreamer = DuplexStreamStreamer;
+        Papa4.DuplexStreamStreamer = DuplexStreamStreamer;
       }
       if (global2.jQuery) {
         var $ = global2.jQuery;
@@ -20058,7 +20058,7 @@ var require_papaparse = __commonJS({
                 userCompleteFunc(results, f.file, f.inputElem);
               fileComplete();
             };
-            Papa3.parse(f.file, f.instanceConfig);
+            Papa4.parse(f.file, f.instanceConfig);
           }
           function error52(name, file2, elem, reason) {
             if (isFunction(options.error))
@@ -20088,7 +20088,7 @@ var require_papaparse = __commonJS({
         }
         _config.dynamicTyping = dynamicTyping;
         _config.transform = isFunction(_config.transform) ? _config.transform : false;
-        if (_config.worker && Papa3.WORKERS_SUPPORTED) {
+        if (_config.worker && Papa4.WORKERS_SUPPORTED) {
           var w = newWorker();
           w.userStep = _config.step;
           w.userChunk = _config.chunk;
@@ -20107,7 +20107,7 @@ var require_papaparse = __commonJS({
           return;
         }
         var streamer = null;
-        if (_input === Papa3.NODE_STREAM_INPUT && typeof PAPA_BROWSER_CONTEXT === "undefined") {
+        if (_input === Papa4.NODE_STREAM_INPUT && typeof PAPA_BROWSER_CONTEXT === "undefined") {
           streamer = new DuplexStreamStreamer(_config);
           return streamer.getStream();
         } else if (typeof _input === "string") {
@@ -20158,7 +20158,7 @@ var require_papaparse = __commonJS({
         function unpackConfig() {
           if (typeof _config !== "object")
             return;
-          if (typeof _config.delimiter === "string" && !Papa3.BAD_DELIMITERS.filter(function(value2) {
+          if (typeof _config.delimiter === "string" && !Papa4.BAD_DELIMITERS.filter(function(value2) {
             return _config.delimiter.indexOf(value2) !== -1;
           }).length) {
             _delimiter = _config.delimiter;
@@ -20246,7 +20246,7 @@ var require_papaparse = __commonJS({
           }
           var strValue = str.toString();
           var escapedQuoteStr = strValue.replace(quoteCharRegex, _escapedQuote);
-          needsQuotes = needsQuotes || _quotes === true || typeof _quotes === "function" && _quotes(str, col) || Array.isArray(_quotes) && _quotes[col] || hasAny(escapedQuoteStr, Papa3.BAD_DELIMITERS) || escapedQuoteStr.indexOf(_delimiter) > -1 || strValue.indexOf(_quoteChar) > -1 || escapedQuoteStr.charAt(0) === " " || escapedQuoteStr.charAt(escapedQuoteStr.length - 1) === " ";
+          needsQuotes = needsQuotes || _quotes === true || typeof _quotes === "function" && _quotes(str, col) || Array.isArray(_quotes) && _quotes[col] || hasAny(escapedQuoteStr, Papa4.BAD_DELIMITERS) || escapedQuoteStr.indexOf(_delimiter) > -1 || strValue.indexOf(_quoteChar) > -1 || escapedQuoteStr.charAt(0) === " " || escapedQuoteStr.charAt(escapedQuoteStr.length - 1) === " ";
           return needsQuotes ? _quoteChar + escapedQuoteStr + _quoteChar : escapedQuoteStr;
         }
         function hasAny(str, substrings) {
@@ -20310,7 +20310,7 @@ var require_papaparse = __commonJS({
           if (IS_PAPA_WORKER) {
             global2.postMessage({
               results,
-              workerId: Papa3.WORKER_ID,
+              workerId: Papa4.WORKER_ID,
               finished: finishedIncludingPreview
             });
           } else if (isFunction(this._config.chunk) && !isFakeChunk) {
@@ -20340,7 +20340,7 @@ var require_papaparse = __commonJS({
             this._config.error(error52);
           else if (IS_PAPA_WORKER && this._config.error) {
             global2.postMessage({
-              workerId: Papa3.WORKER_ID,
+              workerId: Papa4.WORKER_ID,
               error: error52,
               finished: false
             });
@@ -20359,7 +20359,7 @@ var require_papaparse = __commonJS({
       function NetworkStreamer(config2) {
         config2 = config2 || {};
         if (!config2.chunkSize)
-          config2.chunkSize = Papa3.RemoteChunkSize;
+          config2.chunkSize = Papa4.RemoteChunkSize;
         ChunkStreamer.call(this, config2);
         var xhr;
         if (IS_WORKER) {
@@ -20436,7 +20436,7 @@ var require_papaparse = __commonJS({
       function FileStreamer(config2) {
         config2 = config2 || {};
         if (!config2.chunkSize)
-          config2.chunkSize = Papa3.LocalChunkSize;
+          config2.chunkSize = Papa4.LocalChunkSize;
         ChunkStreamer.call(this, config2);
         var reader, slice;
         var usingAsyncReader = typeof FileReader !== "undefined";
@@ -20682,7 +20682,7 @@ var require_papaparse = __commonJS({
               _config.delimiter = delimGuess.bestDelimiter;
             else {
               _delimiterError = true;
-              _config.delimiter = Papa3.DefaultDelimiter;
+              _config.delimiter = Papa4.DefaultDelimiter;
             }
             _results.meta.delimiter = _config.delimiter;
           } else if (isFunction(_config.delimiter)) {
@@ -20755,7 +20755,7 @@ var require_papaparse = __commonJS({
         }
         function processResults() {
           if (_results && _delimiterError) {
-            addError("Delimiter", "UndetectableDelimiter", "Unable to auto-detect delimiting character; defaulted to '" + Papa3.DefaultDelimiter + "'");
+            addError("Delimiter", "UndetectableDelimiter", "Unable to auto-detect delimiting character; defaulted to '" + Papa4.DefaultDelimiter + "'");
             _delimiterError = false;
           }
           if (_config.skipEmptyLines) {
@@ -20848,7 +20848,7 @@ var require_papaparse = __commonJS({
         }
         function guessDelimiter(input, newline, skipEmptyLines, comments, delimitersToGuess) {
           var bestDelim, bestDelta, fieldCountPrevRow, maxFieldCount;
-          delimitersToGuess = delimitersToGuess || [",", "	", "|", ";", Papa3.RECORD_SEP, Papa3.UNIT_SEP];
+          delimitersToGuess = delimitersToGuess || [",", "	", "|", ";", Papa4.RECORD_SEP, Papa4.UNIT_SEP];
           for (var i = 0; i < delimitersToGuess.length; i++) {
             var delim = delimitersToGuess[i];
             var delta = 0, avgFieldCount = 0, emptyLinesCount = 0;
@@ -20923,13 +20923,13 @@ var require_papaparse = __commonJS({
         if (config2.escapeChar !== void 0) {
           escapeChar = config2.escapeChar;
         }
-        if (typeof delim !== "string" || Papa3.BAD_DELIMITERS.indexOf(delim) > -1)
+        if (typeof delim !== "string" || Papa4.BAD_DELIMITERS.indexOf(delim) > -1)
           delim = ",";
         if (comments === delim)
           throw new Error("Comment character same as delimiter");
         else if (comments === true)
           comments = "#";
-        else if (typeof comments !== "string" || Papa3.BAD_DELIMITERS.indexOf(comments) > -1)
+        else if (typeof comments !== "string" || Papa4.BAD_DELIMITERS.indexOf(comments) > -1)
           comments = false;
         if (newline !== "\n" && newline !== "\r" && newline !== "\r\n")
           newline = "\n";
@@ -21174,7 +21174,7 @@ var require_papaparse = __commonJS({
         };
       }
       function newWorker() {
-        if (!Papa3.WORKERS_SUPPORTED)
+        if (!Papa4.WORKERS_SUPPORTED)
           return false;
         var workerUrl = getWorkerBlob();
         var w = new global2.Worker(workerUrl);
@@ -21230,19 +21230,19 @@ var require_papaparse = __commonJS({
       }
       function workerThreadReceivedMessage(e) {
         var msg = e.data;
-        if (typeof Papa3.WORKER_ID === "undefined" && msg)
-          Papa3.WORKER_ID = msg.workerId;
+        if (typeof Papa4.WORKER_ID === "undefined" && msg)
+          Papa4.WORKER_ID = msg.workerId;
         if (typeof msg.input === "string") {
           global2.postMessage({
-            workerId: Papa3.WORKER_ID,
-            results: Papa3.parse(msg.input, msg.config),
+            workerId: Papa4.WORKER_ID,
+            results: Papa4.parse(msg.input, msg.config),
             finished: true
           });
         } else if (global2.File && msg.input instanceof File || msg.input instanceof Object) {
-          var results = Papa3.parse(msg.input, msg.config);
+          var results = Papa4.parse(msg.input, msg.config);
           if (results)
             global2.postMessage({
-              workerId: Papa3.WORKER_ID,
+              workerId: Papa4.WORKER_ID,
               results,
               finished: true
             });
@@ -21264,7 +21264,7 @@ var require_papaparse = __commonJS({
       function isFunction(func) {
         return typeof func === "function";
       }
-      return Papa3;
+      return Papa4;
     });
   }
 });
@@ -24324,6 +24324,9 @@ function create(patterns, options) {
   });
 }
 
+// ../core/dist/utils.js
+var import_packageurl_js = __toESM(require_packageurl_js(), 1);
+
 // ../core/dist/model.js
 var severityOrder = ["unknown", "info", "low", "medium", "high", "critical"];
 var defaultCorrelationOptions = {
@@ -24334,7 +24337,6 @@ var defaultCorrelationOptions = {
 };
 
 // ../core/dist/utils.js
-var import_packageurl_js = __toESM(require_packageurl_js(), 1);
 function asRecord(value2) {
   if (value2 !== null && typeof value2 === "object" && !Array.isArray(value2)) {
     return value2;
@@ -24739,6 +24741,257 @@ function explainMatch(left, right, options = {}) {
   };
 }
 
+// ../core/dist/compare.js
+var maximumClusterComparisons = 1e6;
+var maximumBaselineMemberComparisons = 2e6;
+function compareCorrelations(baseline, current) {
+  if (baseline.options.scope !== current.options.scope) {
+    throw new Error(`Baseline scope '${baseline.options.scope}' does not match current scope '${current.options.scope}'. Rebuild both with the same scope before comparing them.`);
+  }
+  const candidates = matchCandidates(baseline.clusters, current.clusters, current.options);
+  const matchedBaseline = /* @__PURE__ */ new Set();
+  const matchedCurrent = /* @__PURE__ */ new Set();
+  const items = [];
+  for (const candidate of candidates) {
+    if (matchedBaseline.has(candidate.baselineIndex) || matchedCurrent.has(candidate.currentIndex)) {
+      continue;
+    }
+    const baselineCluster = baseline.clusters[candidate.baselineIndex];
+    const cluster = current.clusters[candidate.currentIndex];
+    if (!baselineCluster || !cluster)
+      continue;
+    matchedBaseline.add(candidate.baselineIndex);
+    matchedCurrent.add(candidate.currentIndex);
+    const changedFields = significantChanges(baselineCluster, cluster);
+    items.push({
+      state: changedFields.length === 0 ? "unchanged" : "updated",
+      cluster,
+      baselineCluster,
+      explanation: candidate.explanation,
+      changedFields
+    });
+  }
+  current.clusters.forEach((cluster, index) => {
+    if (!matchedCurrent.has(index))
+      items.push({ state: "new", cluster, changedFields: [] });
+  });
+  baseline.clusters.forEach((cluster, index) => {
+    if (!matchedBaseline.has(index))
+      items.push({ state: "absent", cluster, changedFields: [] });
+  });
+  items.sort(compareItems);
+  const newBySeverity = zeroSeverityCounts();
+  for (const item of items) {
+    if (item.state === "new")
+      newBySeverity[item.cluster.severity] += 1;
+  }
+  return {
+    schemaVersion: "1.0",
+    options: current.options,
+    baselineSummary: baseline.summary,
+    currentSummary: current.summary,
+    items,
+    summary: {
+      baselineClusters: baseline.clusters.length,
+      currentClusters: current.clusters.length,
+      new: items.filter((item) => item.state === "new").length,
+      updated: items.filter((item) => item.state === "updated").length,
+      unchanged: items.filter((item) => item.state === "unchanged").length,
+      absent: items.filter((item) => item.state === "absent").length,
+      newBySeverity
+    }
+  };
+}
+function matchCandidates(baseline, current, options) {
+  const pairs = candidatePairs(baseline, current, options);
+  const candidates = [];
+  let memberComparisons = 0;
+  for (const [baselineIndex, currentIndex] of pairs) {
+    const baselineCluster = baseline[baselineIndex];
+    const currentCluster = current[currentIndex];
+    if (!baselineCluster || !currentCluster)
+      continue;
+    const exactId = baselineCluster.id === currentCluster.id;
+    if (!exactId) {
+      memberComparisons += baselineCluster.members.length * currentCluster.members.length;
+      if (memberComparisons > maximumBaselineMemberComparisons) {
+        throw new Error(`Baseline matching would require more than ${maximumBaselineMemberComparisons.toLocaleString()} source-record comparisons. Split the reports by repository, image, or application and compare each asset separately.`);
+      }
+    }
+    const explanation = exactId ? exactClusterExplanation(baselineCluster.id) : bestMemberExplanation(baselineCluster, currentCluster, options);
+    if (explanation?.matched) {
+      candidates.push({ baselineIndex, currentIndex, explanation, exactId });
+    }
+  }
+  return candidates.sort((left, right) => {
+    if (left.exactId !== right.exactId)
+      return left.exactId ? -1 : 1;
+    const score = right.explanation.score - left.explanation.score;
+    if (score !== 0)
+      return score;
+    const baselineId = (baseline[left.baselineIndex]?.id ?? "").localeCompare(baseline[right.baselineIndex]?.id ?? "");
+    if (baselineId !== 0)
+      return baselineId;
+    return (current[left.currentIndex]?.id ?? "").localeCompare(current[right.currentIndex]?.id ?? "");
+  });
+}
+function candidatePairs(baseline, current, options) {
+  const weakEvidenceMaximum = 5 + options.titleWeight;
+  if (options.threshold <= weakEvidenceMaximum)
+    return allPairs(baseline.length, current.length);
+  const baselineIndex = /* @__PURE__ */ new Map();
+  baseline.forEach((cluster, index) => {
+    for (const key of clusterKeys(cluster, options)) {
+      const bucket = baselineIndex.get(key) ?? [];
+      bucket.push(index);
+      baselineIndex.set(key, bucket);
+    }
+  });
+  const encoded = /* @__PURE__ */ new Set();
+  current.forEach((cluster, currentIndex) => {
+    for (const key of clusterKeys(cluster, options)) {
+      for (const baselineIndexValue of baselineIndex.get(key) ?? []) {
+        encoded.add(`${baselineIndexValue}:${currentIndex}`);
+        if (encoded.size > maximumClusterComparisons)
+          throwComparisonLimit();
+      }
+    }
+  });
+  return [...encoded].map((value2) => value2.split(":").map(Number));
+}
+function allPairs(baselineLength, currentLength) {
+  if (baselineLength * currentLength > maximumClusterComparisons)
+    throwComparisonLimit();
+  const pairs = [];
+  for (let baselineIndex = 0; baselineIndex < baselineLength; baselineIndex += 1) {
+    for (let currentIndex = 0; currentIndex < currentLength; currentIndex += 1) {
+      pairs.push([baselineIndex, currentIndex]);
+    }
+  }
+  return pairs;
+}
+function throwComparisonLimit() {
+  throw new Error(`Baseline comparison would require more than ${maximumClusterComparisons.toLocaleString()} cluster pairs. Split the reports by repository, image, or application and compare each asset separately.`);
+}
+function clusterKeys(cluster, options) {
+  const keys = /* @__PURE__ */ new Set([`cluster:${cluster.id}`]);
+  const includeContext = options.threshold <= 40 + 5 + options.titleWeight;
+  for (const member of cluster.members) {
+    for (const identifier of member.identifiers.filter(isVulnerabilityIdentifier)) {
+      keys.add(`id:${identifierKey(identifier)}`);
+    }
+    const component = componentKey(member.component);
+    if (component)
+      keys.add(`component:${component}`);
+    for (const value2 of Object.values(member.fingerprints)) {
+      if (value2)
+        keys.add(`fingerprint:${member.source.tool.toLowerCase()}:${value2}`);
+    }
+    if (includeContext) {
+      const asset2 = assetKey(member.asset);
+      const path6 = normalizePath(member.location?.uri ?? member.component?.path);
+      if (asset2)
+        keys.add(`asset:${asset2}`);
+      if (path6)
+        keys.add(`path:${path6}`);
+      if (member.ruleId)
+        keys.add(`rule:${member.ruleId.toLowerCase()}`);
+    }
+  }
+  return keys;
+}
+function bestMemberExplanation(baseline, current, options) {
+  let best;
+  for (const baselineMember of baseline.members) {
+    for (const currentMember of current.members) {
+      const explanation = explainMatch(baselineMember, currentMember, options);
+      if (explanation.matched && (!best || explanation.score > best.score || explanation.score === best.score && confidenceRank(explanation.confidence) > confidenceRank(best.confidence))) {
+        best = explanation;
+      }
+    }
+  }
+  return best;
+}
+function exactClusterExplanation(clusterId) {
+  return {
+    score: 100,
+    confidence: "exact",
+    matched: true,
+    reasons: [
+      {
+        feature: "fingerprint",
+        score: 100,
+        message: "Stable VulnFuse cluster identity matched the baseline.",
+        evidence: [clusterId]
+      }
+    ],
+    blockers: []
+  };
+}
+function significantChanges(baseline, current) {
+  const fields = [
+    ["severity", baseline.severity, current.severity],
+    ["title", baseline.primary.title.trim(), current.primary.title.trim()],
+    ["kind", baseline.primary.kind, current.primary.kind],
+    ["identifiers", identifierSnapshot(baseline), identifierSnapshot(current)],
+    ["components", componentSnapshot(baseline), componentSnapshot(current)],
+    ["assets", assetSnapshot(baseline), assetSnapshot(current)],
+    ["locations", locationSnapshot(baseline), locationSnapshot(current)],
+    ["remediation", remediationSnapshot(baseline), remediationSnapshot(current)],
+    ["source-tools", baseline.sourceTools, current.sourceTools],
+    ["source-records", baseline.members.length, current.members.length]
+  ];
+  return fields.filter(([, before, after]) => JSON.stringify(before) !== JSON.stringify(after)).map(([name]) => name);
+}
+function identifierSnapshot(cluster) {
+  return cluster.identifiers.map(identifierKey).sort();
+}
+function componentSnapshot(cluster) {
+  return uniqueSorted(cluster.members.map((member) => JSON.stringify({
+    purl: member.component?.purl ?? "",
+    ecosystem: member.component?.ecosystem ?? "",
+    name: member.component?.name ?? "",
+    version: member.component?.version ?? "",
+    path: normalizePath(member.component?.path) ?? "",
+    type: member.component?.type ?? ""
+  })));
+}
+function assetSnapshot(cluster) {
+  return uniqueSorted(cluster.assets.map((asset2) => assetKey(asset2) ?? `${asset2.type}:${asset2.name.toLowerCase()}`));
+}
+function locationSnapshot(cluster) {
+  return uniqueSorted(cluster.members.map((member) => JSON.stringify({
+    uri: normalizePath(member.location?.uri) ?? "",
+    startLine: member.location?.startLine ?? null,
+    endLine: member.location?.endLine ?? null,
+    startColumn: member.location?.startColumn ?? null,
+    symbol: member.location?.symbol ?? ""
+  })));
+}
+function remediationSnapshot(cluster) {
+  return uniqueSorted(cluster.members.map((member) => JSON.stringify({
+    fixedVersion: member.remediation?.fixedVersion ?? "",
+    recommendation: member.remediation?.recommendation ?? ""
+  })));
+}
+function uniqueSorted(values) {
+  return [...new Set(values)].sort();
+}
+function confidenceRank(confidence) {
+  return ["none", "low", "medium", "high", "exact"].indexOf(confidence);
+}
+function compareItems(left, right) {
+  const stateOrder = ["new", "updated", "absent", "unchanged"];
+  const state = stateOrder.indexOf(left.state) - stateOrder.indexOf(right.state);
+  if (state !== 0)
+    return state;
+  const severity = severityOrder.indexOf(right.cluster.severity) - severityOrder.indexOf(left.cluster.severity);
+  return severity || left.cluster.id.localeCompare(right.cluster.id);
+}
+function zeroSeverityCounts() {
+  return { unknown: 0, info: 0, low: 0, medium: 0, high: 0, critical: 0 };
+}
+
 // ../core/dist/correlate.js
 var maximumPairComparisons = 2e6;
 var maximumRejectedCandidates = 1e3;
@@ -24774,7 +25027,7 @@ var UnionFind = class {
     }
   }
 };
-function confidenceRank(confidence) {
+function confidenceRank2(confidence) {
   return ["none", "low", "medium", "high", "exact"].indexOf(confidence);
 }
 function choosePrimary(findings) {
@@ -24793,7 +25046,7 @@ function makeCluster(members, edges) {
   const identifiers = uniqueIdentifiers(members.flatMap((member) => member.identifiers));
   const assets = uniqueBy(members.flatMap((member) => member.asset ? [member.asset] : []), (asset2) => assetKey(asset2) ?? `${asset2.type}:${asset2.name}`);
   const clusterEdges = edges.filter((edge) => members.some((member) => member.id === edge.leftId) && members.some((member) => member.id === edge.rightId));
-  const confidence = clusterEdges.reduce((highest, edge) => confidenceRank(edge.explanation.confidence) > confidenceRank(highest) ? edge.explanation.confidence : highest, members.length === 1 ? "exact" : "none");
+  const confidence = clusterEdges.reduce((highest, edge) => confidenceRank2(edge.explanation.confidence) > confidenceRank2(highest) ? edge.explanation.confidence : highest, members.length === 1 ? "exact" : "none");
   const identitySeed = [
     ...identifiers.map(identifierKey).sort(),
     ...members.map((member) => member.id).sort()
@@ -24810,7 +25063,7 @@ function makeCluster(members, edges) {
     edges: clusterEdges
   };
 }
-function zeroSeverityCounts() {
+function zeroSeverityCounts2() {
   return { unknown: 0, info: 0, low: 0, medium: 0, high: 0, critical: 0 };
 }
 function zeroKindCounts() {
@@ -24822,7 +25075,7 @@ function correlateReports(reports, options = {}) {
   const unionFind = new UnionFind(findings.length);
   const edges = [];
   const rejectedCandidates = [];
-  const pairs = candidatePairs(findings, resolved);
+  const pairs = candidatePairs2(findings, resolved);
   for (const [leftIndex, rightIndex] of pairs) {
     const left = findings[leftIndex];
     if (!left)
@@ -24851,7 +25104,7 @@ function correlateReports(reports, options = {}) {
       return severityDelta;
     return right.members.length - left.members.length || left.id.localeCompare(right.id);
   });
-  const bySeverity = zeroSeverityCounts();
+  const bySeverity = zeroSeverityCounts2();
   const byKind = zeroKindCounts();
   for (const cluster of clusters) {
     bySeverity[cluster.severity] += 1;
@@ -24880,10 +25133,10 @@ function correlateReports(reports, options = {}) {
     }
   };
 }
-function candidatePairs(findings, options) {
+function candidatePairs2(findings, options) {
   const weakEvidenceMaximum = 5 + options.titleWeight;
   if (options.threshold <= weakEvidenceMaximum)
-    return allPairs(findings.length);
+    return allPairs2(findings.length);
   const buckets = /* @__PURE__ */ new Map();
   const includeContext = options.threshold <= 40 + weakEvidenceMaximum;
   findings.forEach((finding, index) => {
@@ -24931,7 +25184,7 @@ function candidatePairs(findings, options) {
   }
   return [...encoded].map((value2) => value2.split(":").map(Number));
 }
-function allPairs(length) {
+function allPairs2(length) {
   const pairs = [];
   for (let left = 0; left < length; left += 1) {
     for (let right = left + 1; right < length; right += 1) {
@@ -24944,8 +25197,197 @@ function allPairs(length) {
   return pairs;
 }
 
-// ../core/dist/exporters/csv.js
+// ../core/dist/exporters/baseline.js
 var import_papaparse = __toESM(require_papaparse(), 1);
+function exportBaselineDiff(result, format) {
+  switch (format) {
+    case "json":
+      return `${JSON.stringify(result, null, 2)}
+`;
+    case "sarif":
+      return exportDiffSarif(result);
+    case "csv":
+      return exportDiffCsv(result);
+    case "markdown":
+      return exportDiffMarkdown(result);
+  }
+}
+function exportDiffCsv(result) {
+  const rows = result.items.map((item) => ({
+    baseline_state: item.state,
+    changed_fields: item.changedFields.join(";"),
+    cluster_id: item.cluster.id,
+    baseline_cluster_id: item.baselineCluster?.id ?? "",
+    severity: item.cluster.severity,
+    kind: item.cluster.primary.kind,
+    title: item.cluster.primary.title,
+    identifiers: item.cluster.identifiers.map((identifier) => identifier.value).join(";"),
+    component: item.cluster.primary.component?.purl ?? item.cluster.primary.component?.name ?? "",
+    assets: item.cluster.assets.map((asset2) => asset2.name).join(";"),
+    source_tools: item.cluster.sourceTools.join(";"),
+    source_records: item.cluster.members.length
+  }));
+  return `${import_papaparse.default.unparse(rows, { newline: "\n", escapeFormulae: true })}
+`;
+}
+function exportDiffMarkdown(result) {
+  const lines = [
+    "# VulnFuse baseline comparison",
+    "",
+    `> Compared ${result.summary.currentClusters} current clusters with ${result.summary.baselineClusters} baseline clusters: **${result.summary.new} new**, **${result.summary.updated} updated**, **${result.summary.absent} absent**, and ${result.summary.unchanged} unchanged.`,
+    "",
+    "| State | Clusters |",
+    "| --- | ---: |",
+    `| New | ${result.summary.new} |`,
+    `| Updated | ${result.summary.updated} |`,
+    `| Absent | ${result.summary.absent} |`,
+    `| Unchanged | ${result.summary.unchanged} |`,
+    "",
+    "## Changes",
+    ""
+  ];
+  const changes = result.items.filter((item) => item.state !== "unchanged");
+  if (changes.length === 0)
+    lines.push("No changes from the baseline.", "");
+  for (const item of changes)
+    lines.push(...diffItemMarkdown(item));
+  lines.push("---", "", `Generated by VulnFuse with threshold ${result.options.threshold} and scope \`${result.options.scope}\`.`, "");
+  return lines.join("\n");
+}
+function diffItemMarkdown(item) {
+  const identifiers = item.cluster.identifiers.map((identifier) => identifier.value).join(", ") || "none";
+  const component = item.cluster.primary.component?.purl ?? item.cluster.primary.component?.name ?? "unknown";
+  return [
+    `### [${item.state.toUpperCase()}] ${escapeMarkdown(item.cluster.primary.title)}`,
+    "",
+    `- **Severity:** ${item.cluster.severity}`,
+    `- **Cluster:** ${inlineCode(item.cluster.id)}`,
+    ...item.baselineCluster && item.baselineCluster.id !== item.cluster.id ? [`- **Baseline cluster:** ${inlineCode(item.baselineCluster.id)}`] : [],
+    `- **Identifiers:** ${escapeMarkdown(identifiers)}`,
+    `- **Component:** ${inlineCode(component)}`,
+    `- **Sources:** ${item.cluster.sourceTools.map(escapeMarkdown).join(", ")}`,
+    ...item.changedFields.length > 0 ? [`- **Changed fields:** ${item.changedFields.map(escapeMarkdown).join(", ")}`] : [],
+    ...item.explanation ? [
+      `- **Baseline match:** ${item.explanation.score}/100 (${item.explanation.reasons.map((reason) => escapeMarkdown(reason.message)).join("; ")})`
+    ] : [],
+    ""
+  ];
+}
+function exportDiffSarif(result) {
+  const clusters = uniqueClusters(result.items.map((item) => item.cluster));
+  const document = {
+    $schema: "https://json.schemastore.org/sarif-2.1.0.json",
+    version: "2.1.0",
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: "VulnFuse",
+            semanticVersion: "0.2.0",
+            informationUri: "https://github.com/CAOShurong/vulnfuse",
+            rules: clusters.map(ruleFor)
+          }
+        },
+        invocations: [
+          {
+            executionSuccessful: true,
+            properties: {
+              baselineComparison: result.summary,
+              correlationOptions: result.options
+            }
+          }
+        ],
+        results: result.items.map(diffResultFor)
+      }
+    ]
+  };
+  return `${JSON.stringify(document, null, 2)}
+`;
+}
+function ruleFor(cluster) {
+  return {
+    id: cluster.id,
+    name: cluster.identifiers[0]?.value ?? cluster.id,
+    shortDescription: { text: cluster.primary.title },
+    ...cluster.primary.description ? { fullDescription: { text: cluster.primary.description } } : {},
+    ...cluster.primary.references[0] ? { helpUri: cluster.primary.references[0] } : {},
+    properties: {
+      tags: [
+        "security",
+        cluster.primary.kind,
+        ...cluster.identifiers.map((identifier) => identifier.value)
+      ],
+      "security-severity": securityScore(cluster.severity)
+    }
+  };
+}
+function diffResultFor(item) {
+  const cluster = item.cluster;
+  const location = cluster.primary.location;
+  const stableIdentity = item.baselineCluster?.id ?? cluster.id;
+  return {
+    ruleId: cluster.id,
+    level: sarifLevel(cluster.severity),
+    baselineState: item.state,
+    message: {
+      text: `${cluster.primary.title} (${item.state}; ${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`
+    },
+    fingerprints: { vulnfuseClusterId: stableIdentity },
+    partialFingerprints: { primaryLocationLineHash: stableIdentity },
+    ...location?.uri ? { locations: [sarifLocation(location)] } : {},
+    properties: {
+      baselineState: item.state,
+      changedFields: item.changedFields,
+      sourceTools: cluster.sourceTools,
+      sourceFindingIds: cluster.members.map((member) => member.id),
+      matchConfidence: item.explanation?.confidence ?? "none",
+      identifiers: cluster.identifiers,
+      assets: cluster.assets,
+      ...item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {}
+    }
+  };
+}
+function sarifLocation(location) {
+  return {
+    physicalLocation: {
+      artifactLocation: { uri: location.uri },
+      ...location.startLine ? {
+        region: {
+          startLine: location.startLine,
+          ...location.endLine ? { endLine: location.endLine } : {},
+          ...location.startColumn ? { startColumn: location.startColumn } : {}
+        }
+      } : {}
+    }
+  };
+}
+function uniqueClusters(clusters) {
+  return [...new Map(clusters.map((cluster) => [cluster.id, cluster])).values()];
+}
+function sarifLevel(severity) {
+  if (severity === "critical" || severity === "high")
+    return "error";
+  if (severity === "medium")
+    return "warning";
+  if (severity === "low" || severity === "info")
+    return "note";
+  return "none";
+}
+function securityScore(severity) {
+  return { critical: "9.5", high: "8.0", medium: "5.5", low: "2.0", info: "0.1", unknown: "0.0" }[severity];
+}
+function escapeMarkdown(value2) {
+  return value2.replace(/([\\`*_{}[\]()<>#+.!|])/g, "\\$1");
+}
+function inlineCode(value2) {
+  const longestRun = Math.max(0, ...(value2.match(/`+/g) ?? []).map((run2) => run2.length));
+  const delimiter = "`".repeat(longestRun + 1);
+  const needsPadding = /^[ `]|[ `]$/.test(value2);
+  return `${delimiter}${needsPadding ? " " : ""}${value2}${needsPadding ? " " : ""}${delimiter}`;
+}
+
+// ../core/dist/exporters/csv.js
+var import_papaparse2 = __toESM(require_papaparse(), 1);
 function exportCsv(result) {
   const rows = result.clusters.map((cluster) => ({
     cluster_id: cluster.id,
@@ -24964,7 +25406,7 @@ function exportCsv(result) {
     fixed_version: cluster.primary.remediation?.fixedVersion ?? "",
     references: cluster.primary.references.join(";")
   }));
-  return `${import_papaparse.default.unparse(rows, { newline: "\n", escapeFormulae: true })}
+  return `${import_papaparse2.default.unparse(rows, { newline: "\n", escapeFormulae: true })}
 `;
 }
 
@@ -24999,24 +25441,24 @@ function clusterMarkdown(cluster) {
   const assets = cluster.assets.map((item) => item.name).join(", ") || "unknown";
   const reasons = cluster.edges.flatMap((edge) => edge.explanation.reasons.map((reason) => `${reason.message} (+${reason.score})`)).filter((value2, index, all) => all.indexOf(value2) === index);
   return [
-    `### ${escapeMarkdown(cluster.primary.title)}`,
+    `### ${escapeMarkdown2(cluster.primary.title)}`,
     "",
     `- **Cluster:** \`${cluster.id}\``,
     `- **Severity:** ${cluster.severity}`,
-    `- **Identifiers:** ${escapeMarkdown(identifiers)}`,
-    `- **Component:** ${inlineCode(component)}`,
-    `- **Assets:** ${escapeMarkdown(assets)}`,
+    `- **Identifiers:** ${escapeMarkdown2(identifiers)}`,
+    `- **Component:** ${inlineCode2(component)}`,
+    `- **Assets:** ${escapeMarkdown2(assets)}`,
     `- **Sources:** ${cluster.sourceTools.join(", ")} (${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"})`,
     `- **Match confidence:** ${cluster.confidence}`,
-    ...reasons.length > 0 ? [`- **Why merged:** ${reasons.map(escapeMarkdown).join("; ")}`] : [],
-    ...cluster.primary.remediation?.fixedVersion ? [`- **Fixed version:** ${escapeMarkdown(cluster.primary.remediation.fixedVersion)}`] : [],
+    ...reasons.length > 0 ? [`- **Why merged:** ${reasons.map(escapeMarkdown2).join("; ")}`] : [],
+    ...cluster.primary.remediation?.fixedVersion ? [`- **Fixed version:** ${escapeMarkdown2(cluster.primary.remediation.fixedVersion)}`] : [],
     ""
   ];
 }
-function escapeMarkdown(value2) {
+function escapeMarkdown2(value2) {
   return value2.replace(/([\\`*_{}[\]()<>#+.!|])/g, "\\$1");
 }
-function inlineCode(value2) {
+function inlineCode2(value2) {
   const longestRun = Math.max(0, ...(value2.match(/`+/g) ?? []).map((run2) => run2.length));
   const delimiter = "`".repeat(longestRun + 1);
   const needsPadding = /^[ `]|[ `]$/.test(value2);
@@ -25033,9 +25475,9 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.1.1",
+            semanticVersion: "0.2.0",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
-            rules: result.clusters.map((cluster) => ruleFor(cluster))
+            rules: result.clusters.map((cluster) => ruleFor2(cluster))
           }
         },
         invocations: [
@@ -25051,7 +25493,7 @@ function exportSarif(result) {
   return `${JSON.stringify(document, null, 2)}
 `;
 }
-function ruleFor(cluster) {
+function ruleFor2(cluster) {
   return {
     id: cluster.id,
     name: cluster.identifiers[0]?.value ?? cluster.id,
@@ -25064,7 +25506,7 @@ function ruleFor(cluster) {
         cluster.primary.kind,
         ...cluster.identifiers.map((identifier) => identifier.value)
       ],
-      "security-severity": securityScore(cluster.severity)
+      "security-severity": securityScore2(cluster.severity)
     }
   };
 }
@@ -25072,11 +25514,12 @@ function resultFor(cluster) {
   const location = cluster.primary.location;
   return {
     ruleId: cluster.id,
-    level: sarifLevel(cluster.severity),
+    level: sarifLevel2(cluster.severity),
     message: {
       text: `${cluster.primary.title} (${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`
     },
     fingerprints: { vulnfuseClusterId: cluster.id },
+    partialFingerprints: { primaryLocationLineHash: cluster.id },
     ...location?.uri ? {
       locations: [
         {
@@ -25102,7 +25545,7 @@ function resultFor(cluster) {
     }
   };
 }
-function sarifLevel(severity) {
+function sarifLevel2(severity) {
   if (severity === "critical" || severity === "high")
     return "error";
   if (severity === "medium")
@@ -25111,7 +25554,7 @@ function sarifLevel(severity) {
     return "note";
   return "none";
 }
-function securityScore(severity) {
+function securityScore2(severity) {
   return { critical: "9.5", high: "8.0", medium: "5.5", low: "2.0", info: "0.1", unknown: "0.0" }[severity];
 }
 
@@ -39713,7 +40156,7 @@ var vulnfuseDocumentSchema = external_exports.object({
 });
 
 // ../core/dist/formats/csv.js
-var import_papaparse2 = __toESM(require_papaparse(), 1);
+var import_papaparse3 = __toESM(require_papaparse(), 1);
 
 // ../core/dist/formats/common.js
 function makeFinding(seed) {
@@ -39803,7 +40246,7 @@ function value(row, ...names) {
   return void 0;
 }
 function parseCsv(content, reportName) {
-  const parsed = import_papaparse2.default.parse(content, {
+  const parsed = import_papaparse3.default.parse(content, {
     header: true,
     skipEmptyLines: "greedy",
     transformHeader: (header) => header.trim()
@@ -40313,8 +40756,8 @@ function parseSarif(root, reportName) {
         ...stringRecord(asRecord(result["fingerprints"])),
         ...stringRecord(asRecord(result["partialFingerprints"]))
       };
-      const securityScore2 = asNumber(ruleProperties["security-severity"]);
-      const severity = securityScore2 !== void 0 ? normalizeSeverity(securityScore2) : normalizeSeverity(result["level"]);
+      const securityScore3 = asNumber(ruleProperties["security-severity"]);
+      const severity = securityScore3 !== void 0 ? normalizeSeverity(securityScore3) : normalizeSeverity(result["level"]);
       const references = [
         safeHttpReference(asRecord(rule?.["helpUri"]) ?? rule?.["helpUri"]),
         safeHttpReference(rule?.["helpUri"]),
@@ -40712,58 +41155,102 @@ var allowedFailOn = /* @__PURE__ */ new Set([
 async function run() {
   try {
     const patterns = getInput("reports", { required: true }).trim();
+    const baselinePatterns = getInput("baseline-reports").trim();
     const output = (0, import_node_path.resolve)(getInput("output") || "vulnfuse-results.sarif");
     const format = inputChoice("format", "sarif", allowedFormats);
     const scope = inputChoice("scope", "instance", allowedScopes);
     const failOn = inputChoice("fail-on", "none", allowedFailOn);
+    const failOnNew = inputChoice("fail-on-new", "none", allowedFailOn);
     const threshold = inputNumber("threshold", 70, 0, 100);
     const maxBytes = inputNumber("max-bytes", 100 * 1024 * 1024, 1, 1024 ** 3, true);
-    const matcher = await create(patterns, {
-      followSymbolicLinks: false,
-      implicitDescendants: false,
-      matchDirectories: false
-    });
-    const files = [...new Set(await matcher.glob())].sort();
-    if (files.length === 0) throw new Error("The reports patterns did not match any files.");
-    if (files.length > 1e3)
-      throw new Error(`Matched ${files.length} reports; the safety limit is 1,000.`);
-    if (files.some((file2) => (0, import_node_path.resolve)(file2).toLowerCase() === output.toLowerCase())) {
-      throw new Error("The output path cannot overwrite an input report.");
+    if (!baselinePatterns && failOnNew !== "none") {
+      throw new Error(
+        "fail-on-new requires baseline-reports so existing findings are not treated as new."
+      );
     }
-    info(`VulnFuse is reading ${files.length} report${files.length === 1 ? "" : "s"}.`);
-    const reports = [];
-    for (const file2 of files) {
-      const buffer = await (0, import_promises.readFile)(file2);
-      if (buffer.byteLength > maxBytes) {
-        throw new Error(
-          `${file2} is ${buffer.byteLength.toLocaleString()} bytes; the configured limit is ${maxBytes.toLocaleString()} bytes.`
-        );
-      }
-      const report = parseReport({ name: file2, content: buffer.toString("utf8") }, { maxBytes });
-      info(`${report.tool}: ${report.findings.length} findings from ${file2}`);
-      reports.push(report);
-    }
+    const reports = await readMatchedReports(patterns, "current", maxBytes, output);
     const result = correlateReports(reports, { threshold, scope });
+    let baselineDiff;
+    if (baselinePatterns) {
+      const baselineReports = await readMatchedReports(
+        baselinePatterns,
+        "baseline",
+        maxBytes,
+        output,
+        1e3 - reports.length
+      );
+      const baseline = correlateReports(baselineReports, { threshold, scope });
+      baselineDiff = compareCorrelations(baseline, result);
+    }
     await (0, import_promises.mkdir)((0, import_node_path.dirname)(output), { recursive: true });
-    await (0, import_promises.writeFile)(output, exportCorrelation(result, format), "utf8");
+    await (0, import_promises.writeFile)(
+      output,
+      baselineDiff ? exportBaselineDiff(baselineDiff, format) : exportCorrelation(result, format),
+      "utf8"
+    );
     setOutput("findings", result.summary.inputFindings);
     setOutput("clusters", result.summary.clusters);
     setOutput("duplicates-collapsed", result.summary.duplicatesCollapsed);
+    setOutput("new", baselineDiff?.summary.new ?? 0);
+    setOutput("updated", baselineDiff?.summary.updated ?? 0);
+    setOutput("absent", baselineDiff?.summary.absent ?? 0);
+    setOutput("unchanged", baselineDiff?.summary.unchanged ?? 0);
     setOutput("report", output);
-    await writeSummary(result, output);
+    await writeSummary(result, output, baselineDiff);
     info(
       `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters; ${result.summary.duplicatesCollapsed} duplicates collapsed.`
     );
+    if (baselineDiff) {
+      info(
+        `Baseline comparison: ${baselineDiff.summary.new} new, ${baselineDiff.summary.updated} updated, ${baselineDiff.summary.absent} absent, and ${baselineDiff.summary.unchanged} unchanged.`
+      );
+    }
     if (failOn !== "none" && hasSeverityAtLeast(result.summary.bySeverity, failOn)) {
       setFailed(
         `At least one vulnerability cluster met the '${failOn}' severity threshold. The report was still written to ${output}.`
+      );
+    }
+    if (baselineDiff && failOnNew !== "none" && hasSeverityAtLeast(baselineDiff.summary.newBySeverity, failOnNew)) {
+      setFailed(
+        `At least one new vulnerability cluster met the '${failOnNew}' severity threshold. The baseline comparison was still written to ${output}.`
       );
     }
   } catch (error52) {
     setFailed(error52 instanceof Error ? error52.message : String(error52));
   }
 }
-async function writeSummary(result, output) {
+async function readMatchedReports(patterns, label, maxBytes, output, maximumReports = 1e3) {
+  const matcher = await create(patterns, {
+    followSymbolicLinks: false,
+    implicitDescendants: false,
+    matchDirectories: false
+  });
+  const files = [...new Set(await matcher.glob())].sort();
+  if (files.length === 0) throw new Error(`The ${label} report patterns did not match any files.`);
+  if (files.length > maximumReports) {
+    throw new Error(
+      `Matched ${files.length} ${label} reports; at most 1,000 current and baseline reports can be processed together.`
+    );
+  }
+  if (files.some((file2) => (0, import_node_path.resolve)(file2).toLowerCase() === output.toLowerCase())) {
+    throw new Error("The output path cannot overwrite an input report.");
+  }
+  info(`VulnFuse is reading ${files.length} ${label} report${files.length === 1 ? "" : "s"}.`);
+  const reports = [];
+  for (const file2 of files) {
+    const buffer = await (0, import_promises.readFile)(file2);
+    if (buffer.byteLength > maxBytes) {
+      throw new Error(
+        `${file2} is ${buffer.byteLength.toLocaleString()} bytes; the configured limit is ${maxBytes.toLocaleString()} bytes.`
+      );
+    }
+    const report = parseReport({ name: file2, content: buffer.toString("utf8") }, { maxBytes });
+    info(`${report.tool}: ${report.findings.length} findings from ${file2}`);
+    reports.push(report);
+  }
+  return reports;
+}
+async function writeSummary(result, output, baselineDiff) {
   const table = [
     [
       { data: "Severity", header: true },
@@ -40777,9 +41264,12 @@ async function writeSummary(result, output) {
   await summary.addHeading("VulnFuse correlation", 2).addRaw(
     `${result.summary.inputFindings} source findings became **${result.summary.clusters} clusters**; **${result.summary.duplicatesCollapsed} duplicate records** were collapsed.`,
     true
-  ).addTable(table).addDetails(
-    "Highest-severity clusters",
-    result.clusters.slice(0, 20).map(
+  ).addTable(table).addRaw(
+    baselineDiff ? `Baseline: **${baselineDiff.summary.new} new**, **${baselineDiff.summary.updated} updated**, **${baselineDiff.summary.absent} absent**, and ${baselineDiff.summary.unchanged} unchanged.` : "",
+    Boolean(baselineDiff)
+  ).addDetails(
+    baselineDiff ? "Highest-severity new clusters" : "Highest-severity clusters",
+    (baselineDiff ? baselineDiff.items.filter((item) => item.state === "new").map((item) => item.cluster) : result.clusters).slice(0, 20).map(
       (cluster) => `- **${cluster.severity.toUpperCase()}** ${escapeSummary(cluster.primary.title)} \u2014 ${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"} from ${cluster.sourceTools.join(", ")}`
     ).join("\n") || "No findings."
   ).addRaw(`Report: \`${output}\``, true).write();

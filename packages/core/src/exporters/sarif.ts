@@ -9,7 +9,7 @@ export function exportSarif(result: CorrelationResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.1.1",
+            semanticVersion: "0.2.0",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor(cluster)),
           },
@@ -56,6 +56,7 @@ function resultFor(cluster: FindingCluster): Record<string, unknown> {
       text: `${cluster.primary.title} (${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`,
     },
     fingerprints: { vulnfuseClusterId: cluster.id },
+    partialFingerprints: { primaryLocationLineHash: cluster.id },
     ...(location?.uri
       ? {
           locations: [

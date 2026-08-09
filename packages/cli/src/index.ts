@@ -2,8 +2,10 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import {
+  compareCorrelations,
   correlateReports,
   detectFormat,
+  exportBaselineDiff,
   exportCorrelation,
   parseReport,
   severityOrder,
@@ -15,7 +17,7 @@ import {
 } from "@vulnfuse/core";
 import { Command, InvalidArgumentError, Option } from "commander";
 
-const version = "0.1.1";
+const version = "0.2.0";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -27,6 +29,11 @@ interface MergeOptions {
   titleWeight: number;
   maxBytes: number;
   failOn: Severity | "none";
+}
+
+interface DiffOptions extends Omit<MergeOptions, "failOn"> {
+  baseline: string[];
+  failOnNew: Severity | "none";
 }
 
 export function createProgram(): Command {
@@ -89,6 +96,88 @@ export function createProgram(): Command {
       if (
         options.failOn !== "none" &&
         hasSeverityAtLeast(result.summary.bySeverity, options.failOn)
+      ) {
+        process.exitCode = 1;
+      }
+    });
+
+  program
+    .command("diff")
+    .description("Compare current reports with one or more baseline reports.")
+    .argument("<reports...>", "Current report paths, or '-' for standard input")
+    .option(
+      "-b, --baseline <path>",
+      "Baseline report path; repeat for multiple scanner reports",
+      collectValue,
+      [],
+    )
+    .addOption(
+      new Option("-f, --format <format>", "Output format")
+        .choices(["json", "sarif", "csv", "markdown"])
+        .default("json"),
+    )
+    .option("-o, --output <path>", "Write output atomically to a file instead of stdout")
+    .option("--threshold <0-100>", "Minimum match score", boundedNumber(0, 100), 70)
+    .addOption(
+      new Option("--scope <scope>", "Correlation scope")
+        .choices(["instance", "root-cause"])
+        .default("instance"),
+    )
+    .option(
+      "--line-window <lines>",
+      "Maximum line distance for a location match",
+      boundedInteger(0, 10_000),
+      5,
+    )
+    .option("--title-weight <0-25>", "Maximum title-similarity score", boundedNumber(0, 25), 10)
+    .option(
+      "--max-bytes <bytes>",
+      "Maximum bytes per report",
+      boundedInteger(1, 1024 ** 3),
+      100 * 1024 * 1024,
+    )
+    .addOption(
+      new Option("--fail-on-new <severity>", "Exit 1 when a new cluster meets this severity")
+        .choices(["none", "info", "low", "medium", "high", "critical"])
+        .default("none"),
+    )
+    .action(async (reportPaths: string[], options: DiffOptions) => {
+      assertReportArguments(reportPaths);
+      assertReportArguments(options.baseline, "baseline report");
+      if (options.baseline.length + reportPaths.length > maxReports) {
+        throw new Error(
+          `At most ${maxReports} current and baseline reports can be processed in one invocation.`,
+        );
+      }
+      if ([...options.baseline, ...reportPaths].filter((path) => path === "-").length > 1) {
+        throw new Error(
+          "Standard input ('-') can only be used once across baseline and current reports.",
+        );
+      }
+      assertOutputIsNotInput(options.output, [...options.baseline, ...reportPaths]);
+      const baselineInputs = await readInputs(options.baseline, options.maxBytes);
+      const currentInputs = await readInputs(reportPaths, options.maxBytes);
+      const correlationOptions = {
+        threshold: options.threshold,
+        scope: options.scope,
+        lineWindow: options.lineWindow,
+        titleWeight: options.titleWeight,
+      };
+      const baseline = correlateReports(
+        baselineInputs.map((input) => parseReport(input, { maxBytes: options.maxBytes })),
+        correlationOptions,
+      );
+      const current = correlateReports(
+        currentInputs.map((input) => parseReport(input, { maxBytes: options.maxBytes })),
+        correlationOptions,
+      );
+      const result = compareCorrelations(baseline, current);
+      const output = exportBaselineDiff(result, options.format);
+      if (options.output) await atomicWrite(options.output, output);
+      else process.stdout.write(output);
+      if (
+        options.failOnNew !== "none" &&
+        hasSeverityAtLeast(result.summary.newBySeverity, options.failOnNew)
       ) {
         process.exitCode = 1;
       }
@@ -204,10 +293,14 @@ function inspectTable(reports: ParsedReport[]): string {
   return `${lines.join("\n")}\n`;
 }
 
-function assertReportArguments(paths: string[]): void {
-  if (paths.length === 0) throw new Error("Supply at least one report.");
+function assertReportArguments(paths: string[], label = "report"): void {
+  if (paths.length === 0) throw new Error(`Supply at least one ${label}.`);
   if (paths.length > maxReports)
     throw new Error(`At most ${maxReports} reports can be processed in one invocation.`);
+}
+
+function collectValue(value: string, previous: string[]): string[] {
+  return [...previous, value];
 }
 
 function assertOutputIsNotInput(output: string | undefined, paths: string[]): void {

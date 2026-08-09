@@ -105,3 +105,7 @@ export const demoReports: ReportInput[] = [
   { name: "demo-grype.json", content: JSON.stringify(grype) },
   { name: "demo-snyk.json", content: JSON.stringify(snyk) },
 ];
+
+export const demoBaselineReports: ReportInput[] = [
+  { name: "baseline-trivy.json", content: JSON.stringify(trivy) },
+];

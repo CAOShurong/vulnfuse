@@ -16,6 +16,8 @@ canonical findings → candidate index → pair explanations
                          ▼
                union-find clusters
                          │
+              optional baseline match
+                         │
              ┌───────────┼───────────┐
              ▼           ▼           ▼
           JSON/SARIF     CSV      Markdown
@@ -37,21 +39,22 @@ The core has no Node-only dependency. It contains:
 - canonical schemas and TypeScript types;
 - match scoring and blockers;
 - candidate indexing and union-find clustering;
+- deterministic one-to-one comparison of baseline and current clusters;
 - JSON, SARIF, CSV, and Markdown exporters.
 
 The browser and Node runtimes execute the same correlation code.
 
 ### `vulnfuse` CLI
 
-The CLI adds filesystem and standard-input handling, bounded reads, atomic output, overwrite protection, policy flags, inspection output, and severity exit codes. It does not contain a second implementation of parsing or matching.
+The CLI adds filesystem and standard-input handling, bounded reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, and new-only baseline gates. It does not contain a second implementation of parsing or matching.
 
 ### `@vulnfuse/action`
 
-The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action resolves bounded glob input without following symbolic links, invokes the core, writes the chosen report, exposes counts, and creates a GitHub job summary. The bundled `dist/index.cjs` is committed because JavaScript Actions execute repository content directly.
+The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action resolves bounded current and optional baseline glob input without following symbolic links, invokes the core, writes the chosen correlation or comparison report, exposes counts, and creates a GitHub job summary. The bundled `dist/index.cjs` is committed because JavaScript Actions execute repository content directly.
 
 ### `@vulnfuse/web`
 
-The React/Vite application reads `File` objects into memory, calls the core, and renders clusters and evidence. Exports use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
+The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, baseline states, and evidence. Exports use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
 
 ## Trust boundaries
 
@@ -64,6 +67,8 @@ Finding IDs use a stable FNV-1a hash over normalized source identity and evidenc
 ## Performance
 
 Parsing is linear in input size. Candidate indexing avoids complete all-pairs comparison at practical thresholds. Within each candidate bucket, pair comparison is quadratic in the bucket size; this is necessary when many records genuinely share an identity key. A hard comparison limit fails visibly instead of returning a partial result.
+
+Baseline comparison uses a second candidate index over clusters and a deterministic greedy one-to-one assignment ordered by exact identity and match score. This is deliberately explainable; it is not a global statistical optimizer.
 
 The browser keeps inputs and results in memory. For very large reports, use the CLI and split work by asset.
 

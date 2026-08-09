@@ -24,6 +24,7 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 - **Every merge is reviewable.** Match edges retain the score, confidence, evidence, and exact reasons such as a shared CVE, PURL, asset, location, rule, or scanner fingerprint.
 - **Conflicts are first-class.** Explicitly different vulnerability IDs, packages, assets, or finding kinds can block a merge even when titles look similar.
 - **Two honest scopes.** `instance` keeps different assets separate. `root-cause` can connect the same vulnerable component across images, repositories, or applications.
+- **Baseline-aware gates.** Compare previous and current reports as `new`, `updated`, `unchanged`, or `absent`, then fail CI only when a genuinely new cluster crosses your severity threshold.
 - **No report upload.** The hosted workbench runs entirely in the browser. The CLI and Action run in your own environment. No AI, API key, telemetry, or remote correlation service is required.
 - **Deterministic output.** Identical input and policy yield stable finding and cluster IDs, which makes diffs and CI review practical.
 
@@ -31,14 +32,14 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 
 ### Browser
 
-Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or more reports, inspect the proposed clusters, and export the result. Choose **Load safe demo** first if you want to explore without using your own data.
+Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or more current reports, inspect the proposed clusters, and export the result. Add optional reports from a previous run to see a local baseline comparison. Choose **Load safe demo** to explore both correlation and baseline states without using your own data.
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.1.1 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.2.0 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.1.1/vulnfuse-core-0.1.1.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.1.1/vulnfuse-0.1.1.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.2.0/vulnfuse-core-0.2.0.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.2.0/vulnfuse-0.2.0.tgz
 vulnfuse --version
 ```
 
@@ -76,6 +77,20 @@ cat osv-results.json | node packages/cli/dist/index.js merge - trivy.json \
 
 Run `node packages/cli/dist/index.js merge --help` for all policy and safety options.
 
+Compare current reports with a previous run and block only newly introduced high-severity clusters. Repeat `--baseline` for each previous scanner report:
+
+```bash
+node packages/cli/dist/index.js diff \
+  --baseline previous/trivy.json \
+  --baseline previous/grype.json \
+  current/trivy.json current/grype.json \
+  --format markdown \
+  --output vulnfuse-baseline.md \
+  --fail-on-new high
+```
+
+The comparison preserves matched evidence and labels every cluster as `new`, `updated`, `unchanged`, or `absent`. SARIF export writes the standard `baselineState` field for every result.
+
 ### GitHub Action
 
 The Action accepts paths or newline-separated glob patterns. Generate scanner reports in earlier steps, correlate them, then upload the result as SARIF or retain it as an artifact.
@@ -83,7 +98,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.1.1
+  uses: CAOShurong/vulnfuse@v0.2.0
   with:
     reports: |
       reports/trivy.json
@@ -101,7 +116,14 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
     sarif_file: reports/vulnfuse.sarif
 ```
 
-The Action also writes a job summary and exposes `findings`, `clusters`, `duplicates-collapsed`, and `report` outputs.
+To gate only new findings, download or otherwise provide the previous raw scanner reports and add:
+
+```yaml
+baseline-reports: previous-reports/*.json
+fail-on-new: high
+```
+
+When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action writes a job summary and exposes `findings`, `clusters`, `duplicates-collapsed`, `new`, `updated`, `absent`, `unchanged`, and `report` outputs.
 
 ## Supported input
 
@@ -155,7 +177,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.1.1` is an initial public alpha. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.2.0` is a public alpha with cross-run baseline comparison in the core library, CLI, browser workbench, and GitHub Action. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 
