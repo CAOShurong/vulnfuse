@@ -18,6 +18,7 @@ Each source record can supply:
 - scanner fingerprints;
 - fixed version and recommendation;
 - safe HTTP(S) references;
+- producer-declared suppression kind, status, and justification;
 - format-specific JSON properties.
 
 Missing evidence is not fabricated. For example, a CVSS score is not inferred when a report contains only a severity word.
@@ -31,6 +32,10 @@ VulnFuse reads:
 - first physical and logical location, including URI, region, and fully qualified symbol.
 
 SARIF results default to `sast`; rule tags can classify SCA, container, IaC, secret, DAST, or license findings. A rule's numeric `security-severity` takes precedence over SARIF's diagnostic `level`.
+
+VulnFuse also reads `results[].suppressions`. An absent, `null`, or empty list is active. A non-empty valid list is effectively suppressed when every entry has status `accepted` or omits status. If any entry is `underReview` or `rejected`, the result remains active. An unrecognized container, object, kind, or status emits `sarif.invalid-suppression` and keeps the result active rather than granting a quiet gate bypass. Kinds are limited to SARIF's `inSource` and `external` values.
+
+Correlation keeps the source records and all valid suppression evidence. A cluster is effectively suppressed only when every member is effectively suppressed; one active corroborating record keeps the whole cluster active. This state appears in JSON, SARIF, CSV, Markdown, portable HTML, the browser, CLI gates, and Action outputs. For a fully suppressed cluster, SARIF export emits `result.suppressions`; mixed active clusters retain per-source evidence under VulnFuse result properties without incorrectly suppressing the synthesized SARIF result.
 
 ## Trivy JSON
 
@@ -107,11 +112,11 @@ A plain correlation exports the complete `CorrelationResult`. A baseline compari
 
 Every report summary has a primary `tool` plus a sorted `tools` list. The list records every producer represented by a mixed CSV file or multi-run SARIF document, including declared SARIF runs with zero findings.
 
-Every correlation summary includes a deterministic `coverage` object. Its per-tool rows count input reports, source findings attributed to that tool, resulting clusters, clusters reported only by that tool, and clusters shared with another tool. Pair rows record the shared cluster count, the union count, and Jaccard overlap (`shared / union`). Pairwise rows are omitted when more than 20 distinct tools are present to bound quadratic output; complete per-tool counts remain available. These values describe attribution and overlap, not scanner accuracy, false-positive rate, or majority truth.
+Every correlation summary includes total, active, and effectively suppressed cluster counts and per-severity counts, plus a deterministic `coverage` object. Its per-tool rows count input reports, source findings attributed to that tool, resulting clusters, clusters reported only by that tool, and clusters shared with another tool. Pair rows record the shared cluster count, the union count, and Jaccard overlap (`shared / union`). Pairwise rows are omitted when more than 20 distinct tools are present to bound quadratic output; complete per-tool counts remain available. These values describe attribution and overlap, not scanner accuracy, false-positive rate, or majority truth.
 
 Scanner versions come from producer-specific fields such as SARIF `tool.driver.semanticVersion`, Trivy `Trivy.Version`, and CycloneDX `metadata.tools`. Report schema versions such as Trivy `SchemaVersion` and CycloneDX `specVersion` remain metadata and are not presented as scanner versions.
 
-HTML is a self-contained review surface rather than a machine-ingestion format. It embeds no report JSON and loads no remote assets. All report-controlled text and attributes are escaped before rendering; its fixed inline script only filters and expands already-rendered findings. The file supports search and severity, baseline-state, asset, scanner, and one-tool/multi-tool filters while retaining match evidence, blockers, source records, and safe HTTP(S) references.
+HTML is a self-contained review surface rather than a machine-ingestion format. It embeds no report JSON and loads no remote assets. All report-controlled text and attributes are escaped before rendering; its fixed inline script only filters and expands already-rendered findings. The file supports search and severity, baseline-state, asset, scanner, one-tool/multi-tool, and suppression filters while retaining match evidence, blockers, source suppression justifications, and safe HTTP(S) references.
 
 Baseline comparison output is an audit artifact, not a raw scanner input. Supply the previous raw reports or a plain VulnFuse correlation JSON when constructing the next baseline.
 

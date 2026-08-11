@@ -26,8 +26,9 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 - **A bridge cannot bypass a conflict.** Candidate edges are considered strongest-first, and two clusters join only after every cross-cluster member pair passes the same hard-blocker policy.
 - **Two honest scopes.** `instance` keeps different assets separate. `root-cause` can connect the same vulnerable component across images, repositories, or applications.
 - **Baseline-aware gates.** Compare previous and current reports as `new`, `updated`, `unchanged`, or `absent`, then fail CI only when a genuinely new cluster crosses your severity threshold.
+- **SARIF suppression stays auditable.** Preserve every suppression kind, status, and justification, but exclude a cluster from severity gates only when every source record is effectively suppressed.
 - **Scanner disagreement becomes measurable.** See what each tool found alone, what several tools shared, and the pairwise overlap instead of comparing misleading raw totals.
-- **A report people can actually review.** Portable HTML needs no server or CDN and includes local search, severity/state/asset/scanner/coverage filters, evidence, blockers, and every source record.
+- **A report people can actually review.** Portable HTML needs no server or CDN and includes local search, severity/state/asset/scanner/coverage/suppression filters, evidence, blockers, and every source record.
 - **No report upload.** The hosted workbench runs entirely in the browser. The CLI and Action run in your own environment. No AI, API key, telemetry, or remote correlation service is required.
 - **Deterministic output.** Identical input and policy yield stable finding and cluster IDs, which makes diffs and CI review practical.
 
@@ -39,10 +40,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.8 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.9 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.8/vulnfuse-core-0.4.8.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.8/vulnfuse-0.4.8.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.9/vulnfuse-core-0.4.9.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.9/vulnfuse-0.4.9.tgz
 vulnfuse --version
 ```
 
@@ -76,7 +77,7 @@ Inspect formats before merging:
 node packages/cli/dist/index.js inspect trivy.json grype.json
 ```
 
-Stream one input and fail CI when a high-severity cluster remains:
+Stream one input and fail CI when a high-severity active cluster remains:
 
 ```bash
 cat osv-results.json | node packages/cli/dist/index.js merge - trivy.json \
@@ -87,6 +88,8 @@ cat osv-results.json | node packages/cli/dist/index.js merge - trivy.json \
 ```
 
 Run `node packages/cli/dist/index.js merge --help` for all policy and safety options.
+
+For SARIF, `--fail-on` and `--fail-on-new` ignore a cluster only when every source record is effectively suppressed. A non-empty suppression list containing only `accepted` or omitted statuses is effectively suppressed; any `underReview`, `rejected`, malformed kind/status, or active corroborating record keeps the cluster active. Suppression evidence remains in every export. This follows current SARIF viewer guidance, but it trusts the report producer's assertion; it does not prove that the finding is safe, fixed, or a false positive.
 
 Report-input and runtime failures print one concise diagnostic to stderr and return exit code 1. Add the global `--debug` option before the command when a stack trace is needed, for example `vulnfuse --debug inspect report.json`. Debug output can include local filesystem paths, so review it before sharing logs publicly.
 
@@ -128,7 +131,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.8
+  uses: CAOShurong/vulnfuse@v0.4.9
   with:
     reports: |
       reports/trivy.json
@@ -154,13 +157,13 @@ fail-on-new: high
 fail-on-scan-set-change: "true"
 ```
 
-When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action warns when the scanner set changes and can fail after preserving the report. It writes a job summary and exposes `findings`, `clusters`, `duplicates-collapsed`, `single-tool`, `multi-tool`, `new`, `updated`, `absent`, `unchanged`, `scan-set-changed`, and `report` outputs.
+When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action warns when the scanner set changes and can fail after preserving the report. It writes a job summary and exposes `findings`, `clusters`, `active`, `suppressed`, `duplicates-collapsed`, `single-tool`, `multi-tool`, `new`, `updated`, `absent`, `unchanged`, `scan-set-changed`, and `report` outputs.
 
 ## Supported input
 
 | Format           | Parsed evidence                                                              | Important boundary                                                             |
 | ---------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| SARIF 2.1        | runs, tools, rules, levels, fingerprints, physical/logical locations         | Security severity is used when a rule supplies it                              |
+| SARIF 2.1        | runs, tools, rules, levels, fingerprints, locations, suppressions            | Security severity and producer-declared suppression are preserved              |
 | Trivy JSON       | vulnerabilities, misconfigurations, secrets, packages, image targets, fixes  | Table and template output are not report inputs                                |
 | Grype JSON       | matches, artifacts, PURLs, locations, advisories, fixes                      | The JSON schema has changed over time; fixtures cover the current common shape |
 | Snyk JSON        | legacy `vulnerabilities`, identifiers, dependency paths, fixes               | Snyk Code SARIF should be supplied as SARIF                                    |
@@ -203,12 +206,13 @@ Scanner reports can contain repository paths, package inventories, hostnames, co
 - File size, report count, pair-comparison, output overwrite, symlink traversal, URL scheme, and CSV formula-injection safeguards are built in.
 - Uploaded strings are rendered as React text, not injected HTML.
 - A correlation result does **not** prove that a vulnerability is exploitable, reachable, fixed, or a false positive.
+- A SARIF suppression is producer-supplied review state. VulnFuse preserves and applies it to gates; it does not independently validate the justification or mutate an alert in GitHub or another platform.
 
 Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in automation. Report suspected vulnerabilities through the private process in [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-`v0.4.8` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.9` is a public alpha with explainable, cluster-safe cross-scanner correlation, suppression-aware SARIF gates, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. Suppression-aware means that producer-declared suppression evidence is retained and only fully suppressed clusters are excluded from severity gates; it does not independently validate a justification or change hosted alert state. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures, a public Microsoft SARIF sample, and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

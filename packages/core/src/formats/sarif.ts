@@ -3,6 +3,7 @@ import type {
   CanonicalFinding,
   FindingIdentifier,
   FindingKind,
+  FindingSuppression,
   JsonValue,
   ParsedReport,
 } from "../model.js";
@@ -56,6 +57,12 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
       const rule = ruleId ? rules.get(ruleId) : undefined;
       const ruleProperties = asRecord(rule?.["properties"]) ?? {};
       const resultProperties = asRecord(result["properties"]) ?? {};
+      const suppression = parseSuppressions(
+        result["suppressions"],
+        runIndex,
+        resultIndex,
+        warnings,
+      );
       const message = asRecord(result["message"]);
       const title =
         asString(message?.["text"]) ??
@@ -102,7 +109,13 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
         safeHttpReference(rule?.["helpUri"]),
         ...asArray(resultProperties["references"]).map(safeHttpReference),
       ].filter((value): value is string => Boolean(value));
-      const properties = asJsonValue(resultProperties);
+      const rawSuppressions = asJsonValue(result["suppressions"]);
+      const resultKind = asString(result["kind"]) ?? "fail";
+      const properties = asJsonValue({
+        ...resultProperties,
+        "sarif.resultKind": resultKind,
+        ...(rawSuppressions !== undefined ? { "sarif.suppressions": rawSuppressions } : {}),
+      });
 
       findings.push(
         makeFinding({
@@ -126,6 +139,8 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
             : {}),
           ...(ruleId ? { ruleId } : {}),
           fingerprints,
+          suppressed: suppression.suppressed,
+          suppressions: suppression.suppressions,
           references,
           ...(properties && !Array.isArray(properties) && typeof properties === "object"
             ? { properties: properties as Record<string, JsonValue> }
@@ -147,6 +162,62 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
     findings,
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown" },
+  };
+}
+
+function parseSuppressions(
+  value: unknown,
+  runIndex: number,
+  resultIndex: number,
+  warnings: ParsedReport["warnings"],
+): { suppressed: boolean; suppressions: FindingSuppression[] } {
+  if (value === undefined || value === null) return { suppressed: false, suppressions: [] };
+  const raw = Array.isArray(value) ? value : undefined;
+  if (!raw) {
+    warnings.push({
+      code: "sarif.invalid-suppression",
+      message: "A SARIF suppressions value was not an array, so the finding remains active.",
+      path: `runs[${runIndex}].results[${resultIndex}].suppressions`,
+    });
+    return { suppressed: false, suppressions: [] };
+  }
+
+  const suppressions: FindingSuppression[] = [];
+  let invalid = false;
+  for (const [suppressionIndex, suppressionValue] of raw.entries()) {
+    const suppression = asRecord(suppressionValue);
+    const kind = asString(suppression?.["kind"]);
+    const status = asString(suppression?.["status"]);
+    const validKind = kind === "inSource" || kind === "external";
+    const validStatus =
+      status === undefined ||
+      status === "accepted" ||
+      status === "underReview" ||
+      status === "rejected";
+    if (!suppression || !validKind || !validStatus) {
+      invalid = true;
+      warnings.push({
+        code: "sarif.invalid-suppression",
+        message:
+          "A SARIF suppression had an invalid kind or status, so the finding remains active.",
+        path: `runs[${runIndex}].results[${resultIndex}].suppressions[${suppressionIndex}]`,
+      });
+      continue;
+    }
+    const justification = asString(suppression["justification"]);
+    suppressions.push({
+      kind,
+      ...(status ? { status } : {}),
+      ...(justification ? { justification } : {}),
+    });
+  }
+
+  const contested = suppressions.some(
+    (suppression) => suppression.status === "underReview" || suppression.status === "rejected",
+  );
+  return {
+    suppressed: !invalid && suppressions.length > 0 && !contested,
+    suppressions,
   };
 }
 

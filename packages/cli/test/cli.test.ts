@@ -11,6 +11,10 @@ const cli = resolve(import.meta.dirname, "../dist/index.js");
 const trivy = resolve(import.meta.dirname, "../../core/test/fixtures/trivy.json");
 const grype = resolve(import.meta.dirname, "../../core/test/fixtures/grype.json");
 const csv = resolve(import.meta.dirname, "../../core/test/fixtures/generic.csv");
+const suppressedSarif = resolve(
+  import.meta.dirname,
+  "../../core/test/fixtures/sarif-suppressed.json",
+);
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -74,6 +78,60 @@ describe("CLI", () => {
     ).rejects.toMatchObject({ code: 1 });
     const sarif = JSON.parse(await readFile(output, "utf8")) as { version: string };
     expect(sarif.version).toBe("2.1.0");
+  });
+
+  it("keeps suppressed SARIF evidence without failing the active severity gate", async () => {
+    const output = join(testDirectory, "suppressed.json");
+    await execute(process.execPath, [
+      cli,
+      "merge",
+      suppressedSarif,
+      "--format",
+      "json",
+      "--output",
+      output,
+      "--fail-on",
+      "high",
+    ]);
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      summary: { activeClusters: number; suppressedClusters: number };
+      clusters: Array<{ suppressed: boolean }>;
+    };
+    expect(result.summary).toMatchObject({ activeClusters: 0, suppressedClusters: 2 });
+    expect(result.clusters.every((cluster) => cluster.suppressed)).toBe(true);
+  });
+
+  it("warns and keeps malformed SARIF suppression active", async () => {
+    const document = JSON.parse(await readFile(suppressedSarif, "utf8")) as {
+      runs: Array<{ results: Array<{ suppressions?: Array<Record<string, unknown>> }> }>;
+    };
+    const suppression = document.runs[0]?.results[0]?.suppressions?.[0];
+    expect(suppression).toBeDefined();
+    if (!suppression) return;
+    suppression["status"] = "invented";
+    const input = join(testDirectory, "malformed-suppression.sarif");
+    const output = join(testDirectory, "malformed-suppression.json");
+    await writeFile(input, JSON.stringify(document), "utf8");
+
+    const failure = await executeFailure([
+      cli,
+      "merge",
+      input,
+      "--format",
+      "json",
+      "--output",
+      output,
+      "--fail-on",
+      "high",
+    ]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain("sarif.invalid-suppression");
+    expect(failure.stderr).toContain("finding remains active");
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      summary: { activeClusters: number; suppressedClusters: number };
+    };
+    expect(result.summary).toMatchObject({ activeClusters: 1, suppressedClusters: 1 });
   });
 
   it("prints one concise diagnostic for a missing input by default", async () => {

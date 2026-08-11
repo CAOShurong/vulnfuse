@@ -12,6 +12,7 @@ const repository = resolve(import.meta.dirname, "../../..");
 const trivy = resolve(repository, "packages/core/test/fixtures/trivy.json");
 const grype = resolve(repository, "packages/core/test/fixtures/grype.json");
 const csv = resolve(repository, "packages/core/test/fixtures/generic.csv");
+const suppressedSarif = resolve(repository, "packages/core/test/fixtures/sarif-suppressed.json");
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -93,6 +94,81 @@ describe("GitHub Action bundle", () => {
     expect(diff.summary).toMatchObject({ new: 1, unchanged: 2 });
     expect(await readFile(githubOutput, "utf8")).toContain("new<<");
     expect(await readFile(stepSummary, "utf8")).toContain("Baseline:");
+  });
+
+  it("keeps suppressed SARIF evidence without failing the active severity gate", async () => {
+    const outputReport = join(testDirectory, "suppressed.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: suppressedSarif,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "json",
+        "INPUT_FAIL-ON": "high",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+
+    const result = JSON.parse(await readFile(outputReport, "utf8")) as {
+      summary: { activeClusters: number; suppressedClusters: number };
+    };
+    expect(result.summary).toMatchObject({ activeClusters: 0, suppressedClusters: 2 });
+    expect(await readFile(githubOutput, "utf8")).toContain("suppressed");
+    expect(await readFile(stepSummary, "utf8")).toContain("suppressed");
+  });
+
+  it("warns and keeps malformed SARIF suppression active", async () => {
+    const document = JSON.parse(await readFile(suppressedSarif, "utf8")) as {
+      runs: Array<{ results: Array<{ suppressions?: Array<Record<string, unknown>> }> }>;
+    };
+    const suppression = document.runs[0]?.results[0]?.suppressions?.[0];
+    expect(suppression).toBeDefined();
+    if (!suppression) return;
+    suppression["status"] = "invented";
+    const input = join(testDirectory, "malformed-suppression.sarif");
+    const outputReport = join(testDirectory, "malformed-suppression.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(input, JSON.stringify(document), "utf8");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    let failure: { code?: number; stdout?: string } | undefined;
+    try {
+      await execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: input,
+          INPUT_OUTPUT: outputReport,
+          INPUT_FORMAT: "json",
+          "INPUT_FAIL-ON": "high",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      });
+    } catch (error) {
+      failure = error as { code?: number; stdout?: string };
+    }
+
+    expect(failure?.code).toBe(1);
+    expect(failure?.stdout).toContain("::warning");
+    expect(failure?.stdout).toContain("sarif.invalid-suppression");
+    const result = JSON.parse(await readFile(outputReport, "utf8")) as {
+      summary: { activeClusters: number; suppressedClusters: number };
+    };
+    expect(result.summary).toMatchObject({ activeClusters: 1, suppressedClusters: 1 });
   });
 
   it("writes a baseline diff before failing on a changed scanner set", async () => {

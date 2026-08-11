@@ -9,7 +9,7 @@ export function exportSarif(result: CorrelationResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.8",
+            semanticVersion: "0.4.9",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor(cluster)),
           },
@@ -49,6 +49,7 @@ function ruleFor(cluster: FindingCluster): Record<string, unknown> {
 
 function resultFor(cluster: FindingCluster): Record<string, unknown> {
   const location = cluster.primary.location;
+  const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
   return {
     ruleId: cluster.id,
     level: sarifLevel(cluster.severity),
@@ -57,6 +58,7 @@ function resultFor(cluster: FindingCluster): Record<string, unknown> {
     },
     fingerprints: { vulnfuseClusterId: cluster.id },
     partialFingerprints: { primaryLocationLineHash: cluster.id },
+    ...(suppressions.length > 0 ? { suppressions } : {}),
     ...(location?.uri
       ? {
           locations: [
@@ -80,11 +82,38 @@ function resultFor(cluster: FindingCluster): Record<string, unknown> {
     properties: {
       sourceTools: cluster.sourceTools,
       sourceFindingIds: cluster.members.map((member) => member.id),
+      suppressed: cluster.suppressed,
+      suppressionEvidence: suppressionEvidence(cluster),
       matchConfidence: cluster.confidence,
       identifiers: cluster.identifiers,
       assets: cluster.assets,
     },
   };
+}
+
+function sarifSuppressions(cluster: FindingCluster): Array<Record<string, string>> {
+  const values = cluster.members.flatMap((member) => member.suppressions ?? []);
+  const unique = new Map<string, Record<string, string>>();
+  for (const suppression of values) {
+    const value = {
+      kind: suppression.kind,
+      ...(suppression.status ? { status: suppression.status } : {}),
+      ...(suppression.justification ? { justification: suppression.justification } : {}),
+    };
+    unique.set(JSON.stringify(value), value);
+  }
+  return [...unique.values()];
+}
+
+function suppressionEvidence(cluster: FindingCluster) {
+  return cluster.members
+    .filter((member) => (member.suppressions?.length ?? 0) > 0)
+    .map((member) => ({
+      sourceFindingId: member.id,
+      sourceTool: member.source.tool,
+      suppressed: member.suppressed === true,
+      suppressions: member.suppressions,
+    }));
 }
 
 function sarifLevel(severity: FindingCluster["severity"]): "error" | "warning" | "note" | "none" {

@@ -109,6 +109,18 @@ The maintained alternatives solve broader but different problems. GitHub's MIT-l
 
 This is deliberately a narrow guard, not a comparability verdict. Equal tool names and report counts do not prove equal assets, paths, configurations, versions, rules, advisory databases, timestamps, or successful scan completion. Detecting that richer context would require reliable provenance fields the supported formats do not all supply. The structured `scanSetChange` names only what the evidence establishes.
 
+## Why SARIF suppression cannot be discarded or blindly trusted
+
+The public v0.4.8 CLI parsed all nine results in Microsoft's [`Suppressions.sarif`](https://github.com/microsoft/sarif-tutorials/blob/main/samples/Suppressions.sarif) sample, but exposed none of their `suppressions` metadata. Accepted or in-source suppressions therefore remained indistinguishable from active findings and could trip `--fail-on`; at the same time, the original kind, review status, and justification disappeared from the canonical audit trail.
+
+SARIF 2.1 defines suppression as review state, not evidence deletion. The OASIS specification says a result is not suppressed when the property is absent, `null`, or an empty array, and explains that suppression information supports compliance review. Microsoft's current [viewer guidance](https://github.com/microsoft/sarif-tutorials/blob/main/docs/Displaying-results-in-a-viewer.md) and maintained [SARIF SDK](https://github.com/microsoft/sarif-sdk/blob/main/src/Sarif/Core/Result.cs) treat a result as not suppressed when any suppression is `underReview` or `rejected`; otherwise a non-empty list is suppressed. CodeQL's official [SARIF output documentation](https://docs.github.com/en/code-security/codeql-cli/using-the-advanced-functionality-of-the-codeql-cli/sarif-output) also shows an `inSource` suppression without a status, so missing status cannot safely be treated as malformed.
+
+Practitioners need the record even when it is excluded from an active queue. [DevSkim issue #693](https://github.com/microsoft/DevSkim/issues/693) asks for suppressed findings to remain in SARIF precisely so reviewers can audit what was omitted; reconstructing that evidence after export is fragile. GitHub code scanning documents only a [supported subset of SARIF properties](https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning), so a local cross-scanner tool cannot assume that a hosted alert lifecycle will preserve or apply every suppression field in the same way.
+
+Maintained alternatives address adjacent layers but not this local composition gap. Microsoft's SARIF SDK 5.6.0 is a maintained MIT-licensed .NET object model; using it would add a runtime/platform boundary to a TypeScript parser. DevSkim 1.0.90 is maintained and MIT-licensed but is a scanner, not a heterogeneous correlation layer. GitHub's CodeQL Action is maintained and MIT-licensed but targets GitHub's hosted analysis model. DefectDojo 3.2.100 is maintained under BSD-3-Clause and provides a server/database import lifecycle; adopting it has materially higher operating and migration cost than preserving disposition in an offline command. These versions were checked on 2026-08-11.
+
+VulnFuse therefore adds no dependency or service. It preserves valid source suppression objects, keeps malformed or contested values active with a warning, and marks a cluster effectively suppressed only when every member is effectively suppressed. Severity gates consume active-only counts; total counts and source justifications remain visible. This trusts the producer's metadata and does not prove a false positive, authenticate risk acceptance, or mutate GitHub/DefectDojo alert state.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.
@@ -120,6 +132,7 @@ This is deliberately a narrow guard, not a comparability verdict. Equal tool nam
 7. **A severity gate needs a baseline.** Failing on every known high-severity issue makes adoption harder and hides whether a change introduced risk. A baseline comparison can gate new clusters while still reporting updated, unchanged, and missing evidence.
 8. **A review artifact should survive outside the tool.** A self-contained HTML file gives a reviewer search, filters, provenance, and baseline context without deploying VulnFuse or uploading the underlying reports.
 9. **Scanner coverage is not a vote.** Exclusive and shared clusters reveal tool divergence, but correctness still depends on package identity, advisory applicability, asset context, and the retained source evidence.
+10. **Suppression is evidence-bearing disposition.** It should affect active queues only under conservative, explicit semantics, while the producer's kind, status, and justification remain reviewable.
 
 ## What this project intentionally does not claim
 

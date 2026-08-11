@@ -28,11 +28,11 @@ inputs:
     required: false
     default: instance
   fail-on:
-    description: "Fail on none, info, low, medium, high, or critical clusters."
+    description: "Fail on none, info, low, medium, high, or critical active clusters."
     required: false
     default: none
   fail-on-new:
-    description: "With baseline-reports, fail only when a new cluster meets this severity."
+    description: "With baseline-reports, fail only when a new active cluster meets this severity."
     required: false
     default: none
   fail-on-scan-set-change:
@@ -48,6 +48,10 @@ outputs:
     description: Number of original source findings.
   clusters:
     description: Number of correlated vulnerability clusters.
+  active:
+    description: Number of clusters with at least one active source record.
+  suppressed:
+    description: Number of clusters whose source records are all effectively suppressed.
   duplicates-collapsed:
     description: Number of duplicate source records collapsed.
   single-tool:

@@ -25,6 +25,42 @@ function report(name: string) {
 }
 
 describe("explainable correlation", () => {
+  it("keeps suppressed evidence but separates it from active clusters", () => {
+    const suppressedReport = report("sarif-suppressed.json");
+    const suppressedOnly = correlateReports([suppressedReport]);
+    expect(suppressedOnly.summary).toMatchObject({
+      clusters: 2,
+      activeClusters: 0,
+      suppressedClusters: 2,
+    });
+    expect(suppressedOnly.summary.bySeverity.high).toBe(2);
+    expect(suppressedOnly.summary.activeBySeverity.high).toBe(0);
+    expect(suppressedOnly.clusters.every((cluster) => cluster.suppressed)).toBe(true);
+
+    const first = suppressedReport.findings[0];
+    expect(first).toBeDefined();
+    if (!first) return;
+    const activeReport: ParsedReport = {
+      ...suppressedReport,
+      sourceName: "active.json",
+      tool: "Active Scanner",
+      tools: ["Active Scanner"],
+      findings: [
+        {
+          ...first,
+          id: "active-corroboration",
+          source: { ...first.source, tool: "Active Scanner", report: "active.json" },
+          suppressed: false,
+          suppressions: [],
+        },
+      ],
+    };
+    const mixed = correlateReports([suppressedReport, activeReport]);
+    const corroborated = mixed.clusters.find((cluster) => cluster.members.length === 2);
+    expect(corroborated?.suppressed).toBe(false);
+    expect(mixed.summary).toMatchObject({ activeClusters: 1, suppressedClusters: 1 });
+  });
+
   it("collapses the same Log4Shell instance across Trivy and Grype", () => {
     const result = correlateReports([report("trivy.json"), report("grype.json")]);
     expect(result.summary.inputFindings).toBe(4);
@@ -274,6 +310,42 @@ describe("exports", () => {
     expect(exportCorrelation(result, "csv")).toContain("duplicates_collapsed");
   });
 
+  it("preserves suppression evidence across reviewable export formats", () => {
+    const suppressed = correlateReports([report("sarif-suppressed.json")]);
+
+    const csv = exportCorrelation(suppressed, "csv");
+    expect(csv).toContain("suppressed");
+    expect(csv).toContain("true");
+
+    const markdown = exportCorrelation(suppressed, "markdown");
+    expect(markdown).toContain("0 active, 2 effectively suppressed");
+    expect(markdown).toContain("**Suppression:** effectively suppressed");
+    expect(markdown).toContain("Reviewed \\<script\\>alert");
+
+    const sarif = JSON.parse(exportCorrelation(suppressed, "sarif")) as {
+      runs: Array<{
+        results: Array<{
+          suppressions?: Array<{ kind?: string; status?: string; justification?: string }>;
+          properties?: { suppressed?: boolean };
+        }>;
+      }>;
+    };
+    const exportedSuppressions = sarif.runs[0]?.results.flatMap((item) => item.suppressions ?? []);
+    expect(exportedSuppressions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "inSource" }),
+        expect.objectContaining({ kind: "external", status: "accepted" }),
+      ]),
+    );
+    expect(sarif.runs[0]?.results.every((item) => item.properties?.suppressed)).toBe(true);
+
+    const html = exportCorrelation(suppressed, "html");
+    expect(html).toContain('id="suppression-filter"');
+    expect(html).toContain('data-suppression="suppressed"');
+    expect(html).toContain("Reviewed &lt;script&gt;alert(&#39;not markup&#39;)&lt;/script&gt;");
+    expect(html).not.toContain("<script>alert('not markup')</script>");
+  });
+
   it("exports a self-contained interactive HTML report", () => {
     const htmlInput = structuredClone(result);
     const merged = htmlInput.clusters.find((cluster) => cluster.members.length > 1);
@@ -330,6 +402,51 @@ describe("exports", () => {
 });
 
 describe("baseline comparison", () => {
+  it("reports suppression changes while severity gates can count only active new clusters", () => {
+    const parsed = report("sarif-suppressed.json");
+    const first = parsed.findings[0];
+    expect(first).toBeDefined();
+    if (!first) return;
+    const currentReport: ParsedReport = { ...parsed, findings: [first] };
+    const activeReport: ParsedReport = {
+      ...currentReport,
+      findings: [{ ...first, suppressed: false, suppressions: [] }],
+    };
+
+    const changed = compareCorrelations(
+      correlateReports([activeReport]),
+      correlateReports([currentReport]),
+    );
+    expect(changed.summary).toMatchObject({ new: 0, updated: 1, unchanged: 0 });
+    expect(changed.items[0]?.changedFields).toContain("suppression");
+
+    const empty = correlateReports([
+      parseReport({
+        name: "empty.sarif",
+        content: JSON.stringify({
+          version: "2.1.0",
+          runs: [{ tool: { driver: { name: parsed.tool } }, results: [] }],
+        }),
+      }),
+    ]);
+    const added = compareCorrelations(empty, correlateReports([currentReport]));
+    expect(added.summary.newBySeverity.high).toBe(1);
+    expect(added.summary.newActiveBySeverity.high).toBe(0);
+
+    expect(exportBaselineDiff(changed, "csv")).toContain("suppressed");
+    expect(exportBaselineDiff(changed, "markdown")).toContain(
+      "**Suppression:** effectively suppressed",
+    );
+    const sarif = JSON.parse(exportBaselineDiff(changed, "sarif")) as {
+      runs: Array<{
+        results: Array<{ suppressions?: unknown[]; properties?: { suppressed?: boolean } }>;
+      }>;
+    };
+    expect(sarif.runs[0]?.results[0]?.suppressions).toHaveLength(1);
+    expect(sarif.runs[0]?.results[0]?.properties?.suppressed).toBe(true);
+    expect(exportBaselineDiff(changed, "html")).toContain('data-suppression="suppressed"');
+  });
+
   it("marks stable clusters unchanged and new evidence as new", () => {
     const baseline = correlateReports([report("trivy.json"), report("grype.json")]);
     const unchanged = compareCorrelations(

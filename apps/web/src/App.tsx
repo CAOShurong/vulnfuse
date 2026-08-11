@@ -22,6 +22,7 @@ const maxFileBytes = 100 * 1024 * 1024;
 const accepted = ".json,.sarif,.csv,application/json,text/csv";
 const severityFilters = ["all", "critical", "high", "medium", "low", "info", "unknown"] as const;
 type CoverageFilter = "all" | "multi" | "single";
+type SuppressionFilter = "all" | "active" | "suppressed";
 
 export function App() {
   const [inputs, setInputs] = useState<ReportInput[]>([]);
@@ -33,6 +34,7 @@ export function App() {
   const [severityFilter, setSeverityFilter] = useState<(typeof severityFilters)[number]>("all");
   const [toolFilter, setToolFilter] = useState("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
+  const [suppressionFilter, setSuppressionFilter] = useState<SuppressionFilter>("all");
   const [dropActive, setDropActive] = useState(false);
   const [fileError, setFileError] = useState<string>();
   const picker = useRef<HTMLInputElement>(null);
@@ -80,6 +82,11 @@ export function App() {
         (cluster.sourceTools.length > 1 ? "multi" : "single") !== coverageFilter
       )
         return false;
+      if (
+        suppressionFilter !== "all" &&
+        (cluster.suppressed ? "suppressed" : "active") !== suppressionFilter
+      )
+        return false;
       if (!normalizedQuery) return true;
       return [
         cluster.primary.title,
@@ -88,13 +95,20 @@ export function App() {
         cluster.primary.component?.purl,
         ...cluster.sourceTools,
         ...cluster.assets.map((asset) => asset.name),
+        ...cluster.members.flatMap((member) =>
+          (member.suppressions ?? []).flatMap((suppression) => [
+            suppression.kind,
+            suppression.status,
+            suppression.justification,
+          ]),
+        ),
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [analysis.result, coverageFilter, query, severityFilter, toolFilter]);
+  }, [analysis.result, coverageFilter, query, severityFilter, suppressionFilter, toolFilter]);
 
   useEffect(() => {
     if (!analysis.result) {
@@ -502,6 +516,17 @@ export function App() {
                     <option value="multi">Multiple scanners</option>
                     <option value="single">One scanner only</option>
                   </select>
+                  <select
+                    aria-label="Filter by suppression state"
+                    value={suppressionFilter}
+                    onChange={(event) =>
+                      setSuppressionFilter(event.target.value as SuppressionFilter)
+                    }
+                  >
+                    <option value="all">All dispositions</option>
+                    <option value="active">Active</option>
+                    <option value="suppressed">Effectively suppressed</option>
+                  </select>
                 </div>
                 <div className="cluster-count">
                   {visibleClusters.length} of {analysis.result.summary.clusters} clusters
@@ -528,6 +553,11 @@ export function App() {
                               {baselineItemsByClusterId.get(cluster.id)?.state ?? "new"}
                             </b>
                           )}
+                          <b
+                            className={`suppression-state ${cluster.suppressed ? "suppressed" : "active"}`}
+                          >
+                            {cluster.suppressed ? "suppressed" : "active"}
+                          </b>
                         </small>
                       </span>
                       <span className="source-stack">
@@ -600,10 +630,6 @@ export function App() {
 }
 
 function SummaryCards({ result }: { result: NonNullable<ReturnType<typeof correlateReports>> }) {
-  const duplicateRate =
-    result.summary.inputFindings === 0
-      ? 0
-      : Math.round((result.summary.duplicatesCollapsed / result.summary.inputFindings) * 100);
   return (
     <div className="summary-cards">
       <article>
@@ -614,7 +640,9 @@ function SummaryCards({ result }: { result: NonNullable<ReturnType<typeof correl
       <article className="accent">
         <span>Correlated clusters</span>
         <strong>{result.summary.clusters}</strong>
-        <small>{duplicateRate}% duplicate records</small>
+        <small>
+          {result.summary.activeClusters} active · {result.summary.suppressedClusters} suppressed
+        </small>
       </article>
       <article>
         <span>Records collapsed</span>
@@ -622,10 +650,11 @@ function SummaryCards({ result }: { result: NonNullable<ReturnType<typeof correl
         <small>nothing discarded</small>
       </article>
       <article className="severity-card">
-        <span>Cluster severity</span>
-        <SeverityBar counts={result.summary.bySeverity} />
+        <span>Active cluster severity</span>
+        <SeverityBar counts={result.summary.activeBySeverity} />
         <small>
-          {result.summary.bySeverity.critical} critical · {result.summary.bySeverity.high} high
+          {result.summary.activeBySeverity.critical} critical ·{" "}
+          {result.summary.activeBySeverity.high} high
         </small>
       </article>
     </div>
@@ -795,7 +824,12 @@ function ClusterDetail({
   return (
     <aside className="cluster-detail">
       <div className="detail-head">
-        <span className={`severity-pill ${cluster.severity}`}>{cluster.severity}</span>
+        <div className="detail-badges">
+          <span className={`severity-pill ${cluster.severity}`}>{cluster.severity}</span>
+          <span className={`suppression-pill ${cluster.suppressed ? "suppressed" : "active"}`}>
+            {cluster.suppressed ? "effectively suppressed" : "active"}
+          </span>
+        </div>
         <code>{cluster.id}</code>
       </div>
       {baselineItem && (
@@ -900,6 +934,19 @@ function ClusterDetail({
                 <small>{member.source.report}</small>
               </div>
               <span className={`mini-severity ${member.severity}`}>{member.severity}</span>
+              {(member.suppressions?.length ?? 0) > 0 && (
+                <div className="member-suppressions">
+                  <strong>
+                    {member.suppressed ? "Effectively suppressed" : "Suppression contested"}
+                  </strong>
+                  {member.suppressions?.map((suppression, index) => (
+                    <p key={`${suppression.kind}-${suppression.status ?? "missing"}-${index}`}>
+                      {suppression.kind} · {suppression.status ?? "status omitted"}
+                      {suppression.justification ? ` — ${suppression.justification}` : ""}
+                    </p>
+                  ))}
+                </div>
+              )}
             </article>
           ))}
         </div>

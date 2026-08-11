@@ -11,6 +11,7 @@ describe("safe browser demo", () => {
     const rootCause = correlateReports(reports, { scope: "root-cause" });
     expect(instance.summary.inputFindings).toBe(5);
     expect(instance.summary.duplicatesCollapsed).toBe(1);
+    expect(instance.summary).toMatchObject({ activeClusters: 4, suppressedClusters: 0 });
     expect(instance.summary.coverage).toMatchObject({
       singleToolClusters: 3,
       multiToolClusters: 1,

@@ -89,6 +89,8 @@ function confidenceRank(confidence: MatchExplanation["confidence"]): number {
 
 function choosePrimary(findings: CanonicalFinding[]): CanonicalFinding {
   return [...findings].sort((left, right) => {
+    const suppressionDelta = Number(Boolean(left.suppressed)) - Number(Boolean(right.suppressed));
+    if (suppressionDelta !== 0) return suppressionDelta;
     const severityDelta =
       severityOrder.indexOf(right.severity) - severityOrder.indexOf(left.severity);
     if (severityDelta !== 0) return severityDelta;
@@ -131,6 +133,7 @@ function makeCluster(members: CanonicalFinding[], edges: ClusterEdge[]): Finding
     primary: choosePrimary(members),
     members: [...members].sort((left, right) => left.source.tool.localeCompare(right.source.tool)),
     severity: maxSeverity(members.map((member) => member.severity)),
+    suppressed: members.every((member) => member.suppressed === true),
     sourceTools: [...new Set(members.map((member) => member.source.tool))].sort(),
     identifiers,
     assets,
@@ -218,9 +221,13 @@ export function correlateReports(
     });
 
   const bySeverity = zeroSeverityCounts();
+  const activeBySeverity = zeroSeverityCounts();
+  const suppressedBySeverity = zeroSeverityCounts();
   const byKind = zeroKindCounts();
   for (const cluster of clusters) {
     bySeverity[cluster.severity] += 1;
+    if (cluster.suppressed) suppressedBySeverity[cluster.severity] += 1;
+    else activeBySeverity[cluster.severity] += 1;
     byKind[cluster.primary.kind] += 1;
   }
 
@@ -270,9 +277,13 @@ export function correlateReports(
       inputReports: reports.length,
       inputFindings: findings.length,
       clusters: clusters.length,
+      activeClusters: clusters.filter((cluster) => !cluster.suppressed).length,
+      suppressedClusters: clusters.filter((cluster) => cluster.suppressed).length,
       duplicatesCollapsed: findings.length - clusters.length,
       sourceTools: coverage.tools.map((tool) => tool.tool),
       bySeverity,
+      activeBySeverity,
+      suppressedBySeverity,
       byKind,
       coverage,
     },

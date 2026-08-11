@@ -24784,9 +24784,13 @@ function compareCorrelations(baseline, current) {
   });
   items.sort(compareItems);
   const newBySeverity = zeroSeverityCounts();
+  const newActiveBySeverity = zeroSeverityCounts();
   for (const item of items) {
-    if (item.state === "new")
+    if (item.state === "new") {
       newBySeverity[item.cluster.severity] += 1;
+      if (!item.cluster.suppressed)
+        newActiveBySeverity[item.cluster.severity] += 1;
+    }
   }
   return {
     schemaVersion: "1.0",
@@ -24802,7 +24806,8 @@ function compareCorrelations(baseline, current) {
       updated: items.filter((item) => item.state === "updated").length,
       unchanged: items.filter((item) => item.state === "unchanged").length,
       absent: items.filter((item) => item.state === "absent").length,
-      newBySeverity
+      newBySeverity,
+      newActiveBySeverity
     }
   };
 }
@@ -24984,7 +24989,8 @@ function significantChanges(baseline, current) {
     ["locations", locationSnapshot(baseline), locationSnapshot(current)],
     ["remediation", remediationSnapshot(baseline), remediationSnapshot(current)],
     ["source-tools", baseline.sourceTools, current.sourceTools],
-    ["source-records", baseline.members.length, current.members.length]
+    ["source-records", baseline.members.length, current.members.length],
+    ["suppression", baseline.suppressed, current.suppressed]
   ];
   return fields.filter(([, before, after]) => JSON.stringify(before) !== JSON.stringify(after)).map(([name]) => name);
 }
@@ -25193,6 +25199,9 @@ function confidenceRank2(confidence) {
 }
 function choosePrimary(findings) {
   return [...findings].sort((left, right) => {
+    const suppressionDelta = Number(Boolean(left.suppressed)) - Number(Boolean(right.suppressed));
+    if (suppressionDelta !== 0)
+      return suppressionDelta;
     const severityDelta = severityOrder.indexOf(right.severity) - severityOrder.indexOf(left.severity);
     if (severityDelta !== 0)
       return severityDelta;
@@ -25217,6 +25226,7 @@ function makeCluster(members, edges) {
     primary: choosePrimary(members),
     members: [...members].sort((left, right) => left.source.tool.localeCompare(right.source.tool)),
     severity: maxSeverity(members.map((member) => member.severity)),
+    suppressed: members.every((member) => member.suppressed === true),
     sourceTools: [...new Set(members.map((member) => member.source.tool))].sort(),
     identifiers,
     assets,
@@ -25286,9 +25296,15 @@ function correlateReports(reports, options = {}) {
     return right.members.length - left.members.length || left.id.localeCompare(right.id);
   });
   const bySeverity = zeroSeverityCounts2();
+  const activeBySeverity = zeroSeverityCounts2();
+  const suppressedBySeverity = zeroSeverityCounts2();
   const byKind = zeroKindCounts();
   for (const cluster of clusters) {
     bySeverity[cluster.severity] += 1;
+    if (cluster.suppressed)
+      suppressedBySeverity[cluster.severity] += 1;
+    else
+      activeBySeverity[cluster.severity] += 1;
     byKind[cluster.primary.kind] += 1;
   }
   const coverageInputs = [];
@@ -25324,9 +25340,13 @@ function correlateReports(reports, options = {}) {
       inputReports: reports.length,
       inputFindings: findings.length,
       clusters: clusters.length,
+      activeClusters: clusters.filter((cluster) => !cluster.suppressed).length,
+      suppressedClusters: clusters.filter((cluster) => cluster.suppressed).length,
       duplicatesCollapsed: findings.length - clusters.length,
       sourceTools: coverage.tools.map((tool) => tool.tool),
       bySeverity,
+      activeBySeverity,
+      suppressedBySeverity,
       byKind,
       coverage
     }
@@ -25446,7 +25466,7 @@ function exportHtml(result) {
   return renderPortableReport({
     title: "VulnFuse correlation report",
     eyebrow: "Explainable cross-scanner correlation",
-    summary: `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters; ${result.summary.duplicatesCollapsed} duplicate records were collapsed without discarding their evidence.`,
+    summary: `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters: ${result.summary.activeClusters} active and ${result.summary.suppressedClusters} effectively suppressed; ${result.summary.duplicatesCollapsed} duplicate records were collapsed without discarding their evidence.`,
     options: result.options,
     items: result.clusters.map((cluster) => ({
       cluster,
@@ -25459,7 +25479,11 @@ function exportHtml(result) {
         value: result.summary.inputFindings,
         note: `from ${result.summary.sourceTools.length} tool${result.summary.sourceTools.length === 1 ? "" : "s"}`
       },
-      { label: "Clusters", value: result.summary.clusters, note: "reviewable groups" },
+      {
+        label: "Clusters",
+        value: result.summary.clusters,
+        note: `${result.summary.activeClusters} active; ${result.summary.suppressedClusters} suppressed`
+      },
       {
         label: "Collapsed",
         value: result.summary.duplicatesCollapsed,
@@ -25505,6 +25529,8 @@ function exportBaselineHtml(result) {
   });
 }
 function renderPortableReport(report) {
+  const activeCount = report.items.filter((item) => !item.cluster.suppressed).length;
+  const suppressedCount = report.items.length - activeCount;
   const assetNames = uniqueSorted2(report.items.flatMap((item) => item.cluster.assets.map((asset2) => asset2.name)));
   const assetIds = new Map(assetNames.map((name, index) => [name, `asset-${index + 1}`]));
   const toolNames = uniqueSorted2(report.items.flatMap((item) => item.cluster.sourceTools));
@@ -25519,7 +25545,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.8">
+  <meta name="generator" content="VulnFuse 0.4.9">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -25557,6 +25583,7 @@ function renderPortableReport(report) {
       ${assetFilter}
       ${toolFilter}
       <label>Coverage<select id="coverage-filter"><option value="all">All evidence</option><option value="multi">Multiple scanners</option><option value="single">One scanner only</option></select></label>
+      <label>Suppression<select id="suppression-filter"><option value="all">All dispositions</option><option value="active">Active (${activeCount})</option><option value="suppressed">Effectively suppressed (${suppressedCount})</option></select></label>
       <div class="view-actions"><button id="expand-all" type="button">Expand all</button><button id="collapse-all" type="button">Collapse all</button></div>
     </section>
     <div class="result-line"><strong id="result-count">${report.items.length}</strong> of ${report.items.length} clusters shown</div>
@@ -25611,7 +25638,12 @@ function renderFinding(item, assetIds, toolIds, initiallyOpen) {
       member.source.report,
       member.title,
       member.ruleId,
-      member.location?.uri
+      member.location?.uri,
+      ...(member.suppressions ?? []).flatMap((suppression) => [
+        suppression.kind,
+        suppression.status,
+        suppression.justification
+      ])
     ])
   ]);
   const assetTokens = assets.map((asset2) => assetIds.get(asset2)).filter((value2) => Boolean(value2)).join(" ");
@@ -25619,15 +25651,16 @@ function renderFinding(item, assetIds, toolIds, initiallyOpen) {
   const coverage = cluster.sourceTools.length > 1 ? "multi" : "single";
   const state = item.state ?? "correlated";
   const stateBadge = item.state ? `<span class="state ${item.state}">${escapeHtml(item.state)}</span>` : `<span class="confidence">${escapeHtml(cluster.confidence)} confidence</span>`;
+  const suppressionBadge = cluster.suppressed ? '<span class="suppression suppressed">effectively suppressed</span>' : '<span class="suppression active">active</span>';
   const description = cluster.primary.description ? `<p class="description">${escapeHtml(cluster.primary.description)}</p>` : "";
   const baseline = item.state ? renderBaseline(item) : "";
   const reasons = uniqueReasons(cluster.edges.flatMap((edge) => edge.explanation.reasons));
   const referenceLinks = uniqueSorted2(cluster.members.flatMap((member) => member.references)).map(safeReference).filter((value2) => Boolean(value2)).map((reference) => `<a href="${escapeHtml(reference)}" target="_blank" rel="noopener noreferrer">${escapeHtml(reference)}</a>`).join("");
-  return `<details class="finding" data-search="${escapeHtml(searchText)}" data-severity="${cluster.severity}" data-state="${state}" data-assets="${assetTokens}" data-tools="${toolTokens}" data-coverage="${coverage}"${initiallyOpen ? " open" : ""}>
+  return `<details class="finding" data-search="${escapeHtml(searchText)}" data-severity="${cluster.severity}" data-state="${state}" data-assets="${assetTokens}" data-tools="${toolTokens}" data-coverage="${coverage}" data-suppression="${cluster.suppressed ? "suppressed" : "active"}"${initiallyOpen ? " open" : ""}>
   <summary>
     <span class="severity ${cluster.severity}">${cluster.severity}</span>
     <span class="summary-copy"><strong>${escapeHtml(cluster.primary.title)}</strong><small>${escapeHtml(identifiers[0] ?? cluster.id)} \xB7 ${escapeHtml(component)} \xB7 ${escapeHtml(assets.join(", ") || "unknown asset")}</small></span>
-    ${stateBadge}
+    <span class="badges">${stateBadge}${suppressionBadge}</span>
     <span class="record-count">${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"}</span>
   </summary>
   <div class="finding-body">
@@ -25639,6 +25672,7 @@ function renderFinding(item, assetIds, toolIds, initiallyOpen) {
       ${fact("Component", component, true)}
       ${fact("Assets", cluster.assets.map((asset2) => `${asset2.type}: ${asset2.name}`).join(", ") || "unknown")}
       ${fact("Sources", `${cluster.sourceTools.join(", ")} (${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"})`)}
+      ${fact("Suppression", cluster.suppressed ? "effectively suppressed" : "active")}
       ${fact("Remediation", remediationLabel(cluster))}
     </dl>
     ${renderReasons(reasons)}
@@ -25680,7 +25714,9 @@ function renderMembers(cluster) {
     const identifiers = member.identifiers.map((identifier) => identifier.value).join(", ");
     const location = locationLabel(member.location);
     const component = member.component?.purl ?? [member.component?.name, member.component?.version].filter(Boolean).join("@");
-    return `<article class="member"><div class="member-head"><span class="tool">${escapeHtml(member.source.tool.slice(0, 2).toUpperCase())}</span><div><strong>${escapeHtml(member.source.tool)}</strong><small>${escapeHtml(member.source.report)}</small></div><span class="mini-severity ${member.severity}">${member.severity}</span></div><dl>${fact("Finding", member.title)}${fact("Identifier", identifiers || "none")}${fact("Component", component || "unknown", true)}${fact("Location", location || "not supplied", true)}</dl></article>`;
+    const suppressionDetails = (member.suppressions ?? []).map((suppression) => `<li><strong>${escapeHtml(suppression.kind)}</strong> \xB7 ${escapeHtml(suppression.status ?? "status omitted")}${suppression.justification ? `<p>${escapeHtml(suppression.justification)}</p>` : ""}</li>`).join("");
+    const memberSuppression = suppressionDetails ? `<div class="suppression-evidence"><span>${member.suppressed ? "Effectively suppressed" : "Suppression contested"}</span><ul>${suppressionDetails}</ul></div>` : "";
+    return `<article class="member"><div class="member-head"><span class="tool">${escapeHtml(member.source.tool.slice(0, 2).toUpperCase())}</span><div><strong>${escapeHtml(member.source.tool)}</strong><small>${escapeHtml(member.source.report)}</small></div><span class="mini-severity ${member.severity}">${member.severity}</span></div><dl>${fact("Finding", member.title)}${fact("Identifier", identifiers || "none")}${fact("Component", component || "unknown", true)}${fact("Location", location || "not supplied", true)}</dl>${memberSuppression}</article>`;
   }).join("")}</div></section>`;
 }
 function fact(label, value2, mono = false) {
@@ -25752,6 +25788,7 @@ var portableScript = String.raw`(() => {
   const asset = document.getElementById("asset-filter");
   const tool = document.getElementById("tool-filter");
   const coverage = document.getElementById("coverage-filter");
+  const suppression = document.getElementById("suppression-filter");
   const count = document.getElementById("result-count");
   const findings = Array.from(document.querySelectorAll(".finding"));
 
@@ -25762,6 +25799,7 @@ var portableScript = String.raw`(() => {
     const selectedAsset = asset?.value || "all";
     const selectedTool = tool?.value || "all";
     const selectedCoverage = coverage?.value || "all";
+    const selectedSuppression = suppression?.value || "all";
     let visible = 0;
     for (const finding of findings) {
       const matchesQuery = !query || (finding.dataset.search || "").includes(query);
@@ -25776,20 +25814,23 @@ var portableScript = String.raw`(() => {
         (finding.dataset.tools || "").split(" ").includes(selectedTool);
       const matchesCoverage =
         selectedCoverage === "all" || finding.dataset.coverage === selectedCoverage;
+      const matchesSuppression =
+        selectedSuppression === "all" || finding.dataset.suppression === selectedSuppression;
       finding.hidden = !(
         matchesQuery &&
         matchesSeverity &&
         matchesState &&
         matchesAsset &&
         matchesTool &&
-        matchesCoverage
+        matchesCoverage &&
+        matchesSuppression
       );
       if (!finding.hidden) visible += 1;
     }
     count.textContent = String(visible);
   }
 
-  for (const control of [search, severity, state, asset, tool, coverage]) {
+  for (const control of [search, severity, state, asset, tool, coverage, suppression]) {
     control?.addEventListener(control === search ? "input" : "change", applyFilters);
   }
   document.getElementById("expand-all")?.addEventListener("click", () => {
@@ -25804,6 +25845,8 @@ var coverageStyles = String.raw`
 `;
 var portableStyles = String.raw`
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef8f3;background:#07110f;--ink:#eef8f3;--muted:#8da49b;--line:rgba(177,218,198,.16);--panel:#0b1815;--panel2:#10221d;--mint:#8cf6c3;--mint2:#37e39b;--critical:#ff5f78;--high:#ff936b;--medium:#ffc86b;--low:#7bd9ff;--info:#91a8ff;--unknown:#687b74}*{box-sizing:border-box}body{margin:0;min-width:320px;background:radial-gradient(circle at 78% 0,rgba(55,227,155,.09),transparent 34rem),#07110f;line-height:1.5}.hero,main,footer{width:min(1180px,calc(100% - 40px));margin:auto}.hero{padding:34px 0 48px;border-bottom:1px solid var(--line)}.brand{display:flex;gap:11px;align-items:center;font-weight:800}.brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid rgba(140,246,195,.55);border-radius:10px;color:var(--mint);font-size:12px;background:rgba(55,227,155,.08)}.version{font-size:12px;color:var(--muted);font-weight:650}.hero-copy{max-width:850px;padding-top:52px}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:12px;color:var(--mint);font-weight:800}.hero h1{font-size:clamp(38px,6vw,72px);line-height:1.02;letter-spacing:-.055em;margin:12px 0 20px}.lede{font-size:clamp(17px,2vw,22px);color:#b9cec5;max-width:800px}.policy{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);margin-top:22px}main{padding:36px 0 60px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stats article,.severity-panel,.controls,.finding,.notice{border:1px solid var(--line);background:rgba(11,24,21,.9);border-radius:16px}.stats article{padding:18px}.stats span,.stats small{display:block;color:var(--muted);font-size:12px}.stats strong{display:block;font-size:32px;color:var(--mint);line-height:1.15;margin:7px 0}.severity-panel{margin-top:12px;padding:18px}.severity-panel>div:first-child{display:flex;justify-content:space-between;gap:16px}.severity-panel span{color:var(--muted)}.severity-bar{height:9px;display:flex;overflow:hidden;border-radius:99px;background:#14221f;margin:14px 0}.severity-bar span{display:block}.critical{background-color:var(--critical)}.high{background-color:var(--high)}.medium{background-color:var(--medium)}.low{background-color:var(--low)}.info{background-color:var(--info)}.unknown{background-color:var(--unknown)}.severity-legend{display:flex;flex-wrap:wrap;gap:12px 20px;font-size:12px}.severity-legend span{display:flex;align-items:center;gap:6px}.severity-legend i{width:8px;height:8px;border-radius:50%}.severity-legend b{color:var(--ink)}.controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-top:24px;padding:14px}.controls label{display:grid;gap:5px;color:var(--muted);font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}.search-label{flex:1 1 280px}.controls input,.controls select,.controls button{min-height:42px;border:1px solid var(--line);border-radius:10px;background:#07110f;color:var(--ink);padding:0 12px;font:inherit}.controls input{width:100%}.view-actions{display:flex;gap:8px;margin-left:auto}.controls button{cursor:pointer;color:var(--mint)}.result-line{text-align:right;color:var(--muted);font-size:12px;padding:12px 2px}.result-line strong{color:var(--ink)}.findings{display:grid;gap:10px}.finding{overflow:hidden}.finding[hidden]{display:none}.finding summary{list-style:none;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:17px 18px;cursor:pointer}.finding summary::-webkit-details-marker{display:none}.finding[open] summary{border-bottom:1px solid var(--line);background:rgba(55,227,155,.035)}.severity{display:inline-grid;place-items:center;min-width:72px;min-height:27px;border-radius:99px;color:#07110f;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.summary-copy{min-width:0}.summary-copy strong,.summary-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.summary-copy strong{font-size:15px}.summary-copy small{color:var(--muted);font:11px ui-monospace,SFMono-Regular,Consolas,monospace;margin-top:4px}.state,.confidence{border:1px solid var(--line);border-radius:99px;padding:5px 9px;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.state.new{color:var(--critical);border-color:rgba(255,95,120,.35)}.state.updated{color:var(--medium);border-color:rgba(255,200,107,.35)}.state.absent{color:var(--low);border-color:rgba(123,217,255,.35)}.state.unchanged{color:var(--mint);border-color:rgba(140,246,195,.3)}.confidence,.record-count{color:var(--muted)}.record-count{font-size:11px;white-space:nowrap}.finding-body{padding:20px}.description{color:#c6d8d0;max-width:900px}.baseline-callout{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-left:3px solid var(--mint);padding:10px 12px;background:var(--panel2);border-radius:8px;font-size:12px}.baseline-callout.new{border-color:var(--critical)}.baseline-callout.updated{border-color:var(--medium)}.baseline-callout.absent{border-color:var(--low)}.baseline-callout span{color:var(--muted)}.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.facts>div,.member dl>div{min-width:0}.facts dt,.member dt{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.facts dd,.member dd{margin:4px 0 0;overflow-wrap:anywhere}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}.evidence{margin-top:22px}.section-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px}.section-head h2{font-size:13px;margin:0}.section-head span{font-size:11px;color:var(--muted)}.reason-list,.blocker-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}.reason-list article,.blocker-list article{display:flex;gap:10px;padding:11px;border:1px solid var(--line);border-radius:10px;background:#081310}.reason-list b{color:var(--mint)}.blocker-list b{color:var(--critical)}.reason-list strong,.blocker-list strong{display:block;font-size:11px;text-transform:uppercase;color:var(--muted)}.reason-list p,.blocker-list p{margin:2px 0;font-size:12px}.reason-list small{color:var(--muted)}.muted{color:var(--muted)}.member-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}.member{border:1px solid var(--line);border-radius:12px;padding:12px;background:#081310}.member-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px}.tool{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:rgba(55,227,155,.1);color:var(--mint);font-size:11px;font-weight:900}.member-head strong,.member-head small{display:block}.member-head small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}.mini-severity{font-size:10px;text-transform:uppercase;color:var(--muted)}.member dl{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0 0}.member dd{font-size:11px}.references{display:grid;gap:7px;margin-top:10px}.references a{color:var(--mint);font-size:12px;overflow-wrap:anywhere}.notice{padding:14px;color:var(--muted);font-size:12px}.empty{text-align:center;color:var(--muted);padding:40px}footer{display:flex;justify-content:space-between;gap:24px;border-top:1px solid var(--line);padding:24px 0 40px;color:var(--muted);font-size:11px}footer strong{color:var(--mint)}footer span{max-width:750px;text-align:right}@media(max-width:800px){.stats{grid-template-columns:repeat(2,1fr)}.facts,.reason-list,.blocker-list,.member-list{grid-template-columns:1fr}.finding summary{grid-template-columns:auto minmax(0,1fr);}.state,.confidence,.record-count{grid-column:2}.hero-copy{padding-top:36px}.view-actions{width:100%;margin-left:0}.view-actions button{flex:1}footer{display:block}footer span{display:block;text-align:left;margin-top:8px}}@media(max-width:480px){.hero,main,footer{width:min(100% - 24px,1180px)}.stats{grid-template-columns:1fr}.finding summary{padding:14px}.severity{min-width:62px}.finding-body{padding:14px}}
+` + String.raw`
+.badges{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex-wrap:wrap}.suppression{border:1px solid var(--line);border-radius:99px;padding:5px 9px;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}.suppression.active{color:var(--mint)}.suppression.suppressed{color:var(--medium);border-color:rgba(255,200,107,.35)}.suppression-evidence{margin-top:10px;padding:9px;border:1px solid rgba(255,200,107,.22);border-radius:8px;background:rgba(255,200,107,.035);font-size:11px}.suppression-evidence>span{color:var(--medium);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.suppression-evidence ul{margin:7px 0 0;padding-left:18px}.suppression-evidence li+li{margin-top:6px}.suppression-evidence p{margin:2px 0 0;color:var(--muted);overflow-wrap:anywhere}@media(max-width:800px){.badges{grid-column:2;justify-content:flex-start}}
 `;
 
 // ../core/dist/exporters/markdown.js
@@ -25811,7 +25854,7 @@ function exportMarkdown(result) {
   const lines = [
     "# VulnFuse correlation report",
     "",
-    `> ${result.summary.inputFindings} source findings became ${result.summary.clusters} explainable clusters; ${result.summary.duplicatesCollapsed} duplicate records were collapsed.`,
+    `> ${result.summary.inputFindings} source findings became ${result.summary.clusters} explainable clusters: ${result.summary.activeClusters} active, ${result.summary.suppressedClusters} effectively suppressed; ${result.summary.duplicatesCollapsed} duplicate records were collapsed.`,
     "",
     "| Severity | Clusters |",
     "| --- | ---: |",
@@ -25859,6 +25902,7 @@ function clusterMarkdown(cluster) {
     "",
     `- **Cluster:** \`${cluster.id}\``,
     `- **Severity:** ${cluster.severity}`,
+    `- **Suppression:** ${cluster.suppressed ? "effectively suppressed" : "active"}`,
     `- **Identifiers:** ${escapeMarkdown(identifiers)}`,
     `- **Component:** ${inlineCode(component)}`,
     `- **Assets:** ${escapeMarkdown(assets)}`,
@@ -25866,8 +25910,17 @@ function clusterMarkdown(cluster) {
     `- **Match confidence:** ${cluster.confidence}`,
     ...reasons.length > 0 ? [`- **Why merged:** ${reasons.map(escapeMarkdown).join("; ")}`] : [],
     ...cluster.primary.remediation?.fixedVersion ? [`- **Fixed version:** ${escapeMarkdown(cluster.primary.remediation.fixedVersion)}`] : [],
+    ...suppressionMarkdown(cluster),
     ""
   ];
+}
+function suppressionMarkdown(cluster) {
+  const entries = cluster.members.flatMap((member) => (member.suppressions ?? []).map((suppression) => {
+    const status = suppression.status ?? "status omitted";
+    const justification = suppression.justification ? `: ${escapeMarkdown(suppression.justification)}` : "";
+    return `  - ${escapeMarkdown(member.source.tool)} / ${escapeMarkdown(member.source.report)}: ${suppression.kind}, ${status}${justification}`;
+  }));
+  return entries.length > 0 ? ["- **Source suppression evidence:**", ...entries] : [];
 }
 function escapeMarkdown(value2) {
   return value2.replace(/([\\`*_{}[\]()<>#+.!|])/g, "\\$1");
@@ -25911,7 +25964,8 @@ function exportDiffCsv(result) {
     component: item.cluster.primary.component?.purl ?? item.cluster.primary.component?.name ?? "",
     assets: item.cluster.assets.map((asset2) => asset2.name).join(";"),
     source_tools: item.cluster.sourceTools.join(";"),
-    source_records: item.cluster.members.length
+    source_records: item.cluster.members.length,
+    suppressed: item.cluster.suppressed
   }));
   return `${import_papaparse.default.unparse(rows, { newline: "\n", escapeFormulae: true })}
 `;
@@ -25949,6 +26003,7 @@ function diffItemMarkdown(item) {
     `### [${item.state.toUpperCase()}] ${escapeMarkdown2(item.cluster.primary.title)}`,
     "",
     `- **Severity:** ${item.cluster.severity}`,
+    `- **Suppression:** ${item.cluster.suppressed ? "effectively suppressed" : "active"}`,
     `- **Cluster:** ${inlineCode2(item.cluster.id)}`,
     ...item.baselineCluster && item.baselineCluster.id !== item.cluster.id ? [`- **Baseline cluster:** ${inlineCode2(item.baselineCluster.id)}`] : [],
     `- **Identifiers:** ${escapeMarkdown2(identifiers)}`,
@@ -25971,7 +26026,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.8",
+            semanticVersion: "0.4.9",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -26014,6 +26069,7 @@ function diffResultFor(item) {
   const cluster = item.cluster;
   const location = cluster.primary.location;
   const stableIdentity = item.baselineCluster?.id ?? cluster.id;
+  const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
   return {
     ruleId: cluster.id,
     level: sarifLevel(cluster.severity),
@@ -26023,18 +26079,42 @@ function diffResultFor(item) {
     },
     fingerprints: { vulnfuseClusterId: stableIdentity },
     partialFingerprints: { primaryLocationLineHash: stableIdentity },
+    ...suppressions.length > 0 ? { suppressions } : {},
     ...location?.uri ? { locations: [sarifLocation(location)] } : {},
     properties: {
       baselineState: item.state,
       changedFields: item.changedFields,
       sourceTools: cluster.sourceTools,
       sourceFindingIds: cluster.members.map((member) => member.id),
+      suppressed: cluster.suppressed,
+      suppressionEvidence: suppressionEvidence(cluster),
       matchConfidence: item.explanation?.confidence ?? "none",
       identifiers: cluster.identifiers,
       assets: cluster.assets,
       ...item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {}
     }
   };
+}
+function sarifSuppressions(cluster) {
+  const values = cluster.members.flatMap((member) => member.suppressions ?? []);
+  const unique = /* @__PURE__ */ new Map();
+  for (const suppression of values) {
+    const value2 = {
+      kind: suppression.kind,
+      ...suppression.status ? { status: suppression.status } : {},
+      ...suppression.justification ? { justification: suppression.justification } : {}
+    };
+    unique.set(JSON.stringify(value2), value2);
+  }
+  return [...unique.values()];
+}
+function suppressionEvidence(cluster) {
+  return cluster.members.filter((member) => (member.suppressions?.length ?? 0) > 0).map((member) => ({
+    sourceFindingId: member.id,
+    sourceTool: member.source.tool,
+    suppressed: member.suppressed === true,
+    suppressions: member.suppressions
+  }));
 }
 function sarifLocation(location) {
   return {
@@ -26091,6 +26171,7 @@ function exportCsv(result) {
     source_tools: cluster.sourceTools.join(";"),
     source_records: cluster.members.length,
     duplicates_collapsed: Math.max(0, cluster.members.length - 1),
+    suppressed: cluster.suppressed,
     confidence: cluster.confidence,
     fixed_version: cluster.primary.remediation?.fixedVersion ?? "",
     references: cluster.primary.references.join(";")
@@ -26115,7 +26196,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.8",
+            semanticVersion: "0.4.9",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor2(cluster))
           }
@@ -26152,6 +26233,7 @@ function ruleFor2(cluster) {
 }
 function resultFor(cluster) {
   const location = cluster.primary.location;
+  const suppressions = cluster.suppressed ? sarifSuppressions2(cluster) : [];
   return {
     ruleId: cluster.id,
     level: sarifLevel2(cluster.severity),
@@ -26160,6 +26242,7 @@ function resultFor(cluster) {
     },
     fingerprints: { vulnfuseClusterId: cluster.id },
     partialFingerprints: { primaryLocationLineHash: cluster.id },
+    ...suppressions.length > 0 ? { suppressions } : {},
     ...location?.uri ? {
       locations: [
         {
@@ -26179,11 +26262,34 @@ function resultFor(cluster) {
     properties: {
       sourceTools: cluster.sourceTools,
       sourceFindingIds: cluster.members.map((member) => member.id),
+      suppressed: cluster.suppressed,
+      suppressionEvidence: suppressionEvidence2(cluster),
       matchConfidence: cluster.confidence,
       identifiers: cluster.identifiers,
       assets: cluster.assets
     }
   };
+}
+function sarifSuppressions2(cluster) {
+  const values = cluster.members.flatMap((member) => member.suppressions ?? []);
+  const unique = /* @__PURE__ */ new Map();
+  for (const suppression of values) {
+    const value2 = {
+      kind: suppression.kind,
+      ...suppression.status ? { status: suppression.status } : {},
+      ...suppression.justification ? { justification: suppression.justification } : {}
+    };
+    unique.set(JSON.stringify(value2), value2);
+  }
+  return [...unique.values()];
+}
+function suppressionEvidence2(cluster) {
+  return cluster.members.filter((member) => (member.suppressions?.length ?? 0) > 0).map((member) => ({
+    sourceFindingId: member.id,
+    sourceTool: member.source.tool,
+    suppressed: member.suppressed === true,
+    suppressions: member.suppressions
+  }));
 }
 function sarifLevel2(severity) {
   if (severity === "critical" || severity === "high")
@@ -40781,6 +40887,12 @@ var canonicalFindingSchema = external_exports.object({
     fixedVersion: external_exports.string().optional(),
     recommendation: external_exports.string().optional()
   }).optional(),
+  suppressed: external_exports.boolean().optional(),
+  suppressions: external_exports.array(external_exports.object({
+    kind: external_exports.enum(["inSource", "external"]),
+    status: external_exports.enum(["accepted", "underReview", "rejected"]).optional(),
+    justification: external_exports.string().optional()
+  })).optional(),
   references: external_exports.array(external_exports.string()),
   properties: external_exports.record(external_exports.string(), jsonValueSchema)
 });
@@ -40833,6 +40945,8 @@ function makeFinding(seed) {
     ...seed.ruleId ? { ruleId: seed.ruleId } : {},
     fingerprints: cleanStrings(seed.fingerprints ?? {}),
     ...seed.remediation && (seed.remediation.fixedVersion || seed.remediation.recommendation) ? { remediation: seed.remediation } : {},
+    ...seed.suppressed !== void 0 ? { suppressed: seed.suppressed } : {},
+    ...seed.suppressions ? { suppressions: seed.suppressions } : {},
     references,
     properties: seed.properties ?? {}
   };
@@ -41388,6 +41502,7 @@ function parseSarif(root, reportName) {
       const rule = ruleId ? rules.get(ruleId) : void 0;
       const ruleProperties = asRecord(rule?.["properties"]) ?? {};
       const resultProperties = asRecord(result["properties"]) ?? {};
+      const suppression = parseSuppressions(result["suppressions"], runIndex, resultIndex, warnings);
       const message = asRecord(result["message"]);
       const title = asString(message?.["text"]) ?? asString(message?.["markdown"]) ?? asString(asRecord(rule?.["shortDescription"])?.["text"]) ?? ruleId ?? "SARIF finding";
       const description = asString(asRecord(rule?.["fullDescription"])?.["text"]) ?? asString(asRecord(rule?.["help"])?.["text"]);
@@ -41420,7 +41535,13 @@ function parseSarif(root, reportName) {
         safeHttpReference(rule?.["helpUri"]),
         ...asArray(resultProperties["references"]).map(safeHttpReference)
       ].filter((value2) => Boolean(value2));
-      const properties = asJsonValue(resultProperties);
+      const rawSuppressions = asJsonValue(result["suppressions"]);
+      const resultKind = asString(result["kind"]) ?? "fail";
+      const properties = asJsonValue({
+        ...resultProperties,
+        "sarif.resultKind": resultKind,
+        ...rawSuppressions !== void 0 ? { "sarif.suppressions": rawSuppressions } : {}
+      });
       findings.push(makeFinding({
         source: source(toolName, reportName, toolVersion, `run-${runIndex + 1}`),
         kind: sarifKind(tags, resultProperties),
@@ -41440,6 +41561,8 @@ function parseSarif(root, reportName) {
         } : {},
         ...ruleId ? { ruleId } : {},
         fingerprints,
+        suppressed: suppression.suppressed,
+        suppressions: suppression.suppressions,
         references,
         ...properties && !Array.isArray(properties) && typeof properties === "object" ? { properties } : {},
         nativeId: `${runIndex}:${resultIndex}:${asString(result["guid"]) ?? ruleId ?? title}`
@@ -41457,6 +41580,48 @@ function parseSarif(root, reportName) {
     findings,
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown" }
+  };
+}
+function parseSuppressions(value2, runIndex, resultIndex, warnings) {
+  if (value2 === void 0 || value2 === null)
+    return { suppressed: false, suppressions: [] };
+  const raw = Array.isArray(value2) ? value2 : void 0;
+  if (!raw) {
+    warnings.push({
+      code: "sarif.invalid-suppression",
+      message: "A SARIF suppressions value was not an array, so the finding remains active.",
+      path: `runs[${runIndex}].results[${resultIndex}].suppressions`
+    });
+    return { suppressed: false, suppressions: [] };
+  }
+  const suppressions = [];
+  let invalid = false;
+  for (const [suppressionIndex, suppressionValue] of raw.entries()) {
+    const suppression = asRecord(suppressionValue);
+    const kind = asString(suppression?.["kind"]);
+    const status = asString(suppression?.["status"]);
+    const validKind = kind === "inSource" || kind === "external";
+    const validStatus = status === void 0 || status === "accepted" || status === "underReview" || status === "rejected";
+    if (!suppression || !validKind || !validStatus) {
+      invalid = true;
+      warnings.push({
+        code: "sarif.invalid-suppression",
+        message: "A SARIF suppression had an invalid kind or status, so the finding remains active.",
+        path: `runs[${runIndex}].results[${resultIndex}].suppressions[${suppressionIndex}]`
+      });
+      continue;
+    }
+    const justification = asString(suppression["justification"]);
+    suppressions.push({
+      kind,
+      ...status ? { status } : {},
+      ...justification ? { justification } : {}
+    });
+  }
+  const contested = suppressions.some((suppression) => suppression.status === "underReview" || suppression.status === "rejected");
+  return {
+    suppressed: !invalid && suppressions.length > 0 && !contested,
+    suppressions
   };
 }
 function stringRecord(value2) {
@@ -41909,6 +42074,8 @@ async function run() {
     );
     setOutput("findings", result.summary.inputFindings);
     setOutput("clusters", result.summary.clusters);
+    setOutput("active", result.summary.activeClusters);
+    setOutput("suppressed", result.summary.suppressedClusters);
     setOutput("duplicates-collapsed", result.summary.duplicatesCollapsed);
     setOutput("single-tool", result.summary.coverage.singleToolClusters);
     setOutput("multi-tool", result.summary.coverage.multiToolClusters);
@@ -41920,7 +42087,7 @@ async function run() {
     setOutput("report", output);
     await writeSummary(result, output, baselineDiff);
     info(
-      `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters; ${result.summary.duplicatesCollapsed} duplicates collapsed.`
+      `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters (${result.summary.activeClusters} active and ${result.summary.suppressedClusters} suppressed); ${result.summary.duplicatesCollapsed} duplicates collapsed.`
     );
     info(
       `Coverage: ${result.summary.coverage.singleToolClusters} one-tool clusters and ${result.summary.coverage.multiToolClusters} multi-tool clusters.`
@@ -41933,14 +42100,14 @@ async function run() {
         warning(describeScanSetChange(baselineDiff.scanSetChange));
       }
     }
-    if (failOn !== "none" && hasSeverityAtLeast(result.summary.bySeverity, failOn)) {
+    if (failOn !== "none" && hasSeverityAtLeast(result.summary.activeBySeverity, failOn)) {
       setFailed(
-        `At least one vulnerability cluster met the '${failOn}' severity threshold. The report was still written to ${output}.`
+        `At least one active vulnerability cluster met the '${failOn}' severity threshold. The report was still written to ${output}.`
       );
     }
-    if (baselineDiff && failOnNew !== "none" && hasSeverityAtLeast(baselineDiff.summary.newBySeverity, failOnNew)) {
+    if (baselineDiff && failOnNew !== "none" && hasSeverityAtLeast(baselineDiff.summary.newActiveBySeverity, failOnNew)) {
       setFailed(
-        `At least one new vulnerability cluster met the '${failOnNew}' severity threshold. The baseline comparison was still written to ${output}.`
+        `At least one new active vulnerability cluster met the '${failOnNew}' severity threshold. The baseline comparison was still written to ${output}.`
       );
     }
     if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
@@ -41974,6 +42141,10 @@ async function readMatchedReports(patterns, label, maxBytes, output, maximumRepo
     const content = await readFileLimited(file2, maxBytes);
     const report = parseReport({ name: file2, content }, { maxBytes });
     info(`${report.tool}: ${report.findings.length} findings from ${file2}`);
+    for (const warning2 of report.warnings) {
+      const path6 = warning2.path ? ` at ${warning2.path}` : "";
+      warning(`${file2}: ${warning2.code}: ${warning2.message}${path6}`);
+    }
     reports.push(report);
   }
   return reports;
@@ -41982,10 +42153,14 @@ async function writeSummary(result, output, baselineDiff) {
   const table = [
     [
       { data: "Severity", header: true },
-      { data: "Clusters", header: true }
+      { data: "Active", header: true },
+      { data: "Suppressed", header: true },
+      { data: "Total", header: true }
     ],
     ...["critical", "high", "medium", "low", "info", "unknown"].map((severity) => [
       severity,
+      String(result.summary.activeBySeverity[severity]),
+      String(result.summary.suppressedBySeverity[severity]),
       String(result.summary.bySeverity[severity])
     ])
   ];
@@ -42009,7 +42184,7 @@ async function writeSummary(result, output, baselineDiff) {
     (pair) => `- ${escapeSummary(pair.leftTool)} / ${escapeSummary(pair.rightTool)}: ${pair.sharedClusters} shared of ${pair.unionClusters} union clusters (${(pair.overlapRatio * 100).toFixed(1)}% Jaccard)`
   ).join("\n") || "Add a second scanner to measure overlap.";
   await summary.addHeading("VulnFuse correlation", 2).addRaw(
-    `${result.summary.inputFindings} source findings became **${result.summary.clusters} clusters**; **${result.summary.duplicatesCollapsed} duplicate records** were collapsed.`,
+    `${result.summary.inputFindings} source findings became **${result.summary.clusters} clusters** (**${result.summary.activeClusters} active**, **${result.summary.suppressedClusters} suppressed**); **${result.summary.duplicatesCollapsed} duplicate records** were collapsed.`,
     true
   ).addTable(table).addHeading("Scanner coverage", 3).addRaw(
     `**${result.summary.coverage.singleToolClusters} one-tool clusters** and **${result.summary.coverage.multiToolClusters} multi-tool clusters**. Agreement is evidence coverage, not a correctness vote.`,
@@ -42023,7 +42198,7 @@ async function writeSummary(result, output, baselineDiff) {
   ).addDetails(
     baselineDiff ? "Highest-severity new clusters" : "Highest-severity clusters",
     (baselineDiff ? baselineDiff.items.filter((item) => item.state === "new").map((item) => item.cluster) : result.clusters).slice(0, 20).map(
-      (cluster) => `- **${cluster.severity.toUpperCase()}** ${escapeSummary(cluster.primary.title)} \u2014 ${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"} from ${cluster.sourceTools.join(", ")}`
+      (cluster) => `- **${cluster.severity.toUpperCase()}** ${escapeSummary(cluster.primary.title)} (${cluster.suppressed ? "effectively suppressed" : "active"}) \u2014 ${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"} from ${cluster.sourceTools.join(", ")}`
     ).join("\n") || "No findings."
   ).addRaw(`Report: \`${output}\``, true).write();
 }

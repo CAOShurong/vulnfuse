@@ -66,6 +66,16 @@ export const canonicalFindingSchema = z.object({
       recommendation: z.string().optional(),
     })
     .optional(),
+  suppressed: z.boolean().optional(),
+  suppressions: z
+    .array(
+      z.object({
+        kind: z.enum(["inSource", "external"]),
+        status: z.enum(["accepted", "underReview", "rejected"]).optional(),
+        justification: z.string().optional(),
+      }),
+    )
+    .optional(),
   references: z.array(z.string()),
   properties: z.record(z.string(), jsonValueSchema),
 });
