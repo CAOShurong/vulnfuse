@@ -25,15 +25,24 @@ import {
 } from "./utils.js";
 
 const maximumPairComparisons = 2_000_000;
+const maximumClusterSafetyComparisons = 1_000_000;
 const maximumRejectedCandidates = 1_000;
+
+interface IndexedMatch {
+  leftIndex: number;
+  rightIndex: number;
+  edge: ClusterEdge;
+}
 
 class UnionFind {
   private readonly parent: number[];
   private readonly rank: number[];
+  private readonly groupMembers: number[][];
 
   constructor(size: number) {
     this.parent = Array.from({ length: size }, (_, index) => index);
     this.rank = Array.from({ length: size }, () => 0);
+    this.groupMembers = Array.from({ length: size }, (_, index) => [index]);
   }
 
   find(index: number): number {
@@ -49,12 +58,28 @@ class UnionFind {
     if (leftRoot === rightRoot) return;
     const leftRank = this.rank[leftRoot] ?? 0;
     const rightRank = this.rank[rightRoot] ?? 0;
-    if (leftRank < rightRank) this.parent[leftRoot] = rightRoot;
-    else if (leftRank > rightRank) this.parent[rightRoot] = leftRoot;
-    else {
+    let retainedRoot: number;
+    let absorbedRoot: number;
+    if (leftRank < rightRank) {
+      this.parent[leftRoot] = rightRoot;
+      retainedRoot = rightRoot;
+      absorbedRoot = leftRoot;
+    } else if (leftRank > rightRank) {
+      this.parent[rightRoot] = leftRoot;
+      retainedRoot = leftRoot;
+      absorbedRoot = rightRoot;
+    } else {
       this.parent[rightRoot] = leftRoot;
       this.rank[leftRoot] = leftRank + 1;
+      retainedRoot = leftRoot;
+      absorbedRoot = rightRoot;
     }
+    this.groupMembers[retainedRoot]?.push(...(this.groupMembers[absorbedRoot] ?? []));
+    this.groupMembers[absorbedRoot] = [];
+  }
+
+  members(index: number): readonly number[] {
+    return this.groupMembers[this.find(index)] ?? [];
   }
 }
 
@@ -132,6 +157,7 @@ export function correlateReports(
   const edges: ClusterEdge[] = [];
   const rejectedCandidates: ClusterEdge[] = [];
   const pairs = candidatePairs(findings, resolved);
+  const matchedCandidates: IndexedMatch[] = [];
 
   for (const [leftIndex, rightIndex] of pairs) {
     const left = findings[leftIndex];
@@ -140,11 +166,38 @@ export function correlateReports(
     if (!right) continue;
     const explanation = explainMatch(left, right, resolved);
     if (explanation.matched) {
-      unionFind.union(leftIndex, rightIndex);
-      edges.push({ leftId: left.id, rightId: right.id, explanation });
+      matchedCandidates.push({
+        leftIndex,
+        rightIndex,
+        edge: { leftId: left.id, rightId: right.id, explanation },
+      });
     } else if (explanation.blockers.length > 0 && explanation.score > 0) {
       rejectedCandidates.push({ leftId: left.id, rightId: right.id, explanation });
     }
+  }
+
+  matchedCandidates.sort(compareIndexedMatches);
+  const blockerCache = new Map<string, MatchExplanation>();
+  const safetyBudget = { comparisons: 0 };
+  for (const candidate of matchedCandidates) {
+    const leftRoot = unionFind.find(candidate.leftIndex);
+    const rightRoot = unionFind.find(candidate.rightIndex);
+    if (leftRoot !== rightRoot) {
+      const blockedBy = firstClusterBlocker(
+        unionFind.members(leftRoot),
+        unionFind.members(rightRoot),
+        findings,
+        resolved,
+        blockerCache,
+        safetyBudget,
+      );
+      if (blockedBy) {
+        rejectedCandidates.push(blockedBy);
+        continue;
+      }
+      unionFind.union(leftRoot, rightRoot);
+    }
+    edges.push(candidate.edge);
   }
 
   const groups = new Map<number, CanonicalFinding[]>();
@@ -206,9 +259,13 @@ export function correlateReports(
     options: resolved,
     reports: reportSummaries,
     clusters,
-    rejectedCandidates: rejectedCandidates
-      .sort((left, right) => right.explanation.score - left.explanation.score)
-      .slice(0, maximumRejectedCandidates),
+    rejectedCandidates: uniqueBy(
+      rejectedCandidates.sort(compareRejectedCandidates),
+      (edge) =>
+        `${edgePairKey(edge.leftId, edge.rightId)}:${edge.explanation.blockers
+          .map((blocker) => `${blocker.feature}:${blocker.message}`)
+          .join("|")}`,
+    ).slice(0, maximumRejectedCandidates),
     summary: {
       inputReports: reports.length,
       inputFindings: findings.length,
@@ -220,6 +277,74 @@ export function correlateReports(
       coverage,
     },
   };
+}
+
+function compareIndexedMatches(left: IndexedMatch, right: IndexedMatch): number {
+  return (
+    right.edge.explanation.score - left.edge.explanation.score ||
+    confidenceRank(right.edge.explanation.confidence) -
+      confidenceRank(left.edge.explanation.confidence) ||
+    edgePairKey(left.edge.leftId, left.edge.rightId).localeCompare(
+      edgePairKey(right.edge.leftId, right.edge.rightId),
+    )
+  );
+}
+
+function compareRejectedCandidates(left: ClusterEdge, right: ClusterEdge): number {
+  return (
+    right.explanation.score - left.explanation.score ||
+    edgePairKey(left.leftId, left.rightId).localeCompare(edgePairKey(right.leftId, right.rightId))
+  );
+}
+
+function edgePairKey(leftId: string, rightId: string): string {
+  return [leftId, rightId].sort().join(":");
+}
+
+function firstClusterBlocker(
+  leftMembers: readonly number[],
+  rightMembers: readonly number[],
+  findings: readonly CanonicalFinding[],
+  options: CorrelationOptions,
+  cache: Map<string, MatchExplanation>,
+  budget: { comparisons: number },
+): ClusterEdge | undefined {
+  const left = [...leftMembers].sort((a, b) =>
+    (findings[a]?.id ?? "").localeCompare(findings[b]?.id ?? ""),
+  );
+  const right = [...rightMembers].sort((a, b) =>
+    (findings[a]?.id ?? "").localeCompare(findings[b]?.id ?? ""),
+  );
+  for (const leftIndex of left) {
+    for (const rightIndex of right) {
+      const leftFinding = findings[leftIndex];
+      const rightFinding = findings[rightIndex];
+      if (!leftFinding || !rightFinding) continue;
+      const key = edgePairKey(leftFinding.id, rightFinding.id);
+      let explanation = cache.get(key);
+      if (explanation === undefined) {
+        budget.comparisons += 1;
+        if (budget.comparisons > maximumClusterSafetyComparisons) {
+          throw new Error(
+            `Correlation would require more than ${maximumClusterSafetyComparisons.toLocaleString()} cluster-safety comparisons. Raise the match threshold or split the reports by asset.`,
+          );
+        }
+        const evaluated = explainMatch(leftFinding, rightFinding, options);
+        if (evaluated.blockers.length > 0) {
+          explanation = evaluated;
+          cache.set(key, explanation);
+        }
+      }
+      if (explanation) {
+        return {
+          leftId: leftFinding.id,
+          rightId: rightFinding.id,
+          explanation,
+        };
+      }
+    }
+  }
+  return undefined;
 }
 
 function candidatePairs(

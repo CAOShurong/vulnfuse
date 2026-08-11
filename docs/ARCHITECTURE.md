@@ -14,7 +14,7 @@ canonical findings → candidate index → pair explanations
       └──────────────────────────────────┘
                          │
                          ▼
-               union-find clusters
+          constrained union-find clusters
                          │
               optional baseline match
                          │
@@ -38,7 +38,7 @@ The core has no Node-only dependency. It contains:
 - identifier, path, severity, asset, and PURL normalization;
 - canonical schemas and TypeScript types;
 - match scoring and blockers;
-- candidate indexing and union-find clustering;
+- candidate indexing, strongest-edge ordering, and cluster-level hard-blocker checks before union-find clustering;
 - deterministic per-tool attribution and bounded pairwise overlap analytics;
 - deterministic one-to-one comparison of baseline and current clusters;
 - JSON, SARIF, CSV, Markdown, and self-contained HTML exporters.
