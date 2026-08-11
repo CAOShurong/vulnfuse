@@ -6,6 +6,7 @@ import {
   asNumber,
   asRecord,
   asString,
+  canonicalizePurl,
   maxSeverity,
   normalizeSeverity,
   safeHttpReference,
@@ -54,15 +55,6 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
     const ratingSeverities = ratings.map((rating) =>
       normalizeSeverity(rating["severity"] ?? asNumber(rating["score"])),
     );
-    const affected = asRecord(asArray(vulnerability["affects"])[0]);
-    const affectedRef = asString(affected?.["ref"]);
-    const component = affectedRef ? components.get(affectedRef) : undefined;
-    const version = affectedVersion(affected) ?? asString(component?.["version"]);
-    const componentPurl = asString(component?.["purl"]);
-    const componentGroup = asString(component?.["group"]);
-    const componentName = asString(component?.["name"]);
-    const componentType = asString(component?.["type"]);
-    const fixedVersion = affectedFixedVersion(affected);
     const analysis = asRecord(vulnerability["analysis"]);
     const recommendation = asString(vulnerability["recommendation"] ?? analysis?.["detail"]);
     const properties = asJsonValue({
@@ -72,45 +64,64 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
       affects: vulnerability["affects"],
     });
 
-    findings.push(
-      makeFinding({
-        source: source(toolName, reportName, tool?.version),
-        kind: "sca",
-        title: vulnerabilityId
-          ? `${vulnerabilityId} in ${componentName ?? affectedRef ?? "component"}`
-          : "CycloneDX vulnerability",
-        ...(asString(vulnerability["description"] ?? vulnerability["detail"])
-          ? { description: asString(vulnerability["description"] ?? vulnerability["detail"]) }
-          : {}),
-        severity: ratingSeverities.length > 0 ? maxSeverity(ratingSeverities) : "unknown",
-        identifiers: uniqueIdentifiers(identifiers),
-        component: {
-          ...(componentPurl ? { purl: componentPurl } : {}),
-          ...(componentGroup ? { ecosystem: componentGroup } : {}),
-          ...(componentName ? { name: componentName } : {}),
-          ...(version ? { version } : {}),
-          ...(componentType ? { type: componentType } : {}),
-        },
-        ...(rootAsset ? { asset: rootAsset } : {}),
-        remediation: {
-          ...(fixedVersion ? { fixedVersion } : {}),
-          ...(recommendation ? { recommendation } : {}),
-        },
-        references: [
-          safeHttpReference(asRecord(vulnerability["source"])?.["url"]),
-          ...asArray(vulnerability["references"])
-            .map((entry) => asRecord(entry)?.["url"])
-            .map(safeHttpReference),
-          ...asArray(vulnerability["advisories"])
-            .map((entry) => asRecord(entry)?.["url"])
-            .map(safeHttpReference),
-        ].filter((entry): entry is string => Boolean(entry)),
-        ...(properties && !Array.isArray(properties) && typeof properties === "object"
-          ? { properties: properties as Record<string, JsonValue> }
-          : {}),
-        nativeId: `${index}:${vulnerabilityId ?? "finding"}:${affectedRef ?? "component"}`,
-      }),
-    );
+    const affectedEntries = asArray(vulnerability["affects"])
+      .map(asRecord)
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry));
+    const targets: Array<Record<string, unknown> | undefined> =
+      affectedEntries.length > 0 ? affectedEntries : [undefined];
+
+    for (const [affectedIndex, affected] of targets.entries()) {
+      const affectedRef = asString(affected?.["ref"]);
+      const component = affectedRef ? components.get(affectedRef) : undefined;
+      const version = affectedVersion(affected) ?? asString(component?.["version"]);
+      const componentPurl =
+        canonicalizePurl(asString(component?.["purl"])) ?? purlFromAffectedRef(affectedRef);
+      const componentGroup = asString(component?.["group"]);
+      const componentName = asString(component?.["name"]);
+      const componentType = asString(component?.["type"]);
+      const fixedVersion = affectedFixedVersion(affected);
+      const targetSuffix = targets.length > 1 ? `:${affectedIndex}` : "";
+
+      findings.push(
+        makeFinding({
+          source: source(toolName, reportName, tool?.version),
+          kind: "sca",
+          title: vulnerabilityId
+            ? `${vulnerabilityId} in ${componentName ?? componentPurl ?? affectedRef ?? "component"}`
+            : "CycloneDX vulnerability",
+          ...(asString(vulnerability["description"] ?? vulnerability["detail"])
+            ? { description: asString(vulnerability["description"] ?? vulnerability["detail"]) }
+            : {}),
+          severity: ratingSeverities.length > 0 ? maxSeverity(ratingSeverities) : "unknown",
+          identifiers: uniqueIdentifiers(identifiers),
+          component: {
+            ...(componentPurl ? { purl: componentPurl } : {}),
+            ...(componentGroup ? { ecosystem: componentGroup } : {}),
+            ...(componentName ? { name: componentName } : {}),
+            ...(version ? { version } : {}),
+            ...(componentType ? { type: componentType } : {}),
+          },
+          ...(rootAsset ? { asset: rootAsset } : {}),
+          remediation: {
+            ...(fixedVersion ? { fixedVersion } : {}),
+            ...(recommendation ? { recommendation } : {}),
+          },
+          references: [
+            safeHttpReference(asRecord(vulnerability["source"])?.["url"]),
+            ...asArray(vulnerability["references"])
+              .map((entry) => asRecord(entry)?.["url"])
+              .map(safeHttpReference),
+            ...asArray(vulnerability["advisories"])
+              .map((entry) => asRecord(entry)?.["url"])
+              .map(safeHttpReference),
+          ].filter((entry): entry is string => Boolean(entry)),
+          ...(properties && !Array.isArray(properties) && typeof properties === "object"
+            ? { properties: properties as Record<string, JsonValue> }
+            : {}),
+          nativeId: `${index}:${vulnerabilityId ?? "finding"}:${affectedRef ?? "component"}${targetSuffix}`,
+        }),
+      );
+    }
   }
 
   return {
@@ -135,6 +146,25 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
         : {}),
     },
   };
+}
+
+const BOM_LINK_ELEMENT =
+  /^urn:cdx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[1-9][0-9]*#(.+)$/;
+
+function purlFromAffectedRef(ref: string | undefined): string | undefined {
+  const direct = canonicalizePurl(ref);
+  if (direct) return direct;
+
+  const fragment = ref?.match(BOM_LINK_ELEMENT)?.[1];
+  if (!fragment) return undefined;
+  const encoded = canonicalizePurl(fragment);
+  if (encoded) return encoded;
+
+  try {
+    return canonicalizePurl(decodeURIComponent(fragment));
+  } catch {
+    return undefined;
+  }
 }
 
 function cycloneTool(

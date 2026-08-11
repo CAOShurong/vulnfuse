@@ -1,0 +1,26 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:11111111-2222-4333-8444-555555555555",
+  "metadata": {
+    "tools": {
+      "components": [{ "name": "CycloneDX VEX Producer", "version": "1.0.0" }]
+    }
+  },
+  "vulnerabilities": [
+    {
+      "id": "CVE-2018-7489",
+      "ratings": [{ "severity": "high" }],
+      "affects": [
+        {
+          "ref": "urn:cdx:3e671687-395b-41f5-a30f-a58921a69b79/1#pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.10.0?type=jar",
+          "versions": [{ "version": "2.10.0", "status": "affected" }]
+        },
+        {
+          "ref": "urn:cdx:e4c3eedc-4978-470c-ad02-6ffff63738ff/1#product-JKL",
+          "versions": [{ "range": "vers:generic/>=4.5|<5.0", "status": "affected" }]
+        }
+      ]
+    }
+  ]
+}

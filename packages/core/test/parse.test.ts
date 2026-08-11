@@ -65,6 +65,35 @@ describe("report parsing", () => {
     );
   });
 
+  it("expands every CycloneDX affect and recovers valid PURLs from BOM-Link fragments", () => {
+    const parsed = parseReport({
+      name: "external-vex.json",
+      content: fixture("cyclonedx-bomlink.json"),
+    });
+
+    expect(parsed.findings).toHaveLength(2);
+    expect(parsed.findings[0]).toMatchObject({
+      title:
+        "CVE-2018-7489 in pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.10.0?type=jar",
+      component: {
+        purl: "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.10.0?type=jar",
+        version: "2.10.0",
+      },
+    });
+    expect(parsed.findings[1]?.component).toEqual({ version: "vers:generic/>=4.5|<5.0" });
+    expect(parsed.findings[0]?.id).not.toBe(parsed.findings[1]?.id);
+  });
+
+  it("does not guess a package identity from an arbitrary external BOM reference", () => {
+    const parsed = parseReport({
+      name: "external-vex.json",
+      content: fixture("cyclonedx-bomlink.json"),
+    });
+
+    expect(parsed.findings[1]?.component?.purl).toBeUndefined();
+    expect(parsed.findings[1]?.title).toContain("#product-JKL");
+  });
+
   it("preserves SARIF suppression evidence and evaluates it conservatively", () => {
     const document = JSON.parse(fixture("sarif-suppressed.json")) as {
       runs: Array<{ results: Array<Record<string, unknown>> }>;

@@ -4,6 +4,34 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-08-11
+
+### Fixed
+
+- Expand every CycloneDX `vulnerabilities[].affects[]` target into its own
+  canonical finding instead of silently keeping only the first affected
+  component.
+- Recover a component PURL when an affected reference is either a valid PURL
+  itself or a valid CycloneDX BOM-Link element whose fragment is a valid PURL.
+  External VEX evidence can now correlate with another scanner's report of the
+  same CVE/package rather than remaining an unidentified singleton.
+
+### Safety
+
+- Require the full BOM-Link element syntax and validate the fragment with the
+  existing `packageurl-js` parser. Arbitrary external `bom-ref` fragments stay
+  unresolved and visible instead of being guessed into package identities.
+- Preserve the complete source `affects` and VEX analysis as properties; the
+  parser still does not reinterpret producer-declared VEX state as proof of
+  exploitability, suppression, or a false positive.
+
+### Limitations
+
+- VulnFuse does not retrieve the referenced external BOM or resolve arbitrary
+  BOM-Link fragments. A non-PURL fragment needs the referenced inventory to
+  establish component identity and therefore remains uncorrelated unless
+  another supported field supplies that evidence.
+
 ## [0.4.10] - 2026-08-11
 
 ### Added

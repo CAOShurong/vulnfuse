@@ -25,6 +25,27 @@ function report(name: string) {
 }
 
 describe("explainable correlation", () => {
+  it("correlates a BOM-linked external VEX PURL with another scanner", () => {
+    const parsedVex = report("cyclonedx-bomlink.json");
+    const vexFinding = parsedVex.findings[0];
+    expect(vexFinding).toBeDefined();
+    if (!vexFinding) return;
+    const scanner = parseReport({
+      name: "scanner.csv",
+      content:
+        "vulnerability_id,title,severity,purl,tool\n" +
+        'CVE-2018-7489,"CVE-2018-7489 in pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.10.0?type=jar",high,"pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.10.0?type=jar",Other Scanner\n',
+    });
+
+    const result = correlateReports([{ ...parsedVex, findings: [vexFinding] }, scanner], {
+      scope: "root-cause",
+    });
+
+    expect(result.clusters).toHaveLength(1);
+    expect(result.clusters[0]?.members).toHaveLength(2);
+    expect(result.clusters[0]?.sourceTools).toEqual(["CycloneDX VEX Producer", "Other Scanner"]);
+  });
+
   it("separates non-finding SARIF evidence from active and suppressed clusters", () => {
     const parsed = report("sarif-result-kinds.json");
     const result = correlateReports([parsed]);
