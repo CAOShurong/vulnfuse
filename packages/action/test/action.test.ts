@@ -13,6 +13,7 @@ const trivy = resolve(repository, "packages/core/test/fixtures/trivy.json");
 const grype = resolve(repository, "packages/core/test/fixtures/grype.json");
 const csv = resolve(repository, "packages/core/test/fixtures/generic.csv");
 const suppressedSarif = resolve(repository, "packages/core/test/fixtures/sarif-suppressed.json");
+const resultKindsSarif = resolve(repository, "packages/core/test/fixtures/sarif-result-kinds.json");
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -124,6 +125,48 @@ describe("GitHub Action bundle", () => {
     expect(result.summary).toMatchObject({ activeClusters: 0, suppressedClusters: 2 });
     expect(await readFile(githubOutput, "utf8")).toContain("suppressed");
     expect(await readFile(stepSummary, "utf8")).toContain("suppressed");
+  });
+
+  it("retains non-finding SARIF evidence without failing or creating hosted SARIF alerts", async () => {
+    const document = JSON.parse(await readFile(resultKindsSarif, "utf8")) as {
+      runs: Array<{ results: Array<Record<string, unknown>> }>;
+    };
+    if (!document.runs[0]) return;
+    document.runs[0].results = document.runs[0].results.slice(0, 3);
+    const input = join(testDirectory, "non-finding-only.sarif");
+    const outputReport = join(testDirectory, "non-finding-output.sarif");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(input, JSON.stringify(document), "utf8");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: input,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "sarif",
+        "INPUT_FAIL-ON": "info",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+
+    const sarif = JSON.parse(await readFile(outputReport, "utf8")) as {
+      runs: Array<{
+        results: unknown[];
+        properties?: { nonFindingClusters?: unknown[] };
+      }>;
+    };
+    expect(sarif.runs[0]?.results).toHaveLength(0);
+    expect(sarif.runs[0]?.properties?.nonFindingClusters).toHaveLength(3);
+    const outputs = await readFile(githubOutput, "utf8");
+    expect(outputs).toContain("non-finding");
+    expect(await readFile(stepSummary, "utf8")).toContain("Non-finding");
   });
 
   it("warns and keeps malformed SARIF suppression active", async () => {

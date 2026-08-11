@@ -73,6 +73,7 @@ export async function run(): Promise<void> {
     core.setOutput("clusters", result.summary.clusters);
     core.setOutput("active", result.summary.activeClusters);
     core.setOutput("suppressed", result.summary.suppressedClusters);
+    core.setOutput("non-finding", result.summary.nonFindingClusters);
     core.setOutput("duplicates-collapsed", result.summary.duplicatesCollapsed);
     core.setOutput("single-tool", result.summary.coverage.singleToolClusters);
     core.setOutput("multi-tool", result.summary.coverage.multiToolClusters);
@@ -84,7 +85,7 @@ export async function run(): Promise<void> {
     core.setOutput("report", output);
     await writeSummary(result, output, baselineDiff);
     core.info(
-      `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters (${result.summary.activeClusters} active and ${result.summary.suppressedClusters} suppressed); ${result.summary.duplicatesCollapsed} duplicates collapsed.`,
+      `${result.summary.inputFindings} source records became ${result.summary.clusters} clusters (${result.summary.activeClusters} active, ${result.summary.suppressedClusters} suppressed, and ${result.summary.nonFindingClusters} non-finding); ${result.summary.duplicatesCollapsed} duplicates collapsed.`,
     );
     core.info(
       `Coverage: ${result.summary.coverage.singleToolClusters} one-tool clusters and ${result.summary.coverage.multiToolClusters} multi-tool clusters.`,
@@ -170,12 +171,14 @@ async function writeSummary(
       { data: "Severity", header: true },
       { data: "Active", header: true },
       { data: "Suppressed", header: true },
+      { data: "Non-finding", header: true },
       { data: "Total", header: true },
     ],
     ...(["critical", "high", "medium", "low", "info", "unknown"] as Severity[]).map((severity) => [
       severity,
       String(result.summary.activeBySeverity[severity]),
       String(result.summary.suppressedBySeverity[severity]),
+      String(result.summary.nonFindingBySeverity[severity]),
       String(result.summary.bySeverity[severity]),
     ]),
   ];
@@ -206,7 +209,7 @@ async function writeSummary(
   await core.summary
     .addHeading("VulnFuse correlation", 2)
     .addRaw(
-      `${result.summary.inputFindings} source findings became **${result.summary.clusters} clusters** (**${result.summary.activeClusters} active**, **${result.summary.suppressedClusters} suppressed**); **${result.summary.duplicatesCollapsed} duplicate records** were collapsed.`,
+      `${result.summary.inputFindings} source records became **${result.summary.clusters} clusters** (**${result.summary.activeClusters} active**, **${result.summary.suppressedClusters} suppressed**, **${result.summary.nonFindingClusters} non-finding**); **${result.summary.duplicatesCollapsed} duplicate records** were collapsed.`,
       true,
     )
     .addTable(table)
@@ -238,7 +241,7 @@ async function writeSummary(
         .slice(0, 20)
         .map(
           (cluster) =>
-            `- **${cluster.severity.toUpperCase()}** ${escapeSummary(cluster.primary.title)} (${cluster.suppressed ? "effectively suppressed" : "active"}) — ${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"} from ${cluster.sourceTools.join(", ")}`,
+            `- **${cluster.severity.toUpperCase()}** ${escapeSummary(cluster.primary.title)} (${cluster.nonFinding ? "non-finding evidence" : cluster.suppressed ? "effectively suppressed" : "active"}) — ${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"} from ${cluster.sourceTools.join(", ")}`,
         )
         .join("\n") || "No findings.",
     )

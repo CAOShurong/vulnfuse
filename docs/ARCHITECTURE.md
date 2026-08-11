@@ -39,7 +39,7 @@ The default core entry point has no Node-only dependency. It contains:
 - canonical schemas and TypeScript types;
 - match scoring and blockers;
 - candidate indexing, strongest-edge ordering, and cluster-level hard-blocker checks before union-find clustering;
-- conservative SARIF suppression parsing and cluster disposition without evidence deletion;
+- conservative SARIF result-kind and suppression parsing with three-state cluster disposition and no evidence deletion;
 - deterministic per-tool attribution and bounded pairwise overlap analytics;
 - deterministic one-to-one comparison of baseline and current clusters;
 - JSON, SARIF, CSV, Markdown, and self-contained HTML exporters.
@@ -58,7 +58,7 @@ The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action r
 
 ### `@vulnfuse/web`
 
-The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, active/suppressed disposition and justification, scanner coverage, pairwise overlap, baseline states, scan-set drift, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
+The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, active/suppressed/non-finding disposition, result kinds, suppression justification, scanner coverage, pairwise overlap, baseline states, scan-set drift, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
 
 ## Trust boundaries
 

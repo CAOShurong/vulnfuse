@@ -25,6 +25,102 @@ function report(name: string) {
 }
 
 describe("explainable correlation", () => {
+  it("separates non-finding SARIF evidence from active and suppressed clusters", () => {
+    const parsed = report("sarif-result-kinds.json");
+    const result = correlateReports([parsed]);
+
+    expect(result.summary).toMatchObject({
+      inputFindings: 10,
+      clusters: 10,
+      activeClusters: 7,
+      suppressedClusters: 0,
+      nonFindingClusters: 3,
+    });
+    expect(result.summary.nonFindingBySeverity.info).toBe(3);
+    expect(result.summary.activeBySeverity.info).toBe(4);
+    expect(result.clusters.filter((cluster) => cluster.nonFinding)).toHaveLength(3);
+
+    const pass = parsed.findings[0];
+    const fail = parsed.findings[5];
+    expect(pass).toBeDefined();
+    expect(fail).toBeDefined();
+    if (!pass || !fail) return;
+    const mixed = correlateReports(
+      [
+        {
+          ...parsed,
+          sourceName: "pass.sarif",
+          findings: [
+            {
+              ...pass,
+              id: "pass-record",
+              title: "Shared rule outcome",
+              ruleId: "SHARED001",
+              identifiers: [],
+              fingerprints: {},
+              location: { uri: "src/shared.c", startLine: 12 },
+              component: { path: "src/shared.c" },
+              asset: { type: "file", name: "src/shared.c", key: "src/shared.c" },
+            },
+          ],
+        },
+        {
+          ...parsed,
+          sourceName: "fail.sarif",
+          tool: "Second Producer",
+          tools: ["Second Producer"],
+          findings: [
+            {
+              ...fail,
+              id: "fail-record",
+              source: { ...fail.source, tool: "Second Producer", report: "fail.sarif" },
+              title: "Shared rule outcome",
+              ruleId: "SHARED001",
+              identifiers: [],
+              fingerprints: {},
+              location: { uri: "src/shared.c", startLine: 12 },
+              component: { path: "src/shared.c" },
+              asset: { type: "file", name: "src/shared.c", key: "src/shared.c" },
+            },
+          ],
+        },
+      ],
+      { threshold: 0 },
+    );
+    expect(mixed.clusters).toHaveLength(1);
+    expect(mixed.clusters[0]).toMatchObject({ nonFinding: false, suppressed: false });
+    expect(mixed.summary).toMatchObject({
+      activeClusters: 1,
+      suppressedClusters: 0,
+      nonFindingClusters: 0,
+    });
+
+    const csv = exportCorrelation(result, "csv");
+    expect(csv).toContain("disposition");
+    expect(csv).toContain("non-finding");
+
+    const markdown = exportCorrelation(result, "markdown");
+    expect(markdown).toContain("7 active, 0 effectively suppressed, 3 non-finding");
+    expect(markdown).toContain("**Disposition:** non-finding evidence");
+
+    const sarif = JSON.parse(exportCorrelation(result, "sarif")) as {
+      runs: Array<{
+        results: Array<{ properties?: { nonFinding?: boolean } }>;
+        properties?: { nonFindingClusters?: Array<{ nonFinding?: boolean }> };
+      }>;
+    };
+    expect(sarif.runs[0]?.results).toHaveLength(7);
+    expect(sarif.runs[0]?.results.some((item) => item.properties?.nonFinding)).toBe(false);
+    expect(sarif.runs[0]?.properties?.nonFindingClusters).toHaveLength(3);
+    expect(
+      sarif.runs[0]?.properties?.nonFindingClusters?.every((cluster) => cluster.nonFinding),
+    ).toBe(true);
+
+    const html = exportCorrelation(result, "html");
+    expect(html).toContain('id="disposition-filter"');
+    expect(html).toContain('data-disposition="non-finding"');
+  });
+
   it("keeps suppressed evidence but separates it from active clusters", () => {
     const suppressedReport = report("sarif-suppressed.json");
     const suppressedOnly = correlateReports([suppressedReport]);
@@ -319,7 +415,7 @@ describe("exports", () => {
 
     const markdown = exportCorrelation(suppressed, "markdown");
     expect(markdown).toContain("0 active, 2 effectively suppressed");
-    expect(markdown).toContain("**Suppression:** effectively suppressed");
+    expect(markdown).toContain("**Disposition:** effectively suppressed");
     expect(markdown).toContain("Reviewed \\<script\\>alert");
 
     const sarif = JSON.parse(exportCorrelation(suppressed, "sarif")) as {
@@ -340,8 +436,8 @@ describe("exports", () => {
     expect(sarif.runs[0]?.results.every((item) => item.properties?.suppressed)).toBe(true);
 
     const html = exportCorrelation(suppressed, "html");
-    expect(html).toContain('id="suppression-filter"');
-    expect(html).toContain('data-suppression="suppressed"');
+    expect(html).toContain('id="disposition-filter"');
+    expect(html).toContain('data-disposition="suppressed"');
     expect(html).toContain("Reviewed &lt;script&gt;alert(&#39;not markup&#39;)&lt;/script&gt;");
     expect(html).not.toContain("<script>alert('not markup')</script>");
   });
@@ -435,7 +531,7 @@ describe("baseline comparison", () => {
 
     expect(exportBaselineDiff(changed, "csv")).toContain("suppressed");
     expect(exportBaselineDiff(changed, "markdown")).toContain(
-      "**Suppression:** effectively suppressed",
+      "**Disposition:** effectively suppressed",
     );
     const sarif = JSON.parse(exportBaselineDiff(changed, "sarif")) as {
       runs: Array<{
@@ -444,7 +540,16 @@ describe("baseline comparison", () => {
     };
     expect(sarif.runs[0]?.results[0]?.suppressions).toHaveLength(1);
     expect(sarif.runs[0]?.results[0]?.properties?.suppressed).toBe(true);
-    expect(exportBaselineDiff(changed, "html")).toContain('data-suppression="suppressed"');
+    expect(exportBaselineDiff(changed, "html")).toContain('data-disposition="suppressed"');
+
+    const nonFindingReport = report("sarif-result-kinds.json");
+    const nonFindingOnly: ParsedReport = {
+      ...nonFindingReport,
+      findings: nonFindingReport.findings.filter((finding) => finding.nonFinding),
+    };
+    const nonFindingAdded = compareCorrelations(empty, correlateReports([nonFindingOnly]));
+    expect(nonFindingAdded.summary.newBySeverity.info).toBe(3);
+    expect(nonFindingAdded.summary.newActiveBySeverity.info).toBe(0);
   });
 
   it("marks stable clusters unchanged and new evidence as new", () => {

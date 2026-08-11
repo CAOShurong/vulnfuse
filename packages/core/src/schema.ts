@@ -67,6 +67,7 @@ export const canonicalFindingSchema = z.object({
     })
     .optional(),
   suppressed: z.boolean().optional(),
+  nonFinding: z.boolean().optional(),
   suppressions: z
     .array(
       z.object({

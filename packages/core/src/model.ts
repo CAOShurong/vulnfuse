@@ -83,6 +83,7 @@ export interface CanonicalFinding {
   fingerprints: Record<string, string>;
   remediation?: FindingRemediation;
   suppressed?: boolean;
+  nonFinding?: boolean;
   suppressions?: FindingSuppression[];
   references: string[];
   properties: Record<string, JsonValue>;
@@ -152,11 +153,22 @@ export interface FindingCluster {
   members: CanonicalFinding[];
   severity: Severity;
   suppressed: boolean;
+  nonFinding: boolean;
   sourceTools: string[];
   identifiers: FindingIdentifier[];
   assets: FindingAsset[];
   confidence: MatchExplanation["confidence"];
   edges: ClusterEdge[];
+}
+
+export type FindingDisposition = "active" | "suppressed" | "non-finding";
+
+export function clusterDisposition(
+  cluster: Pick<FindingCluster, "suppressed" | "nonFinding">,
+): FindingDisposition {
+  if (cluster.nonFinding) return "non-finding";
+  if (cluster.suppressed) return "suppressed";
+  return "active";
 }
 
 export interface ToolCoverage {
@@ -190,11 +202,13 @@ export interface CorrelationSummary {
   clusters: number;
   activeClusters: number;
   suppressedClusters: number;
+  nonFindingClusters: number;
   duplicatesCollapsed: number;
   sourceTools: string[];
   bySeverity: Record<Severity, number>;
   activeBySeverity: Record<Severity, number>;
   suppressedBySeverity: Record<Severity, number>;
+  nonFindingBySeverity: Record<Severity, number>;
   byKind: Record<FindingKind, number>;
   coverage: CoverageSummary;
 }

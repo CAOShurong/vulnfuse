@@ -968,6 +968,13 @@ main {
   color: var(--medium);
   background: rgba(255, 200, 107, 0.08);
 }
+
+.suppression-state.non-finding,
+.suppression-pill.non-finding {
+  color: var(--low);
+  border-color: rgba(123, 217, 255, 0.35);
+  background: rgba(123, 217, 255, 0.07);
+}
 .cluster-copy strong {
   font-size: 11px;
   line-height: 1.3;
@@ -1335,6 +1342,12 @@ main {
   font-size: 8px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+.result-kind-evidence {
+  border-top-color: rgba(123, 217, 255, 0.18);
+}
+.result-kind-evidence strong {
+  color: var(--low);
 }
 .member-suppressions p {
   margin: 4px 0 0;

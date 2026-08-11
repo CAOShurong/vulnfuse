@@ -121,6 +121,52 @@ describe("report parsing", () => {
     );
   });
 
+  it("keeps non-problem SARIF result kinds as evidence without treating them as findings", () => {
+    const parsed = parseReport({
+      name: "result-kinds.sarif",
+      content: fixture("sarif-result-kinds.json"),
+    });
+
+    expect(parsed.findings.map((finding) => finding.nonFinding)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(parsed.findings.map((finding) => finding.properties["sarif.resultKind"])).toEqual([
+      "pass",
+      "informational",
+      "notApplicable",
+      "open",
+      "review",
+      "fail",
+      "fail",
+      "invented",
+      42,
+      "pass",
+    ]);
+    expect(parsed.warnings).toEqual([
+      expect.objectContaining({
+        code: "sarif.invalid-result-kind",
+        path: "runs[0].results[7].kind",
+      }),
+      expect.objectContaining({
+        code: "sarif.invalid-result-kind",
+        path: "runs[0].results[8].kind",
+      }),
+      expect.objectContaining({
+        code: "sarif.inconsistent-result-kind",
+        path: "runs[0].results[9].kind",
+      }),
+    ]);
+  });
+
   it("accepts a UTF-8 BOM before JSON input", () => {
     const content = `\uFEFF${fixture("sarif.json")}`;
     expect(detectFormat(content, "stdin")).toBe("sarif");

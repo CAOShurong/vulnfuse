@@ -20,7 +20,7 @@ import { Command, InvalidArgumentError, Option } from "commander";
 import { glob, isDynamicPattern } from "tinyglobby";
 import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.9";
+const version = "0.4.10";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -334,11 +334,18 @@ async function readStdin(maxBytes: number): Promise<string> {
 }
 
 function reportSummary(report: ParsedReport) {
+  const nonFinding = report.findings.filter((finding) => finding.nonFinding).length;
+  const suppressed = report.findings.filter(
+    (finding) => !finding.nonFinding && finding.suppressed,
+  ).length;
   return {
     name: report.sourceName,
     format: report.format,
     tool: report.tool,
     findings: report.findings.length,
+    active: report.findings.length - nonFinding - suppressed,
+    suppressed,
+    nonFinding,
     warnings: report.warnings,
   };
 }
@@ -355,10 +362,13 @@ function printReportWarnings(reports: ParsedReport[]): void {
 }
 
 function inspectTable(reports: ParsedReport[]): string {
-  const lines = ["FORMAT       FINDINGS  TOOL                 REPORT"];
+  const lines = [
+    "FORMAT       RECORDS  ACTIVE  SUPPRESSED  NON-FINDING  TOOL                 REPORT",
+  ];
   for (const report of reports) {
+    const summary = reportSummary(report);
     lines.push(
-      `${report.format.padEnd(12)} ${String(report.findings.length).padStart(8)}  ${report.tool.slice(0, 20).padEnd(20)} ${report.sourceName}`,
+      `${report.format.padEnd(12)} ${String(summary.findings).padStart(7)}  ${String(summary.active).padStart(6)}  ${String(summary.suppressed).padStart(10)}  ${String(summary.nonFinding).padStart(11)}  ${report.tool.slice(0, 20).padEnd(20)} ${report.sourceName}`,
     );
     for (const warning of report.warnings)
       lines.push(`  warning: ${warning.code}: ${warning.message}`);

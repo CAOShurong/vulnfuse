@@ -6,6 +6,7 @@ import type {
   FindingCluster,
   OutputFormat,
 } from "../model.js";
+import { clusterDisposition } from "../model.js";
 import { describeScanSetChange } from "../compare.js";
 import { exportBaselineHtml } from "./html.js";
 import { coverageMarkdownLines } from "./markdown.js";
@@ -44,7 +45,9 @@ function exportDiffCsv(result: BaselineDiffResult): string {
     assets: item.cluster.assets.map((asset) => asset.name).join(";"),
     source_tools: item.cluster.sourceTools.join(";"),
     source_records: item.cluster.members.length,
+    disposition: clusterDisposition(item.cluster),
     suppressed: item.cluster.suppressed,
+    non_finding: item.cluster.nonFinding,
   }));
   return `${Papa.unparse(rows, { newline: "\n", escapeFormulae: true })}\n`;
 }
@@ -90,7 +93,7 @@ function diffItemMarkdown(item: BaselineDiffItem): string[] {
     `### [${item.state.toUpperCase()}] ${escapeMarkdown(item.cluster.primary.title)}`,
     "",
     `- **Severity:** ${item.cluster.severity}`,
-    `- **Suppression:** ${item.cluster.suppressed ? "effectively suppressed" : "active"}`,
+    `- **Disposition:** ${dispositionLabel(item.cluster)}`,
     `- **Cluster:** ${inlineCode(item.cluster.id)}`,
     ...(item.baselineCluster && item.baselineCluster.id !== item.cluster.id
       ? [`- **Baseline cluster:** ${inlineCode(item.baselineCluster.id)}`]
@@ -113,7 +116,9 @@ function diffItemMarkdown(item: BaselineDiffItem): string[] {
 }
 
 function exportDiffSarif(result: BaselineDiffResult): string {
-  const clusters = uniqueClusters(result.items.map((item) => item.cluster));
+  const emittedItems = result.items.filter((item) => !item.cluster.nonFinding);
+  const clusters = uniqueClusters(emittedItems.map((item) => item.cluster));
+  const nonFindingItems = result.items.filter((item) => item.cluster.nonFinding);
   const document = {
     $schema: "https://json.schemastore.org/sarif-2.1.0.json",
     version: "2.1.0",
@@ -122,7 +127,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.9",
+            semanticVersion: "0.4.10",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor),
           },
@@ -137,7 +142,12 @@ function exportDiffSarif(result: BaselineDiffResult): string {
             },
           },
         ],
-        results: result.items.map(diffResultFor),
+        results: emittedItems.map(diffResultFor),
+        properties: {
+          nonFindingItems,
+          nonFindingExportNote:
+            "Retained here instead of results[] because GitHub code scanning does not document result.kind in its supported SARIF subset.",
+        },
       },
     ],
   };
@@ -186,6 +196,7 @@ function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
       sourceTools: cluster.sourceTools,
       sourceFindingIds: cluster.members.map((member) => member.id),
       suppressed: cluster.suppressed,
+      nonFinding: cluster.nonFinding,
       suppressionEvidence: suppressionEvidence(cluster),
       matchConfidence: item.explanation?.confidence ?? "none",
       identifiers: cluster.identifiers,
@@ -193,6 +204,13 @@ function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
       ...(item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {}),
     },
   };
+}
+
+function dispositionLabel(cluster: FindingCluster): string {
+  const disposition = clusterDisposition(cluster);
+  if (disposition === "non-finding") return "non-finding evidence";
+  if (disposition === "suppressed") return "effectively suppressed";
+  return "active";
 }
 
 function sarifSuppressions(cluster: FindingCluster): Array<Record<string, string>> {
