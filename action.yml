@@ -47,6 +47,9 @@ inputs:
     description: Maximum bytes accepted for each input report.
     required: false
     default: "104857600"
+  sarif-fallback-location:
+    description: Optional repository-relative file used only to anchor otherwise locationless SARIF results.
+    required: false
 outputs:
   findings:
     description: Number of original source findings.

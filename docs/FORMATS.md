@@ -176,6 +176,15 @@ Each SARIF rule emits at most nine hosted-facing `properties.tags` values: `secu
 
 Rule names are limited to 255 UTF-16 code units; rule short/full descriptions and result messages are limited to 1,024. Truncation reserves one code unit for an ellipsis and iterates complete Unicode code points, so it cannot leave half of a surrogate pair. Exact over-limit values are retained in `vulnfuseOriginalName`, `vulnfuseOriginalShortDescription`, `vulnfuseOriginalFullDescription`, and `vulnfuseOriginalMessage`; `vulnfuseTruncatedFields` names the shortened rule fields. Hosted products can ignore custom properties, so their rule filters and alert titles are not a complete evidence view. The bounds cover documented GitHub/GitLab fields, not every platform-specific compatibility rule.
 
+Plain and baseline SARIF exporters accept an optional fallback location. It is
+attached at line 1 only when a result has no physical URI and is marked by
+`vulnfuseLocationProvenance: user-supplied-fallback`; an existing source URI
+and region always win. The value must be a non-empty forward-slash
+repository-relative URI without a scheme, traversal, empty segments, query,
+fragment, whitespace, control characters, invalid percent encoding, or encoded
+separators. Validation is syntactic: VulnFuse does not open the file, prove that
+it exists in a commit, or claim that the selected file caused the result.
+
 Every report summary has a primary `tool` plus a sorted `tools` list, a `toolVersions` map, and a `sarifAutomationCategories` map. The tool list records every producer represented by a mixed CSV file or multi-run SARIF document, including declared SARIF runs with zero findings. Version sets are trimmed, deduplicated, and sorted as opaque strings; they are not ordered or interpreted as upgrades. For each SARIF tool, category evidence records sorted GitHub-style category prefixes and the number of runs with no category. The identifier is preserved as evidence only: VulnFuse does not infer actual files, languages, scope, or hierarchy from it.
 
 Every correlation summary includes total, active, and effectively suppressed cluster counts and per-severity counts, plus a deterministic `coverage` object. Its per-tool rows count input reports, source findings attributed to that tool, resulting clusters, clusters reported only by that tool, and clusters shared with another tool. Pair rows record the shared cluster count, the union count, and Jaccard overlap (`shared / union`). Pairwise rows are omitted when more than 20 distinct tools are present to bound quadratic output; complete per-tool counts remain available. These values describe attribution and overlap, not scanner accuracy, false-positive rate, or majority truth.

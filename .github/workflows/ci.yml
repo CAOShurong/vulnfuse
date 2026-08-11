@@ -76,6 +76,17 @@ jobs:
           if ($openvex[0].format -ne "openvex" -or $openvex[0].findings -ne 3 -or $openvex[0].active -ne 3) {
             throw "Unexpected OpenVEX inspection summary"
           }
+          $anchoredOpenVexOutput = "${{ runner.temp }}/vulnfuse-openvex-anchored.sarif"
+          node packages/cli/dist/index.js merge packages/core/test/fixtures/openvex.json --format sarif --sarif-fallback-location package-lock.json --output $anchoredOpenVexOutput
+          $anchoredOpenVex = Get-Content -Raw $anchoredOpenVexOutput | ConvertFrom-Json
+          if ($anchoredOpenVex.runs[0].results.Count -ne 3) {
+            throw "Unexpected locationless OpenVEX SARIF result count"
+          }
+          foreach ($result in $anchoredOpenVex.runs[0].results) {
+            if ($result.locations[0].physicalLocation.artifactLocation.uri -ne "package-lock.json" -or $result.locations[0].physicalLocation.region.startLine -ne 1 -or $result.properties.vulnfuseLocationProvenance -ne "user-supplied-fallback") {
+              throw "Explicit OpenVEX SARIF fallback was not retained on Windows"
+            }
+          }
           $partialOutput = "${{ runner.temp }}/vulnfuse-partial.json"
           $partialProcess = Start-Process -FilePath node -ArgumentList @(
             "packages/cli/dist/index.js",
@@ -227,6 +238,18 @@ jobs:
         env:
           REPORT: ${{ steps.alias-tags.outputs.report }}
         run: node -e "const fs=require('fs');const sarif=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const rule=sarif.runs[0].tool.driver.rules[0];const result=sarif.runs[0].results[0];if(rule.properties.tags.length!==9||rule.properties.vulnfuseOmittedIdentifierTagCount!==24||result.properties.identifiers.length!==31)throw new Error('Unexpected Action SARIF tag/identifier contract');"
+      - id: anchored-openvex
+        name: Anchor locationless OpenVEX with the repository Action
+        uses: ./
+        with:
+          reports: packages/core/test/fixtures/openvex.json
+          format: sarif
+          sarif-fallback-location: package-lock.json
+          output: ${{ runner.temp }}/vulnfuse-openvex-anchored.sarif
+      - name: Validate Action fallback location provenance
+        env:
+          REPORT: ${{ steps.anchored-openvex.outputs.report }}
+        run: node -e "const fs=require('fs');const results=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8')).runs[0].results;if(results.length!==3||!results.every(r=>r.locations?.[0]?.physicalLocation?.artifactLocation?.uri==='package-lock.json'&&r.locations?.[0]?.physicalLocation?.region?.startLine===1&&r.properties?.vulnfuseLocationProvenance==='user-supplied-fallback'))throw new Error('Unexpected Action fallback-location contract');"
       - name: Prepare a long Unicode Trivy workflow fixture
         env:
           LONG_REPORT: ${{ runner.temp }}/vulnfuse-long-metadata-trivy.json

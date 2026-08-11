@@ -12,6 +12,12 @@ SARIF result kinds and suppression evidence are retained. `--fail-on` and `--fai
 
 Valid relative SARIF `uriBaseId` chains contribute portable path prefixes before file-location correlation. Producer-specific absolute roots are omitted; malformed chains warn and preserve the raw URI. This does not map symbolic roots to the local checkout or open source files.
 
+For package or VEX evidence with no physical URI, SARIF `merge` and `diff` can
+use `--sarif-fallback-location package-lock.json`. The opt-in value must be a
+safe repository-relative URI; it anchors otherwise locationless results at line
+1 and is labeled as user-supplied provenance. VulnFuse does not open the file or
+claim that the vulnerability originated there.
+
 CycloneDX VDR/VEX inputs may use the standard JSON or XML serialization. XML
 is detected from the CycloneDX `bom` namespace, rejects DTDs, and maps the same
 documented evidence as JSON; it is not complete XSD or signature validation.

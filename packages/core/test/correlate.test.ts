@@ -576,6 +576,126 @@ describe("exports", () => {
     expect(baselineSarif.runs[0]?.results[0]?.message.text.length).toBeLessThanOrEqual(1024);
   });
 
+  it("anchors only locationless hosted SARIF results when the user supplies a fallback", () => {
+    const openVex = correlateReports([report("openvex.json")]);
+    const withoutFallback = JSON.parse(exportCorrelation(openVex, "sarif")) as {
+      runs: Array<{ results: Array<{ locations?: unknown[] }> }>;
+    };
+    expect(withoutFallback.runs[0]?.results.every((item) => !item.locations)).toBe(true);
+
+    const fallback = "security/openvex.json";
+    const anchored = JSON.parse(
+      exportCorrelation(openVex, "sarif", { sarifFallbackLocation: fallback }),
+    ) as {
+      runs: Array<{
+        results: Array<{
+          locations?: Array<{
+            physicalLocation: {
+              artifactLocation: { uri: string };
+              region?: { startLine: number };
+            };
+          }>;
+          properties: { vulnfuseLocationProvenance?: string };
+        }>;
+      }>;
+    };
+    expect(anchored.runs[0]?.results).toHaveLength(3);
+    for (const item of anchored.runs[0]?.results ?? []) {
+      expect(item.locations?.[0]?.physicalLocation.artifactLocation.uri).toBe(fallback);
+      expect(item.locations?.[0]?.physicalLocation.region?.startLine).toBe(1);
+      expect(item.properties.vulnfuseLocationProvenance).toBe("user-supplied-fallback");
+    }
+
+    const mixed = JSON.parse(
+      exportCorrelation(correlateReports([report("trivy.json"), report("openvex.json")]), "sarif", {
+        sarifFallbackLocation: fallback,
+      }),
+    ) as {
+      runs: Array<{
+        results: Array<{
+          locations?: Array<{
+            physicalLocation: {
+              artifactLocation: { uri: string };
+              region?: { startLine: number };
+            };
+          }>;
+          properties: { vulnfuseLocationProvenance?: string };
+        }>;
+      }>;
+    };
+    const mixedResults = mixed.runs[0]?.results ?? [];
+    expect(
+      mixedResults.filter(
+        (item) => item.locations?.[0]?.physicalLocation.artifactLocation.uri === fallback,
+      ),
+    ).toHaveLength(3);
+    expect(
+      mixedResults.filter(
+        (item) => item.locations?.[0]?.physicalLocation.artifactLocation.uri === "app.jar",
+      ),
+    ).toHaveLength(2);
+    expect(
+      mixedResults
+        .filter((item) => item.locations?.[0]?.physicalLocation.artifactLocation.uri === "app.jar")
+        .every((item) => item.properties.vulnfuseLocationProvenance === undefined),
+    ).toBe(true);
+
+    const baseline = JSON.parse(
+      exportBaselineDiff(compareCorrelations(correlateReports([]), openVex), "sarif", {
+        sarifFallbackLocation: fallback,
+      }),
+    ) as {
+      runs: Array<{
+        results: Array<{
+          locations?: Array<{
+            physicalLocation: {
+              artifactLocation: { uri: string };
+              region?: { startLine: number };
+            };
+          }>;
+          properties: { vulnfuseLocationProvenance?: string };
+        }>;
+      }>;
+    };
+    expect(baseline.runs[0]?.results).toHaveLength(3);
+    expect(
+      baseline.runs[0]?.results.every(
+        (item) =>
+          item.locations?.[0]?.physicalLocation.artifactLocation.uri === fallback &&
+          item.locations?.[0]?.physicalLocation.region?.startLine === 1 &&
+          item.properties.vulnfuseLocationProvenance === "user-supplied-fallback",
+      ),
+    ).toBe(true);
+
+    for (const invalid of [
+      "",
+      "/absolute.json",
+      "C:/absolute.json",
+      "https://example.test/report.json",
+      "../outside.json",
+      "security/../outside.json",
+      "security/%2e%2e/outside.json",
+      "security/%2foutside.json",
+      "security/%252foutside.json",
+      "security/report%20name.json",
+      "security/report%3fquery.json",
+      "security/report%23fragment.json",
+      "security\\report.json",
+      "security//report.json",
+      "security/report.json/",
+      "security/report.json?query=1",
+      "security/report.json#fragment",
+      " security/report.json",
+    ]) {
+      expect(() => exportCorrelation(openVex, "sarif", { sarifFallbackLocation: invalid })).toThrow(
+        /SARIF fallback location/,
+      );
+    }
+    expect(() => exportCorrelation(openVex, "json", { sarifFallbackLocation: fallback })).toThrow(
+      /only be used with SARIF output/,
+    );
+  });
+
   it("exports reviewable Markdown and CSV", () => {
     const markdown = exportCorrelation(result, "markdown");
     expect(markdown).toContain("Why merged");

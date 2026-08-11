@@ -41,6 +41,87 @@ afterEach(async () => {
 });
 
 describe("CLI", () => {
+  it("anchors locationless OpenVEX SARIF only with an explicit safe fallback", async () => {
+    const output = join(testDirectory, "anchored-openvex.sarif");
+    const fallback = "security/openvex.json";
+    await execute(process.execPath, [
+      cli,
+      "merge",
+      openVex,
+      "--format",
+      "sarif",
+      "--sarif-fallback-location",
+      fallback,
+      "--output",
+      output,
+    ]);
+    const sarif = JSON.parse(await readFile(output, "utf8")) as {
+      runs: Array<{
+        results: Array<{
+          locations?: Array<{ physicalLocation: { artifactLocation: { uri: string } } }>;
+          properties: { vulnfuseLocationProvenance?: string };
+        }>;
+      }>;
+    };
+
+    expect(sarif.runs[0]?.results).toHaveLength(3);
+    expect(
+      sarif.runs[0]?.results.every(
+        (item) =>
+          item.locations?.[0]?.physicalLocation.artifactLocation.uri === fallback &&
+          item.properties.vulnfuseLocationProvenance === "user-supplied-fallback",
+      ),
+    ).toBe(true);
+
+    const invalidOutput = join(testDirectory, "invalid-fallback.sarif");
+    await expect(
+      execute(process.execPath, [
+        cli,
+        "merge",
+        openVex,
+        "--format",
+        "sarif",
+        "--sarif-fallback-location",
+        "../outside.json",
+        "--output",
+        invalidOutput,
+      ]),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(readFile(invalidOutput, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const emptyFallbackOutput = join(testDirectory, "empty-fallback.sarif");
+    await expect(
+      execute(process.execPath, [
+        cli,
+        "merge",
+        openVex,
+        "--format",
+        "sarif",
+        "--sarif-fallback-location",
+        "",
+        "--output",
+        emptyFallbackOutput,
+      ]),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(readFile(emptyFallbackOutput, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const wrongFormatOutput = join(testDirectory, "wrong-format.json");
+    await expect(
+      execute(process.execPath, [
+        cli,
+        "merge",
+        openVex,
+        "--format",
+        "json",
+        "--sarif-fallback-location",
+        fallback,
+        "--output",
+        wrongFormatOutput,
+      ]),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(readFile(wrongFormatOutput, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("bounds hosted SARIF text from Trivy while preserving exact originals", async () => {
     const input = join(testDirectory, "long-trivy.json");
     const output = join(testDirectory, "long-trivy.sarif");

@@ -78,3 +78,51 @@ export function boundHostedSarifText(
   }
   return { text: `${text}…`, truncated: true };
 }
+
+export function validateSarifFallbackLocation(value: string): string {
+  if (!value || value.trim() !== value) {
+    throw new Error("SARIF fallback location must be a non-empty repository-relative URI.");
+  }
+  if (/[\\?#\s]/u.test(value) || containsControlCharacter(value)) {
+    throw new Error(
+      "SARIF fallback location must use forward slashes and contain no whitespace, query, fragment, or control characters.",
+    );
+  }
+  if (value.startsWith("/") || /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value)) {
+    throw new Error("SARIF fallback location must be relative to the repository root.");
+  }
+
+  const segments = value.split("/");
+  for (const [index, segment] of segments.entries()) {
+    if (!segment) {
+      throw new Error("SARIF fallback location must not contain empty path segments.");
+    }
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      throw new Error("SARIF fallback location contains invalid percent encoding.");
+    }
+    if (
+      decoded === "." ||
+      decoded === ".." ||
+      decoded.includes("/") ||
+      decoded.includes("\\") ||
+      /[%?#\s]/u.test(decoded) ||
+      containsControlCharacter(decoded) ||
+      (index === 0 && /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(decoded))
+    ) {
+      throw new Error(
+        "SARIF fallback location must not contain traversal, nested encoding, encoded separators, whitespace, query, fragment, control characters, or an absolute URI scheme.",
+      );
+    }
+  }
+  return value;
+}
+
+function containsControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x1f || codePoint === 0x7f;
+  });
+}

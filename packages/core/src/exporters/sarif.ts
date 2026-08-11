@@ -1,11 +1,16 @@
-import type { CorrelationResult, FindingCluster } from "../model.js";
+import type { CorrelationResult, ExportOptions, FindingCluster } from "../model.js";
 import {
   boundHostedSarifText,
   hostedSarifRule,
   maximumHostedResultMessageLength,
+  validateSarifFallbackLocation,
 } from "./sarif-host.js";
 
-export function exportSarif(result: CorrelationResult): string {
+export function exportSarif(result: CorrelationResult, options: ExportOptions = {}): string {
+  const fallbackLocation =
+    options.sarifFallbackLocation === undefined
+      ? undefined
+      : validateSarifFallbackLocation(options.sarifFallbackLocation);
   const emittedClusters = result.clusters.filter((cluster) => !cluster.nonFinding);
   const nonFindingClusters = result.clusters.filter((cluster) => cluster.nonFinding);
   const document = {
@@ -16,7 +21,7 @@ export function exportSarif(result: CorrelationResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.21",
+            semanticVersion: "0.4.22",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) =>
               hostedSarifRule(cluster, securityScore(cluster.severity)),
@@ -33,7 +38,7 @@ export function exportSarif(result: CorrelationResult): string {
             },
           },
         ],
-        results: emittedClusters.map((cluster) => resultFor(cluster)),
+        results: emittedClusters.map((cluster) => resultFor(cluster, fallbackLocation)),
         properties: {
           nonFindingClusters,
           nonFindingExportNote:
@@ -45,8 +50,13 @@ export function exportSarif(result: CorrelationResult): string {
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
-function resultFor(cluster: FindingCluster): Record<string, unknown> {
+function resultFor(
+  cluster: FindingCluster,
+  fallbackLocation: string | undefined,
+): Record<string, unknown> {
   const location = cluster.primary.location;
+  const fallbackLocationUsed = !location?.uri && Boolean(fallbackLocation);
+  const locationUri = location?.uri ?? fallbackLocation;
   const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
   const originalMessage = `${cluster.primary.title} (${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`;
   const message = boundHostedSarifText(originalMessage, maximumHostedResultMessageLength);
@@ -59,21 +69,23 @@ function resultFor(cluster: FindingCluster): Record<string, unknown> {
     fingerprints: { vulnfuseClusterId: cluster.id },
     partialFingerprints: { primaryLocationLineHash: cluster.id },
     ...(suppressions.length > 0 ? { suppressions } : {}),
-    ...(location?.uri
+    ...(locationUri
       ? {
           locations: [
             {
               physicalLocation: {
-                artifactLocation: { uri: location.uri },
-                ...(location.startLine
-                  ? {
-                      region: {
-                        startLine: location.startLine,
-                        ...(location.endLine ? { endLine: location.endLine } : {}),
-                        ...(location.startColumn ? { startColumn: location.startColumn } : {}),
-                      },
-                    }
-                  : {}),
+                artifactLocation: { uri: locationUri },
+                ...(fallbackLocationUsed
+                  ? { region: { startLine: 1 } }
+                  : location?.startLine
+                    ? {
+                        region: {
+                          startLine: location.startLine,
+                          ...(location.endLine ? { endLine: location.endLine } : {}),
+                          ...(location.startColumn ? { startColumn: location.startColumn } : {}),
+                        },
+                      }
+                    : {}),
               },
             },
           ],
@@ -88,6 +100,7 @@ function resultFor(cluster: FindingCluster): Record<string, unknown> {
       matchConfidence: cluster.confidence,
       identifiers: cluster.identifiers,
       assets: cluster.assets,
+      ...(fallbackLocationUsed ? { vulnfuseLocationProvenance: "user-supplied-fallback" } : {}),
       ...(message.truncated ? { vulnfuseOriginalMessage: originalMessage } : {}),
     },
   };
