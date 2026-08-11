@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -151,5 +151,56 @@ describe("GitHub Action bundle", () => {
     ).rejects.toMatchObject({ code: 1 });
 
     await expect(readFile(outputReport, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("preserves a complete report when the replacement write fails partway", async () => {
+    const outputReport = join(testDirectory, "report.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    const injector = join(testDirectory, "inject-write-failure.cjs");
+    const previous = '{"status":"previous-complete-report"}\n';
+    await writeFile(outputReport, previous, "utf8");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+    await writeFile(
+      injector,
+      `const fs = require("node:fs/promises");
+const original = fs.writeFile;
+fs.writeFile = async function (path, data, options) {
+  if (String(path).startsWith(process.env.VULNFUSE_INJECT_WRITE_PREFIX)) {
+    const partial = Buffer.isBuffer(data) ? data.subarray(0, 17) : String(data).slice(0, 17);
+    await original.call(this, path, partial, options);
+    throw new Error("injected partial write failure");
+  }
+  return original.apply(this, arguments);
+};
+`,
+      "utf8",
+    );
+
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: `${trivy}\n${grype}`,
+          INPUT_OUTPUT: outputReport,
+          INPUT_FORMAT: "json",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+          NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${injector}`]
+            .filter(Boolean)
+            .join(" "),
+          VULNFUSE_INJECT_WRITE_PREFIX: outputReport,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+
+    expect(await readFile(outputReport, "utf8")).toBe(previous);
+    expect((await readdir(testDirectory)).filter((name) => name.includes(".vulnfuse-"))).toEqual(
+      [],
+    );
   });
 });

@@ -49,11 +49,11 @@ The separate `@vulnfuse/core/node` entry point uses only Node.js built-ins and p
 
 ### `vulnfuse` CLI
 
-The CLI adds filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, and new-only baseline gates. It does not contain a second implementation of parsing, matching, or Node file limits.
+The CLI adds filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, and new-only baseline gates. It does not contain a second implementation of parsing, matching, Node file limits, or atomic report replacement.
 
 ### `@vulnfuse/action`
 
-The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action resolves bounded current and optional baseline glob input without following symbolic links, uses the same preflight and incremental-read guard as the CLI, invokes the core, writes the chosen correlation or comparison report, exposes counts, and creates a GitHub job summary. The bundled `dist/index.cjs` is committed because JavaScript Actions execute repository content directly.
+The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action resolves bounded current and optional baseline glob input without following symbolic links, uses the same preflight, incremental-read, and temporary-sibling output helpers as the CLI, invokes the core, exposes counts, and creates a GitHub job summary. The bundled `dist/index.cjs` is committed because JavaScript Actions execute repository content directly.
 
 ### `@vulnfuse/web`
 

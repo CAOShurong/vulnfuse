@@ -4,6 +4,17 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-08-11
+
+### Fixed
+
+- Write GitHub Action reports through the same temporary-sibling-and-rename path as the CLI so a caught partial-write failure does not replace a previously complete report.
+- Flush a unique, exclusively created temporary file before replacement and remove it when a write or rename reports an error.
+
+### Changed
+
+- Share the dependency-free Node output writer through `@vulnfuse/core/node`; no new runtime package or service is required.
+
 ## [0.4.5] - 2026-08-11
 
 ### Fixed

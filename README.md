@@ -39,10 +39,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.5 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.6 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.5/vulnfuse-core-0.4.5.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.5/vulnfuse-0.4.5.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.6/vulnfuse-core-0.4.6.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.6/vulnfuse-0.4.6.tgz
 vulnfuse --version
 ```
 
@@ -84,6 +84,8 @@ Report-input and runtime failures print one concise diagnostic to stderr and ret
 
 The CLI and Action reject a file whose known size exceeds `--max-bytes` before reading its contents, then enforce the same limit while reading to cover file growth and unusual file types. Accepted report text, parsed findings, correlation state, and exports still consume additional memory; the byte limit is per report and is not a total-process memory or processing-time guarantee.
 
+Both Node entry points write a requested report to a unique temporary sibling, flush it, and rename it into place only after the write succeeds. A reported write failure therefore leaves an existing complete destination untouched. A hard process or host failure can still leave a `.vulnfuse-*.tmp` sibling, and rename/crash durability depends on the local filesystem; this is not a power-loss or network-filesystem guarantee.
+
 Compare current reports with a previous run and block only newly introduced high-severity clusters. Repeat `--baseline` for each previous scanner report:
 
 ```bash
@@ -117,7 +119,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.5
+  uses: CAOShurong/vulnfuse@v0.4.6
   with:
     reports: |
       reports/trivy.json
@@ -196,7 +198,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.4.5` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, cross-run baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.6` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, cross-run baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

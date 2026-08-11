@@ -1,15 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fileSystem = vi.hoisted(() => ({
+  mkdir: vi.fn(),
   open: vi.fn(),
+  rename: vi.fn(),
+  unlink: vi.fn(),
+  writeFile: vi.fn(),
 }));
 
 vi.mock("node:fs/promises", () => fileSystem);
 
-import { readFileLimited } from "../src/node.js";
+import { readFileLimited, writeFileAtomic } from "../src/node.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fileSystem.mkdir.mockResolvedValue(undefined);
+  fileSystem.rename.mockResolvedValue(undefined);
+  fileSystem.unlink.mockResolvedValue(undefined);
+  fileSystem.writeFile.mockResolvedValue(undefined);
 });
 
 describe("readFileLimited", () => {
@@ -57,6 +65,39 @@ describe("readFileLimited", () => {
 
     await expect(readFileLimited("broken.json", 5)).rejects.toThrow("read failed");
     expect(handle.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("writeFileAtomic", () => {
+  it("flushes a unique temporary sibling before replacing the destination", async () => {
+    await writeFileAtomic("reports/result.json", "complete report");
+
+    expect(fileSystem.mkdir).toHaveBeenCalledWith(expect.stringMatching(/[\\/]reports$/), {
+      recursive: true,
+    });
+    expect(fileSystem.writeFile).toHaveBeenCalledWith(
+      expect.stringMatching(/result\.json\.vulnfuse-\d+-[0-9a-f-]+\.tmp$/),
+      "complete report",
+      { encoding: "utf8", flag: "wx", flush: true },
+    );
+    const temporary = fileSystem.writeFile.mock.calls[0]?.[0];
+    expect(fileSystem.rename).toHaveBeenCalledWith(
+      temporary,
+      expect.stringMatching(/[\\/]reports[\\/]result\.json$/),
+    );
+    expect(fileSystem.unlink).not.toHaveBeenCalled();
+  });
+
+  it("removes the temporary sibling when a write fails", async () => {
+    fileSystem.writeFile.mockRejectedValueOnce(new Error("partial write"));
+
+    await expect(writeFileAtomic("report.json", "complete report")).rejects.toThrow(
+      "partial write",
+    );
+
+    const temporary = fileSystem.writeFile.mock.calls[0]?.[0];
+    expect(fileSystem.rename).not.toHaveBeenCalled();
+    expect(fileSystem.unlink).toHaveBeenCalledWith(temporary);
   });
 });
 
