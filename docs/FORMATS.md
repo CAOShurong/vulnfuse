@@ -24,6 +24,15 @@ Each source record can supply:
 
 Missing evidence is not fabricated. For example, a CVSS score is not inferred when a report contains only a severity word.
 
+The CLI and GitHub Action assign a portable source-report label before parsing.
+Files under the CLI working directory or `GITHUB_WORKSPACE` use a forward-slash
+relative label. Outside-root inputs use `external-report/<basename>`; duplicate
+basenames receive an ordinal in sorted input order. The label is preserved in
+source evidence and participates in stable finding identity, while the actual
+filesystem path is kept only for reading and local diagnostics. This does not
+remove absolute paths already supplied inside scanner fields. A label that was
+absolute in v0.4.22 or earlier changes once after upgrading.
+
 ## SARIF 2.1
 
 VulnFuse reads:

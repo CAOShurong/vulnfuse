@@ -18,7 +18,7 @@ import {
   type ParsedReport,
   type Severity,
 } from "@vulnfuse/core";
-import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
+import { portableReportNames, readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
 const allowedFormats = new Set<OutputFormat>(["json", "sarif", "csv", "markdown", "html"]);
 const allowedScopes = new Set<MatchScope>(["instance", "root-cause"]);
@@ -172,9 +172,10 @@ async function readMatchedReports(
 
   core.info(`VulnFuse is reading ${files.length} ${label} report${files.length === 1 ? "" : "s"}.`);
   const reports: ParsedReport[] = [];
-  for (const file of files) {
+  const reportNames = portableReportNames(files, process.env.GITHUB_WORKSPACE || process.cwd());
+  for (const [index, file] of files.entries()) {
     const content = await readFileLimited(file, maxBytes);
-    const report = parseReport({ name: file, content }, { maxBytes });
+    const report = parseReport({ name: reportNames[index] ?? "report", content }, { maxBytes });
     core.info(`${report.tool}: ${report.findings.length} findings from ${file}`);
     for (const warning of report.warnings) {
       const path = warning.path ? ` at ${warning.path}` : "";

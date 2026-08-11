@@ -34,6 +34,7 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 - **SARIF suppression stays auditable.** Preserve every suppression kind, status, and justification, but exclude a cluster from severity gates only when every source record is effectively suppressed.
 - **SARIF outcomes remain distinct.** Keep valid `pass`, `informational`, and `notApplicable` records as reviewable non-finding evidence instead of counting them as active vulnerabilities.
 - **Portable SARIF paths correlate.** Apply validated relative `uriBaseId` chains before matching file assets, while omitting producer-specific absolute roots and warning on malformed chains.
+- **Source-report identity survives checkout moves.** CLI globs and the Action label input reports relative to the working tree, so runner-specific roots do not leak into exports or change finding IDs.
 - **CycloneDX JSON and XML take the same path.** Consume supported VDR/VEX evidence directly from either standard serialization without a separate conversion runtime.
 - **Scanner disagreement becomes measurable.** See what each tool found alone, what several tools shared, and the pairwise overlap instead of comparing misleading raw totals.
 - **A report people can actually review.** Portable HTML needs no server or CDN and includes local search, severity/state/asset/scanner/coverage/disposition filters, evidence, blockers, and every source record.
@@ -48,10 +49,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.22 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.23 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.22/vulnfuse-core-0.4.22.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.22/vulnfuse-0.4.22.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.23/vulnfuse-core-0.4.23.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.23/vulnfuse-0.4.23.tgz
 vulnfuse --version
 ```
 
@@ -67,10 +68,10 @@ sha256sum -c SHA256SUMS.txt
 For online provenance verification, use a current GitHub CLI and constrain the expected repository, workflow, tag, and hosted-runner environment:
 
 ```bash
-gh attestation verify vulnfuse-0.4.22.tgz \
+gh attestation verify vulnfuse-0.4.23.tgz \
   --repo CAOShurong/vulnfuse \
   --signer-workflow CAOShurong/vulnfuse/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.4.22 \
+  --source-ref refs/tags/v0.4.23 \
   --deny-self-hosted-runners
 ```
 
@@ -97,6 +98,16 @@ vulnfuse merge "reports/**/*.json" --format html --output vulnfuse-review.html
 ```
 
 Use forward slashes in portable patterns, including on Windows. Existing paths are treated literally before glob syntax, overlapping paths are deduplicated, directories and symbolic-link traversal are excluded, and an unmatched pattern fails instead of silently producing an empty result. The 1,000-report limit is applied after expansion, but a very broad pattern can still spend time traversing its starting directory tree; scope patterns to the report directory.
+
+Generated artifacts label reports inside the CLI working directory or
+`GITHUB_WORKSPACE` with a forward-slash relative path. An input outside that
+root is labeled `external-report/<basename>`; duplicate outside basenames gain
+a deterministic ordinal based on sorted input order. The actual path remains
+available in local diagnostics but is not copied into generated JSON, SARIF,
+CSV, Markdown, or HTML merely because it was the input filename. Scanner data
+can still contain its own sensitive paths. Moving from v0.4.22 or earlier can
+cause a one-time finding/cluster ID change when a prior label was absolute; pin
+the old release if alert continuity matters more than removing that path.
 
 Inspect formats before merging:
 
@@ -182,7 +193,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.22
+  uses: CAOShurong/vulnfuse@v0.4.23
   with:
     reports: |
       reports/trivy.json
@@ -280,13 +291,15 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.4.22` is a public alpha with explainable, cluster-safe cross-scanner
+`v0.4.23` is a public, reasonably mature v0.4 release for the documented
+workflows. It provides explainable, cluster-safe cross-scanner
 correlation; standalone OpenVEX and CycloneDX JSON/XML VEX input; three-state
 SARIF disposition; portable URI-base paths; bounded hosted-SARIF rule tags and
 visible text; and explicit labeled fallback anchors for otherwise locationless
 hosted SARIF. It also includes incomplete-run gates, scanner coverage,
 scan-set-aware baselines, and self-contained offline HTML review across the core
-library, CLI, browser workbench, and GitHub Action.
+library, CLI, browser workbench, and GitHub Action. Source-report labels and IDs
+are portable across checkout roots for the same relative workflow layout.
 
 Release checksums and GitHub build-provenance attestations establish byte
 integrity and tag-workflow provenance under their documented trust assumptions,
@@ -296,17 +309,15 @@ remain evidence with the limitations described above; none independently proves
 ground truth, exploitability, scan completeness, source causation, or hosted
 upload acceptance. Tests use synthetic cross-format fixtures plus pinned public
 OpenVEX, SARIF, CycloneDX, Microsoft SARIF Tutorials, and BinSkim samples, but
-real vendor output varies by version. Please open a sanitized
+real vendor output varies by version. The project is now in evidence-driven
+maintenance: new feature work should start from a sanitized user report, a
+failing CI workflow, a security report, or a reproducibility regression rather
+than speculative version churn. Please open a sanitized
 [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml)
-when a legitimate report is not parsed correctly.
-
-Near-term work:
-
-- Add scanner database/rule provenance only where formats expose stable evidence fields.
-- Add SPDX vulnerability extensions where a stable mapping exists.
-- Publish signed npm packages after the package-distribution lifecycle is verified.
-- Add policy files for organization-specific asset and component aliases.
-- Benchmark very large monorepo and container-report sets.
+when a legitimate report is not parsed correctly, or use
+[Discussions](https://github.com/CAOShurong/vulnfuse/discussions) for a sanitized
+workflow report. Independent adoption and compatibility with every vendor
+version are not claimed.
 
 ## Contributing
 

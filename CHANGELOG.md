@@ -4,6 +4,40 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.23] - 2026-08-12
+
+### Fixed
+
+- Label CLI and GitHub Action report inputs relative to the working tree before
+  parsing, so identical report bytes and relative workflow paths produce the
+  same source finding, cluster, and SARIF fingerprint IDs across checkout roots.
+- Replace outside-root parent directories with
+  `external-report/<basename>` labels and distinguish duplicate basenames with
+  sorted ordinals.
+
+### Security
+
+- Stop copying caller, drive, runner, checkout, and temporary-directory names
+  into generated JSON, SARIF, CSV, Markdown, or HTML solely through the input
+  report filename. Scanner-supplied evidence remains unchanged and can still
+  contain sensitive paths.
+
+### Verification
+
+- Reproduced v0.4.22 Action and CLI output drift from byte-identical OpenVEX
+  inputs under two workspace roots, including changed finding, cluster, and
+  SARIF fingerprint IDs.
+- Added red-to-green core, separate-process CLI, committed Action-bundle,
+  outside-root collision, Windows CLI, Linux Action, and clean-package checks.
+
+### Migration
+
+- A report whose pre-v0.4.23 label was absolute receives a one-time new source
+  finding and cluster identity after upgrading. This can appear as hosted alert
+  churn; pin v0.4.22 temporarily when continuity is more important than path
+  removal. Outside-root duplicate basenames can be renumbered when the set of
+  same-named reports changes.
+
 ## [0.4.22] - 2026-08-12
 
 ### Added

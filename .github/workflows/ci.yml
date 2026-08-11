@@ -82,6 +82,9 @@ jobs:
           if ($anchoredOpenVex.runs[0].results.Count -ne 3) {
             throw "Unexpected locationless OpenVEX SARIF result count"
           }
+          if ($anchoredOpenVex.runs[0].invocations[0].properties.sourceReports[0].name -ne "packages/core/test/fixtures/openvex.json") {
+            throw "Windows CLI exported a nonportable source-report name"
+          }
           foreach ($result in $anchoredOpenVex.runs[0].results) {
             if ($result.locations[0].physicalLocation.artifactLocation.uri -ne "package-lock.json" -or $result.locations[0].physicalLocation.region.startLine -ne 1 -or $result.properties.vulnfuseLocationProvenance -ne "user-supplied-fallback") {
               throw "Explicit OpenVEX SARIF fallback was not retained on Windows"
@@ -249,7 +252,7 @@ jobs:
       - name: Validate Action fallback location provenance
         env:
           REPORT: ${{ steps.anchored-openvex.outputs.report }}
-        run: node -e "const fs=require('fs');const results=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8')).runs[0].results;if(results.length!==3||!results.every(r=>r.locations?.[0]?.physicalLocation?.artifactLocation?.uri==='package-lock.json'&&r.locations?.[0]?.physicalLocation?.region?.startLine===1&&r.properties?.vulnfuseLocationProvenance==='user-supplied-fallback'))throw new Error('Unexpected Action fallback-location contract');"
+        run: node -e "const fs=require('fs');const run=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8')).runs[0];const results=run.results;if(results.length!==3||!results.every(r=>r.locations?.[0]?.physicalLocation?.artifactLocation?.uri==='package-lock.json'&&r.locations?.[0]?.physicalLocation?.region?.startLine===1&&r.properties?.vulnfuseLocationProvenance==='user-supplied-fallback'))throw new Error('Unexpected Action fallback-location contract');if(run.invocations[0].properties.sourceReports[0].name!=='packages/core/test/fixtures/openvex.json')throw new Error('Linux Action exported a nonportable source-report name');"
       - name: Prepare a long Unicode Trivy workflow fixture
         env:
           LONG_REPORT: ${{ runner.temp }}/vulnfuse-long-metadata-trivy.json
@@ -473,6 +476,7 @@ jobs:
           npx vulnfuse merge ../packages/core/test/fixtures/sarif-uri-bases.json --format json --output uri-base.json
           test "$(node -p "require('./uri-base.json').summary.clusters")" = "1"
           test "$(node -p "require('./uri-base.json').clusters[0].primary.location.uri")" = "src/lib/memory.c"
+          test "$(node -p "require('./uri-base.json').reports[0].name")" = "external-report/sarif-uri-bases.json"
           node -e "const fs=require('fs');const document=JSON.parse(fs.readFileSync('../packages/core/test/fixtures/sarif.json','utf8'));document.runs[0].tool.driver.semanticVersion='2.26.2';fs.writeFileSync('sarif-version-current.json',JSON.stringify(document));"
           if npx vulnfuse diff --baseline ../packages/core/test/fixtures/sarif.json sarif-version-current.json --format json --output version-drift.json --fail-on-scan-set-change; then
             echo "Expected embedded scanner-version gate to exit 1" >&2

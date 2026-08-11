@@ -41,6 +41,48 @@ afterEach(async () => {
 });
 
 describe("CLI", () => {
+  it("keeps SARIF byte-identical across working directories for identical relative globs", async () => {
+    const workspaces = [join(testDirectory, "workspace-a"), join(testDirectory, "workspace-b")];
+    const outputs: string[] = [];
+    const input = await readFile(openVex, "utf8");
+
+    for (const [index, workspace] of workspaces.entries()) {
+      const reports = join(workspace, "reports");
+      const output = join(testDirectory, `portable-${index}.sarif`);
+      await mkdir(reports, { recursive: true });
+      await writeFile(join(reports, "openvex.json"), input, "utf8");
+
+      await execute(
+        process.execPath,
+        [
+          cli,
+          "merge",
+          "reports/*.json",
+          "--format",
+          "sarif",
+          "--sarif-fallback-location",
+          "package-lock.json",
+          "--output",
+          output,
+        ],
+        { cwd: workspace },
+      );
+      outputs.push(await readFile(output, "utf8"));
+    }
+
+    expect(outputs[0]).toBe(outputs[1]);
+    const sarif = JSON.parse(outputs[0] ?? "") as {
+      runs: Array<{
+        invocations: Array<{ properties: { sourceReports: Array<{ name: string }> } }>;
+      }>;
+    };
+    expect(sarif.runs[0]?.invocations[0]?.properties.sourceReports[0]?.name).toBe(
+      "reports/openvex.json",
+    );
+    expect(outputs[0]).not.toContain(workspaces[0] ?? "workspace-a");
+    expect(outputs[1]).not.toContain(workspaces[1] ?? "workspace-b");
+  });
+
   it("anchors locationless OpenVEX SARIF only with an explicit safe fallback", async () => {
     const output = join(testDirectory, "anchored-openvex.sarif");
     const fallback = "security/openvex.json";
