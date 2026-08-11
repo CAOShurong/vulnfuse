@@ -1,6 +1,6 @@
 {
   "name": "vulnfuse",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "description": "Merge and explain duplicate findings across vulnerability scanners",
   "type": "module",
   "license": "Apache-2.0",
@@ -11,7 +11,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": ">=22.12.0"
@@ -24,7 +25,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@vulnfuse/core": "0.4.14",
+    "@vulnfuse/core": "0.4.15",
     "commander": "15.0.0",
     "tinyglobby": "0.2.17"
   }

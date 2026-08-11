@@ -23,6 +23,7 @@ describe("report parsing", () => {
     ["snyk.json", "snyk", "Snyk", 1],
     ["osv.json", "osv-scanner", "OSV-Scanner", 1],
     ["cyclonedx.json", "cyclonedx", "Syft", 1],
+    ["cyclonedx-vex.xml", "cyclonedx", "CycloneDX", 1],
     ["openvex.json", "openvex", "OpenVEX (Example VEX Producer)", 3],
     ["sarif.json", "sarif", "CodeQL", 1],
     ["generic.csv", "csv", "Legacy Scanner", 1],
@@ -69,6 +70,139 @@ describe("report parsing", () => {
     const legacyTrivy = parseReport({ name: "trivy.json", content: fixture("trivy.json") });
     expect(legacyTrivy.findings.every((finding) => finding.source.version === undefined)).toBe(
       true,
+    );
+  });
+
+  it("parses supported evidence from the official CycloneDX XML VEX fixture", () => {
+    const parsed = parseReport({
+      name: "cyclonedx-vex.xml",
+      content: fixture("cyclonedx-vex.xml"),
+    });
+
+    expect(parsed).toMatchObject({
+      format: "cyclonedx",
+      tool: "CycloneDX",
+      metadata: { specVersion: "1.4" },
+    });
+    expect(parsed.findings).toHaveLength(1);
+    expect(parsed.findings[0]).toMatchObject({
+      severity: "critical",
+      component: {
+        purl: "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.9.4",
+        name: "jackson-databind",
+        version: "vers:semver/<2.6.7.5",
+      },
+      remediation: {
+        recommendation:
+          "Upgrade com.fasterxml.jackson.core:jackson-databind to version 2.6.7.5, 2.8.11.1, 2.9.5 or higher.",
+      },
+      properties: {
+        analysis: {
+          state: "not_affected",
+          justification: "code_not_reachable",
+        },
+      },
+    });
+    expect(parsed.findings[0]?.identifiers.map((identifier) => identifier.value)).toEqual(
+      expect.arrayContaining([
+        "SNYK-JAVA-COMFASTERXMLJACKSONCORE-32111",
+        "CVE-2018-7489",
+        "CWE-184",
+        "CWE-502",
+      ]),
+    );
+    expect(parsed.findings[0]?.references).toEqual(
+      expect.arrayContaining([
+        "https://snyk.io/vuln/SNYK-JAVA-COMFASTERXMLJACKSONCORE-32111",
+        "https://github.com/FasterXML/jackson-databind/issues/1931",
+      ]),
+    );
+  });
+
+  it("keeps supported CycloneDX JSON and XML evidence equivalent", () => {
+    const json = {
+      bomFormat: "CycloneDX",
+      specVersion: "1.6",
+      serialNumber: "urn:uuid:00000000-0000-4000-8000-000000000016",
+      metadata: {
+        component: { type: "application", name: "xml-parity" },
+        tools: [{ name: "Parity Producer", version: "1.0.0" }],
+      },
+      components: [
+        {
+          "bom-ref": "pkg:npm/example@1.0.0",
+          type: "library",
+          name: "example",
+          version: "1.0.0",
+          purl: "pkg:npm/example@1.0.0",
+        },
+      ],
+      vulnerabilities: [
+        {
+          id: "CVE-2026-0001",
+          ratings: [{ severity: "high", score: "8.1" }],
+          analysis: { state: "exploitable", detail: "Confirmed by the producer." },
+          affects: [
+            {
+              ref: "pkg:npm/example@1.0.0",
+              versions: [{ version: "1.0.0", status: "affected" }],
+            },
+          ],
+        },
+      ],
+    };
+    const xml = `<?xml version="1.0"?>
+      <cdx.v1:bom xmlns:cdx.v1="http://cyclonedx.org/schema/bom/1.6" serialNumber="${json.serialNumber}">
+        <cdx.v1:metadata>
+          <cdx.v1:component type="application"><cdx.v1:name>xml-parity</cdx.v1:name></cdx.v1:component>
+          <cdx.v1:tools><cdx.v1:tool><cdx.v1:name>Parity Producer</cdx.v1:name><cdx.v1:version>1.0.0</cdx.v1:version></cdx.v1:tool></cdx.v1:tools>
+        </cdx.v1:metadata>
+        <cdx.v1:components><cdx.v1:component type="library" bom-ref="pkg:npm/example@1.0.0"><cdx.v1:name>example</cdx.v1:name><cdx.v1:version>1.0.0</cdx.v1:version><cdx.v1:purl>pkg:npm/example@1.0.0</cdx.v1:purl></cdx.v1:component></cdx.v1:components>
+        <cdx.v1:vulnerabilities><cdx.v1:vulnerability><cdx.v1:id>CVE-2026-0001</cdx.v1:id><cdx.v1:ratings><cdx.v1:rating><cdx.v1:score>8.1</cdx.v1:score><cdx.v1:severity>high</cdx.v1:severity></cdx.v1:rating></cdx.v1:ratings><cdx.v1:analysis><cdx.v1:state>exploitable</cdx.v1:state><cdx.v1:detail>Confirmed by the producer.</cdx.v1:detail></cdx.v1:analysis><cdx.v1:affects><cdx.v1:target><cdx.v1:ref>pkg:npm/example@1.0.0</cdx.v1:ref><cdx.v1:versions><cdx.v1:version><cdx.v1:version>1.0.0</cdx.v1:version><cdx.v1:status>affected</cdx.v1:status></cdx.v1:version></cdx.v1:versions></cdx.v1:target></cdx.v1:affects></cdx.v1:vulnerability></cdx.v1:vulnerabilities>
+      </cdx.v1:bom>`;
+
+    const jsonReport = parseReport({ name: "parity.cdx", content: JSON.stringify(json) });
+    const xmlReport = parseReport({ name: "parity.cdx", content: xml });
+    expect(xmlReport).toEqual(jsonReport);
+  });
+
+  it("rejects malformed, DTD-bearing, and foreign XML documents", () => {
+    expect(() =>
+      parseReport({
+        name: "malformed.cdx.xml",
+        content:
+          '<?xml version="1.0"?><bom xmlns="http://cyclonedx.org/schema/bom/1.6"><components></bom>',
+      }),
+    ).toThrow(/not valid CycloneDX XML/i);
+
+    expect(() =>
+      parseReport({
+        name: "entity.cdx.xml",
+        content:
+          '<!DOCTYPE bom [<!ENTITY payload "unsafe">]><bom xmlns="http://cyclonedx.org/schema/bom/1.6"><vulnerabilities/></bom>',
+      }),
+    ).toThrow(/DOCTYPE/i);
+
+    expect(detectFormat('<bom xmlns="https://example.test/not-cyclonedx"/>', "foreign.xml")).toBe(
+      "unknown",
+    );
+
+    const nested = `${"<wrapper>".repeat(101)}${"</wrapper>".repeat(101)}`;
+    expect(() =>
+      parseReport({
+        name: "deep.cdx.xml",
+        content: `<bom xmlns="http://cyclonedx.org/schema/bom/1.6">${nested}</bom>`,
+      }),
+    ).toThrow(/nesting exceeds the limit/i);
+
+    const foreignChild = parseReport({
+      name: "foreign-child.cdx.xml",
+      content:
+        '<bom xmlns="http://cyclonedx.org/schema/bom/1.6"><vulnerabilities xmlns="https://example.test/foreign"><vulnerability><id>CVE-2026-9999</id></vulnerability></vulnerabilities></bom>',
+    });
+    expect(foreignChild.findings).toEqual([]);
+    expect(foreignChild.warnings).toContainEqual(
+      expect.objectContaining({ code: "cyclonedx.no-vulnerabilities" }),
     );
   });
 

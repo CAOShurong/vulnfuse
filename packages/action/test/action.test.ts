@@ -13,6 +13,7 @@ const trivy = resolve(repository, "packages/core/test/fixtures/trivy.json");
 const grype = resolve(repository, "packages/core/test/fixtures/grype.json");
 const csv = resolve(repository, "packages/core/test/fixtures/generic.csv");
 const openVex = resolve(repository, "packages/core/test/fixtures/openvex.json");
+const cycloneXml = resolve(repository, "packages/core/test/fixtures/cyclonedx-vex.xml");
 const suppressedSarif = resolve(repository, "packages/core/test/fixtures/sarif-suppressed.json");
 const resultKindsSarif = resolve(repository, "packages/core/test/fixtures/sarif-result-kinds.json");
 const incompleteSarif = resolve(repository, "packages/core/test/fixtures/sarif-incomplete.json");
@@ -32,6 +33,39 @@ afterEach(async () => {
 });
 
 describe("GitHub Action bundle", () => {
+  it("processes CycloneDX XML VEX through the committed Action bundle", async () => {
+    const outputReport = join(testDirectory, "cyclonedx-xml.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: cycloneXml,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "json",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+
+    const result = JSON.parse(await readFile(outputReport, "utf8")) as {
+      summary: { inputFindings: number; clusters: number };
+      clusters: Array<{ primary: { component?: { purl?: string } } }>;
+    };
+    expect(result.summary).toMatchObject({ inputFindings: 1, clusters: 1 });
+    expect(result.clusters[0]?.primary.component?.purl).toBe(
+      "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.9.4",
+    );
+    expect(await readFile(githubOutput, "utf8")).toContain("findings");
+    expect(await readFile(stepSummary, "utf8")).toContain("CycloneDX");
+  });
+
   it("correlates portable SARIF URI-base paths through the committed Action bundle", async () => {
     const outputReport = join(testDirectory, "uri-base.json");
     const githubOutput = join(testDirectory, "github-output.txt");

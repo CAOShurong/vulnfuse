@@ -21,7 +21,8 @@ import {
 import { demoBaselineReports, demoReports } from "./demo.js";
 
 const maxFileBytes = 100 * 1024 * 1024;
-const accepted = ".json,.sarif,.csv,application/json,text/csv";
+const accepted =
+  ".json,.sarif,.csv,.xml,.cdx.xml,application/json,text/csv,application/xml,text/xml,application/vnd.cyclonedx+xml";
 const severityFilters = ["all", "critical", "high", "medium", "low", "info", "unknown"] as const;
 type CoverageFilter = "all" | "multi" | "single";
 type DispositionFilter = "all" | "active" | "suppressed" | "non-finding";
@@ -325,7 +326,7 @@ export function App() {
               <UploadIcon />
             </span>
             <strong>{dropActive ? "Release to add reports" : "Drop scanner reports here"}</strong>
-            <small>JSON, SARIF, or CSV · up to 100 MiB each</small>
+            <small>JSON, XML, SARIF, or CSV · up to 100 MiB each</small>
           </button>
 
           {(fileError || analysis.error) && (

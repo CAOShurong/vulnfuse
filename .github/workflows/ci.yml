@@ -81,6 +81,10 @@ jobs:
           if ($uriBase.clusters[0].primary.location.uri -ne "src/lib/memory.c") {
             throw "Unexpected portable SARIF URI-base path"
           }
+          $cycloneXml = node packages/cli/dist/index.js inspect packages/core/test/fixtures/cyclonedx-vex.xml --json | ConvertFrom-Json
+          if ($cycloneXml[0].format -ne "cyclonedx" -or $cycloneXml[0].findings -ne 1 -or $cycloneXml[0].active -ne 1) {
+            throw "Unexpected CycloneDX XML inspection summary"
+          }
 
   action-smoke:
     name: Bundled GitHub Action smoke test
@@ -173,6 +177,22 @@ jobs:
           test "$CLUSTERS" = "1"
           test "$COLLAPSED" = "1"
           test "$(node -p "require('$REPORT').clusters[0].primary.location.uri")" = "src/lib/memory.c"
+      - id: cyclonedx-xml
+        name: Inspect CycloneDX XML VEX with the repository Action
+        uses: ./
+        with:
+          reports: packages/core/test/fixtures/cyclonedx-vex.xml
+          format: json
+          output: ${{ runner.temp }}/vulnfuse-cyclonedx-xml.json
+      - name: Validate CycloneDX XML Action outputs
+        env:
+          FINDINGS: ${{ steps.cyclonedx-xml.outputs.findings }}
+          ACTIVE: ${{ steps.cyclonedx-xml.outputs.active }}
+          REPORT: ${{ steps.cyclonedx-xml.outputs.report }}
+        run: |
+          test "$FINDINGS" = "1"
+          test "$ACTIVE" = "1"
+          test "$(node -p "require('$REPORT').clusters[0].primary.component.purl")" = "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.9.4"
 
   package-smoke:
     name: Clean package install
@@ -196,6 +216,8 @@ jobs:
           cd clean-install
           npm init -y
           version=$(node -p "require('../package.json').version")
+          tar -tzf "../package-artifacts/vulnfuse-core-${version}.tgz" | grep -qx package/THIRD_PARTY_NOTICES.md
+          tar -tzf "../package-artifacts/vulnfuse-${version}.tgz" | grep -qx package/THIRD_PARTY_NOTICES.md
           npm install "../package-artifacts/vulnfuse-core-${version}.tgz" "../package-artifacts/vulnfuse-${version}.tgz"
           npx vulnfuse --version
           npx vulnfuse inspect "../packages/core/test/fixtures/{trivy,grype}.json" --json > inspection.json
@@ -203,6 +225,9 @@ jobs:
           npx vulnfuse inspect ../packages/core/test/fixtures/openvex.json --json > openvex-inspection.json
           test "$(node -p "require('./openvex-inspection.json')[0].format")" = "openvex"
           test "$(node -p "require('./openvex-inspection.json')[0].findings")" = "3"
+          npx vulnfuse inspect ../packages/core/test/fixtures/cyclonedx-vex.xml --json > cyclonedx-xml-inspection.json
+          test "$(node -p "require('./cyclonedx-xml-inspection.json')[0].format")" = "cyclonedx"
+          test "$(node -p "require('./cyclonedx-xml-inspection.json')[0].findings")" = "1"
           if npx vulnfuse merge ../packages/core/test/fixtures/sarif-incomplete.json --format json --output partial.json --fail-on-incomplete; then
             echo "Expected incomplete SARIF gate to exit 1" >&2
             exit 1
@@ -218,7 +243,7 @@ jobs:
           grep -q "Content-Security-Policy" portable.html
           grep -q "VulnFuse baseline comparison" portable.html
           npm sbom --sbom-format cyclonedx --omit dev > vulnfuse-sbom.cdx.json
-          node ../scripts/verify-sbom.mjs vulnfuse-sbom.cdx.json vulnfuse @vulnfuse/core commander tinyglobby fdir picomatch
+          node ../scripts/verify-sbom.mjs vulnfuse-sbom.cdx.json vulnfuse @vulnfuse/core @rgrove/parse-xml commander tinyglobby fdir picomatch
       - uses: actions/upload-artifact@v7
         with:
           name: npm-tarballs
