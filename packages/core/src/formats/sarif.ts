@@ -40,6 +40,7 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
   const findings: CanonicalFinding[] = [];
   const warnings: ParsedReport["warnings"] = [];
   const reportTools: string[] = [];
+  const reportToolVersions = new Map<string, Set<string>>();
   const runHealth: JsonValue[] = [];
 
   for (const [runIndex, runValue] of asArray(root["runs"]).entries()) {
@@ -49,6 +50,11 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
     const toolName = asString(driver?.["name"]) ?? "SARIF tool";
     if (!reportTools.includes(toolName)) reportTools.push(toolName);
     const toolVersion = asString(driver?.["semanticVersion"]) ?? asString(driver?.["version"]);
+    if (toolVersion) {
+      const versions = reportToolVersions.get(toolName) ?? new Set<string>();
+      versions.add(toolVersion);
+      reportToolVersions.set(toolName, versions);
+    }
     const health = inspectRunHealth(run, runIndex, toolName, warnings);
     const healthValue = asJsonValue(health);
     if (healthValue !== undefined) runHealth.push(healthValue);
@@ -181,6 +187,11 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
     sourceName: reportName,
     tool: reportTools[0] ?? "SARIF",
     tools: reportTools.length > 0 ? [...reportTools].sort() : ["SARIF"],
+    toolVersions: Object.fromEntries(
+      [...reportToolVersions.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([tool, versions]) => [tool, [...versions].sort()] as const),
+    ),
     findings,
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown", runHealth },

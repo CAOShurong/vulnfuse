@@ -256,6 +256,7 @@ export function correlateReports(
       sourceToolFindings[finding.source.tool] = (sourceToolFindings[finding.source.tool] ?? 0) + 1;
     }
     const tools = Object.keys(sourceToolFindings).sort();
+    const toolVersions = normalizedToolVersions(report);
     coverageInputs.push({
       tool: report.tool,
       findings: report.findings.length,
@@ -266,6 +267,7 @@ export function correlateReports(
       format: report.format,
       tool: report.tool,
       tools,
+      toolVersions,
       findings: report.findings.length,
       warnings: report.warnings,
       metadata: report.metadata,
@@ -303,6 +305,29 @@ export function correlateReports(
       coverage,
     },
   };
+}
+
+function normalizedToolVersions(report: ParsedReport): Record<string, string[]> {
+  const versions = new Map<string, Set<string>>();
+  const add = (tool: string, version: string) => {
+    const normalizedTool = tool.trim();
+    const normalizedVersion = version.trim();
+    if (!normalizedTool || !normalizedVersion) return;
+    const values = versions.get(normalizedTool) ?? new Set<string>();
+    values.add(normalizedVersion);
+    versions.set(normalizedTool, values);
+  };
+  for (const [tool, values] of Object.entries(report.toolVersions ?? {})) {
+    for (const version of values) add(tool, version);
+  }
+  for (const finding of report.findings) {
+    if (finding.source.version) add(finding.source.tool, finding.source.version);
+  }
+  return Object.fromEntries(
+    [...versions.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([tool, values]) => [tool, [...values].sort()] as const),
+  );
 }
 
 function compareIndexedMatches(left: IndexedMatch, right: IndexedMatch): number {

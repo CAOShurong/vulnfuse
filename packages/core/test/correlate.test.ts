@@ -610,9 +610,10 @@ describe("baseline comparison", () => {
       addedTools: [],
       removedTools: [],
       changedReportCounts: [],
+      changedToolVersions: [],
     });
     expect(describeScanSetChange(unchanged.scanSetChange)).toBe(
-      "Scan set did not change by tool names or per-tool report counts.",
+      "Scan set did not change by tool names, per-tool report counts, or embedded tool versions.",
     );
 
     const current = correlateReports([
@@ -639,7 +640,110 @@ describe("baseline comparison", () => {
       addedTools: [],
       removedTools: [],
       changedReportCounts: [{ tool: "Trivy", baseline: 1, current: 2 }],
+      changedToolVersions: [],
     });
+  });
+
+  it("detects embedded tool-version drift with stable scanner names and report counts", () => {
+    const sarif = (version?: string) =>
+      parseReport({
+        name: "empty.sarif",
+        content: JSON.stringify({
+          version: "2.1.0",
+          runs: [
+            {
+              tool: {
+                driver: {
+                  name: "CodeQL",
+                  ...(version ? { semanticVersion: version } : {}),
+                },
+              },
+              results: [],
+            },
+          ],
+        }),
+      });
+
+    const changed = compareCorrelations(
+      correlateReports([sarif("2.20.0")]),
+      correlateReports([sarif("2.26.2")]),
+    );
+    expect(changed.scanSetChange).toEqual({
+      detected: true,
+      addedTools: [],
+      removedTools: [],
+      changedReportCounts: [],
+      changedToolVersions: [
+        {
+          tool: "CodeQL",
+          baseline: { versions: ["2.20.0"], unversionedReports: 0 },
+          current: { versions: ["2.26.2"], unversionedReports: 0 },
+        },
+      ],
+    });
+    expect(describeScanSetChange(changed.scanSetChange)).toContain(
+      'embedded versions "CodeQL" ["2.20.0"] to ["2.26.2"]',
+    );
+
+    const sarifExport = JSON.parse(exportBaselineDiff(changed, "sarif")) as {
+      runs: Array<{
+        invocations: Array<{
+          properties?: {
+            scanSetChange?: {
+              changedToolVersions?: Array<{ tool?: string }>;
+            };
+          };
+        }>;
+      }>;
+    };
+    expect(
+      sarifExport.runs[0]?.invocations[0]?.properties?.scanSetChange?.changedToolVersions,
+    ).toEqual([expect.objectContaining({ tool: "CodeQL" })]);
+    for (const format of ["markdown", "html"] as const) {
+      const exported = exportBaselineDiff(changed, format);
+      const visibleText = exported.replaceAll("\\", "");
+      expect(visibleText).toContain("embedded versions");
+      expect(visibleText).toContain("2.20.0");
+      expect(visibleText).toContain("2.26.2");
+    }
+
+    const versionedFindingReport = (version: string) => {
+      const document = JSON.parse(fixture("sarif.json")) as {
+        runs: Array<{ tool: { driver: { semanticVersion: string } } }>;
+      };
+      document.runs[0]!.tool.driver.semanticVersion = version;
+      return parseReport({ name: `codeql-${version}.sarif`, content: JSON.stringify(document) });
+    };
+    const csv = exportBaselineDiff(
+      compareCorrelations(
+        correlateReports([versionedFindingReport("2.20.0")]),
+        correlateReports([versionedFindingReport("2.26.2")]),
+      ),
+      "csv",
+    );
+    expect(csv).toContain("embedded versions");
+    expect(csv).toContain("2.20.0");
+    expect(csv).toContain("2.26.2");
+
+    const evidenceLost = compareCorrelations(
+      correlateReports([sarif("2.26.2")]),
+      correlateReports([sarif()]),
+    );
+    expect(evidenceLost.scanSetChange.detected).toBe(true);
+    expect(evidenceLost.scanSetChange.changedToolVersions).toEqual([
+      {
+        tool: "CodeQL",
+        baseline: { versions: ["2.26.2"], unversionedReports: 0 },
+        current: { versions: [], unversionedReports: 1 },
+      },
+    ]);
+
+    const unchanged = compareCorrelations(
+      correlateReports([sarif("2.26.2")]),
+      correlateReports([sarif("2.26.2")]),
+    );
+    expect(unchanged.scanSetChange.detected).toBe(false);
+    expect(unchanged.scanSetChange.changedToolVersions).toEqual([]);
   });
 
   it("distinguishes updated evidence from findings absent in the current run", () => {

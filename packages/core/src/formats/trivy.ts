@@ -195,6 +195,7 @@ export function parseTrivy(root: Record<string, unknown>, reportName: string): P
     sourceName: reportName,
     tool: "Trivy",
     tools: ["Trivy"],
+    toolVersions: version ? { Trivy: [version] } : {},
     findings,
     warnings:
       findings.length === 0

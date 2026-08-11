@@ -13,7 +13,8 @@ import { asset, cleanStrings, makeFinding, source } from "./common.js";
 export function parseGrype(root: Record<string, unknown>, reportName: string): ParsedReport {
   const findings: CanonicalFinding[] = [];
   const descriptor = asRecord(root["descriptor"]);
-  const version = asString(descriptor?.["version"]);
+  const rawVersion = asString(descriptor?.["version"]);
+  const version = rawVersion === "[not provided]" ? undefined : rawVersion;
   const sourceDescription = asRecord(root["source"]);
   const target = asString(
     sourceDescription?.["target"] ?? sourceDescription?.["name"] ?? sourceDescription?.["path"],
@@ -117,6 +118,7 @@ export function parseGrype(root: Record<string, unknown>, reportName: string): P
     sourceName: reportName,
     tool: "Grype",
     tools: ["Grype"],
+    toolVersions: version ? { Grype: [version] } : {},
     findings,
     warnings:
       findings.length === 0

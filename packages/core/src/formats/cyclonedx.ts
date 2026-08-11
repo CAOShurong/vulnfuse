@@ -137,6 +137,7 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
     sourceName: reportName,
     tool: toolName,
     tools: [toolName],
+    toolVersions: tool?.version ? { [toolName]: [tool.version] } : {},
     findings,
     warnings:
       findings.length === 0

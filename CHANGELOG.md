@@ -4,6 +4,32 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.16] - 2026-08-12
+
+### Added
+
+- Preserve sorted, deduplicated report-level producer-version evidence for
+  SARIF, Grype, CycloneDX JSON/XML, Trivy reports that embed `Trivy.Version`,
+  CSV `tool_version`/`scanner_version`, and reconstructed VulnFuse inputs.
+- Detect known-version set drift and known-to-unknown or unknown-to-known
+  evidence changes even when scanner names, report counts, and finding counts
+  are unchanged.
+- Expose structured `changedToolVersions` evidence in baseline JSON and SARIF,
+  with the same warning and post-write gate behavior in the CLI, browser,
+  portable reports, and bundled GitHub Action.
+
+### Verification
+
+- Add zero-result SARIF, cross-format parser, exporter, CLI, Action, Windows,
+  and clean-package smoke coverage for embedded producer-version drift.
+
+### Limitations
+
+- Embedded versions are producer-supplied provenance, not an upgrade, safety,
+  or comparability verdict. Equal versions do not prove equal rules,
+  vulnerability databases, configuration, targets, assets, or successful scan
+  completion; missing versions remain explicitly missing.
+
 ## [0.4.15] - 2026-08-12
 
 ### Added
