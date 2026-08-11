@@ -4,6 +4,33 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.15] - 2026-08-12
+
+### Added
+
+- Accept CycloneDX XML VDR/VEX documents across the core library, CLI,
+  browser workbench, and bundled GitHub Action, using the same canonical parser
+  and correlation semantics as CycloneDX JSON.
+- Preserve supported component, vulnerability, rating, CWE, analysis, affects,
+  reference, advisory, root-component, and producer-tool evidence from XML.
+- Include CycloneDX reference IDs in identifier extraction for both JSON and XML.
+
+### Safety
+
+- Detect CycloneDX XML from its `bom` root namespace rather than its filename,
+  reject malformed XML and every `DOCTYPE`, and never load DTDs, custom
+  entities, schemas, referenced BOMs, or remote content.
+- Use the browser-compatible, zero-dependency ISC-licensed
+  `@rgrove/parse-xml` parser and ship its complete notice with package and
+  bundled Action release artifacts.
+
+### Limitations
+
+- XML support maps the fields already documented by VulnFuse; it is not full
+  CycloneDX schema validation or a lossless XML-to-JSON converter. Unknown
+  extensions are ignored, signatures are not verified, and parsing remains
+  in-memory under the per-report byte limit.
+
 ## [0.4.14] - 2026-08-12
 
 ### Fixed

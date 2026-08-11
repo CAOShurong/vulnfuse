@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const required = [
   "LICENSE",
+  "THIRD_PARTY_NOTICES.md",
   "README.md",
   "SECURITY.md",
   "CONTRIBUTING.md",
@@ -13,6 +14,7 @@ const required = [
   "scripts/clean-workspace-dist.mjs",
   "scripts/verify-sbom.mjs",
   "packages/action/dist/index.cjs",
+  "packages/core/test/fixtures/README.md",
   "docs/MATCHING.md",
   "docs/FORMATS.md",
   "docs/THREAT_MODEL.md",
@@ -20,6 +22,14 @@ const required = [
 ];
 
 for (const path of required) await access(resolve(root, path));
+
+const thirdPartyNotices = await readFile(resolve(root, "THIRD_PARTY_NOTICES.md"), "utf8");
+if (
+  !thirdPartyNotices.includes("@rgrove/parse-xml 4.2.3") ||
+  !thirdPartyNotices.includes("ISC License")
+) {
+  throw new Error("THIRD_PARTY_NOTICES.md must retain the bundled XML parser license notice.");
+}
 
 const packageFiles = [
   "package.json",

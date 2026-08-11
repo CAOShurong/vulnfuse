@@ -2,7 +2,7 @@
 
 VulnFuse normalizes scanner reports into one canonical finding model. Parsers are intentionally defensive: missing optional fields become unknown evidence, while malformed documents or unsupported shapes fail with a clear error.
 
-All JSON inputs must contain an object. A leading UTF-8 byte-order mark is accepted for compatibility with Windows-generated files and standard input. CycloneDX XML and generic arrays are not supported in v0.4.x.
+All JSON inputs must contain an object. A leading UTF-8 byte-order mark is accepted for compatibility with Windows-generated files and standard input. CycloneDX XML is the one non-JSON structured format; generic JSON arrays are not supported in v0.4.x.
 
 ## Canonical finding
 
@@ -70,9 +70,9 @@ The parser supports the common legacy Open Source shape with top-level `vulnerab
 
 Snyk Code findings should be exported as SARIF. If Snyk changes its JSON contract, attach a sanitized fixture to a format issue.
 
-## CycloneDX JSON
+## CycloneDX JSON and XML
 
-VulnFuse reads CycloneDX JSON BOMs whose `bomFormat` is `CycloneDX`, including:
+VulnFuse reads CycloneDX JSON BOMs whose `bomFormat` is `CycloneDX` and XML BOMs whose `bom` root declares a `http://cyclonedx.org/schema/bom/1.x` or HTTPS-equivalent namespace. Both serializations feed the same supported-field parser, including:
 
 - component `bom-ref`, PURL, group, name, version, and type;
 - vulnerability ID, source, ratings, CWE values, description, recommendation, references, advisories, and analysis;
@@ -90,6 +90,14 @@ the referenced BOM. An `unaffected` version in an affected record is exposed
 as a fixed-version candidate. The complete source `affects` array and VEX
 analysis remain in properties; VulnFuse does not convert VEX state into a
 false-positive verdict or retrieve external BOMs.
+
+XML support is a bounded field mapping, not complete schema validation or a
+lossless serialization converter. It rejects every `DOCTYPE`, does not resolve
+custom or external entities, fetch schemas, process signatures, or interpret
+foreign namespace extensions. Malformed XML fails with a concise input error.
+Element nesting is limited to 100. The parser is non-streaming, so the input
+text and parsed tree both count toward runtime memory even though the existing
+per-report byte limit is enforced.
 
 ## OpenVEX JSON-LD
 

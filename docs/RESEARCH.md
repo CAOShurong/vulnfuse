@@ -338,6 +338,58 @@ repository root, a monorepo subdirectory, a generated tree, or another machine.
 This release improves portable correlation; it does not claim complete absolute
 URI resolution, source navigation, symlink equivalence, or filesystem identity.
 
+## CycloneDX XML without a conversion step
+
+VulnFuse v0.4.14 accepted CycloneDX JSON but rejected an equivalent XML VDR or
+VEX document before parsing. This is a format-compatibility gap, not a request
+for a second semantic model. CycloneDX 1.7.1 is current as checked on
+2026-08-12, and the specification registers both
+`application/vnd.cyclonedx+json` and `application/vnd.cyclonedx+xml`, with
+`bom.json`/`*.cdx.json` and `bom.xml`/`*.cdx.xml` as recognized file patterns.
+The official vulnerability fixtures publish the same evidence model in XML.
+See the CycloneDX [specification overview](https://cyclonedx.org/specification/overview/),
+[repository](https://github.com/CycloneDX/specification), and pinned
+[1.4 vulnerability fixture](https://github.com/CycloneDX/specification/blob/970eeb2995c16ea95124a224b7defc351dd563bd/tools/src/test/resources/1.4/valid-vulnerability-1.4.xml).
+
+The format occurs in ordinary build pipelines. The maintained Apache-2.0
+CycloneDX Maven plugin 2.9.3 emits and attaches both XML and JSON, while its
+older 1.x line supported XML only. The maintained Apache-2.0 Gradle plugin
+3.4.1 generates `bom.json` and `bom.xml` by default. Syft also exposes a
+`cyclonedx-xml` output, and a practitioner report in
+[Syft #4363](https://github.com/anchore/syft/issues/4363) shows a real XML
+producer/consumer compatibility failure. That issue does not prove every XML
+BOM is problematic; it demonstrates that asking users to swap serialization
+does not remove version and parser interoperability costs.
+
+Maintained alternatives were checked before implementation. The Apache-2.0
+[CycloneDX CLI](https://github.com/CycloneDX/cyclonedx-cli) can convert XML to
+JSON accurately and remains the better choice for full format conversion, but
+it adds a .NET binary or container plus an extra file/pipe step to every local
+and CI workflow. The Apache-2.0 `@cyclonedx/cyclonedx-library` 10.1.1 is current
+and provides models, normalizers, serializers, and validators; it does not
+provide a universal XML deserializer and its unpacked npm package is about 5.2
+MB. `fast-xml-parser` 5.10.1 is MIT and browser-compatible, but brings five
+runtime dependencies and about 1.3 MB unpacked; older 5.x releases below 5.3.6
+were affected by entity-expansion denial of service
+([CVE-2026-26278](https://github.com/advisories/GHSA-jmr7-xgp7-cmfj)).
+
+The selected `@rgrove/parse-xml` 4.2.3 parser is actively maintained,
+ISC-licensed, browser-compatible, zero-dependency, and about 380 KB unpacked.
+It deliberately does not load external DTDs or resolve custom DTD entities.
+VulnFuse adds a stricter boundary by rejecting every `DOCTYPE`, then converts
+only the CycloneDX fields its existing JSON parser already understands. The
+same canonical parser therefore decides identifiers, PURLs, affected targets,
+severity, remediation, VEX evidence, and safe references for both formats.
+The complete ISC notice ships with packages and the bundled Action archive.
+
+This is not full XML or CycloneDX validation. Unknown extensions are ignored;
+XSD constraints and signatures are not checked; no schema, entity, BOM-Link,
+or advisory URL is fetched. Element nesting is capped at 100. Parsing is
+non-streaming and adds an in-memory tree on top of the already-buffered report,
+within the existing per-report byte limit. Users who need lossless conversion
+or formal schema validation should keep the official CycloneDX tooling in that
+part of the pipeline.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.
@@ -353,6 +405,7 @@ URI resolution, source navigation, symlink equivalence, or filesystem identity.
 11. **Rule outcomes are evidence, not all vulnerabilities.** SARIF pass, informational, and not-applicable records should remain reviewable without entering active vulnerability gates, while malformed or contradicted outcomes fail closed.
 12. **Partial scan evidence and scan completeness are separate decisions.** Retain valid findings from a failed run, but make producer-declared incompleteness visible and optionally gateable after the artifact exists.
 13. **Portable path evidence should not expose machine identity.** Relative SARIF URI-base segments can improve correlation, while absolute producer roots remain private and cannot substitute for an explicit consumer checkout mapping.
+14. **Equivalent standard serializations should not require a second workflow.** CycloneDX XML can reuse the JSON canonical model when the mapping is explicit and bounded, while formal schema validation and lossless conversion remain separate jobs.
 
 ## What this project intentionally does not claim
 

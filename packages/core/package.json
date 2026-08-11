@@ -1,6 +1,6 @@
 {
   "name": "@vulnfuse/core",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "description": "Canonical vulnerability model, report parsers, and explainable correlation engine",
   "type": "module",
   "license": "Apache-2.0",
@@ -20,7 +20,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "prepack": "node ../../scripts/sync-package-license.mjs",
@@ -30,6 +31,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@rgrove/parse-xml": "4.2.3",
     "packageurl-js": "2.0.1",
     "papaparse": "5.5.4",
     "zod": "4.4.3"

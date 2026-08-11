@@ -32,8 +32,16 @@ export function parseCycloneDx(root: Record<string, unknown>, reportName: string
     const vulnerability = asRecord(value);
     if (!vulnerability) continue;
     const vulnerabilityId = asString(vulnerability["id"]);
+    const referenceIds = asArray(vulnerability["references"])
+      .map((entry) => asString(asRecord(entry)?.["id"]))
+      .filter((entry): entry is string => Boolean(entry));
     const identifiers: FindingIdentifier[] = extractIdentifiers(
-      [vulnerabilityId, asString(vulnerability["description"]), asString(vulnerability["detail"])],
+      [
+        vulnerabilityId,
+        ...referenceIds,
+        asString(vulnerability["description"]),
+        asString(vulnerability["detail"]),
+      ],
       "related",
     );
     if (vulnerabilityId) {

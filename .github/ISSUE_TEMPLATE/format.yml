@@ -27,7 +27,7 @@ body:
           Trivy JSON,
           Grype JSON,
           Snyk JSON,
-          CycloneDX JSON,
+          CycloneDX JSON/XML,
           OSV-Scanner JSON,
           CSV,
           New format,

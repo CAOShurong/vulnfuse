@@ -9,6 +9,7 @@ import { canonicalFindingSchema, vulnfuseDocumentSchema } from "./schema.js";
 import { asArray, asRecord, asString } from "./utils.js";
 import { parseCsv } from "./formats/csv.js";
 import { parseCycloneDx } from "./formats/cyclonedx.js";
+import { parseCycloneDxXml } from "./formats/cyclonedx-xml.js";
 import { detectFormat } from "./formats/detect.js";
 import { parseGrype } from "./formats/grype.js";
 import { parseOpenVex } from "./formats/openvex.js";
@@ -35,6 +36,9 @@ export function parseReport(input: ReportInput, options: ParseOptions = {}): Par
   const content = input.content.startsWith("\uFEFF") ? input.content.slice(1) : input.content;
   const format = options.format ?? detectFormat(content, input.name);
   if (format === "csv") return parseCsv(content, input.name);
+  if (format === "cyclonedx" && content.trimStart().startsWith("<")) {
+    return parseCycloneDxXml(content, input.name);
+  }
   if (format === "unknown") {
     throw new Error(
       `Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OpenVEX, OSV-Scanner, CSV, and VulnFuse JSON.`,

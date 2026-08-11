@@ -12,6 +12,7 @@ const trivy = resolve(import.meta.dirname, "../../core/test/fixtures/trivy.json"
 const grype = resolve(import.meta.dirname, "../../core/test/fixtures/grype.json");
 const csv = resolve(import.meta.dirname, "../../core/test/fixtures/generic.csv");
 const openVex = resolve(import.meta.dirname, "../../core/test/fixtures/openvex.json");
+const cycloneXml = resolve(import.meta.dirname, "../../core/test/fixtures/cyclonedx-vex.xml");
 const suppressedSarif = resolve(
   import.meta.dirname,
   "../../core/test/fixtures/sarif-suppressed.json",
@@ -40,6 +41,17 @@ afterEach(async () => {
 });
 
 describe("CLI", () => {
+  it("inspects CycloneDX XML VEX in a separate process", async () => {
+    const inspection = await execute(process.execPath, [cli, "inspect", cycloneXml, "--json"]);
+    expect(JSON.parse(inspection.stdout)[0]).toMatchObject({
+      format: "cyclonedx",
+      tool: "CycloneDX",
+      findings: 1,
+      active: 1,
+      warnings: [],
+    });
+  });
+
   it("correlates SARIF URI-base and repository-relative paths in a separate process", async () => {
     const inspection = await execute(process.execPath, [cli, "inspect", uriBaseSarif, "--json"]);
     expect(JSON.parse(inspection.stdout)[0]).toMatchObject({

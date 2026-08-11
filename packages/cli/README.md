@@ -12,4 +12,8 @@ SARIF result kinds and suppression evidence are retained. `--fail-on` and `--fai
 
 Valid relative SARIF `uriBaseId` chains contribute portable path prefixes before file-location correlation. Producer-specific absolute roots are omitted; malformed chains warn and preserve the raw URI. This does not map symbolic roots to the local checkout or open source files.
 
+CycloneDX VDR/VEX inputs may use the standard JSON or XML serialization. XML
+is detected from the CycloneDX `bom` namespace, rejects DTDs, and maps the same
+documented evidence as JSON; it is not complete XSD or signature validation.
+
 The public package is not yet published to npm. Build and run it from the repository as documented in the root [README](../../README.md).

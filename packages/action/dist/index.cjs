@@ -16235,7 +16235,7 @@ var require_parse = __commonJS({
         unparsedAttributes = "";
       }
       let attributeName = "";
-      let attributeValue = "";
+      let attributeValue2 = "";
       if (cookieAv.includes("=")) {
         const position = { position: 0 };
         attributeName = collectASequenceOfCodePointsFast(
@@ -16243,31 +16243,31 @@ var require_parse = __commonJS({
           cookieAv,
           position
         );
-        attributeValue = cookieAv.slice(position.position + 1);
+        attributeValue2 = cookieAv.slice(position.position + 1);
       } else {
         attributeName = cookieAv;
       }
       attributeName = attributeName.trim();
-      attributeValue = attributeValue.trim();
-      if (attributeValue.length > maxAttributeValueSize) {
+      attributeValue2 = attributeValue2.trim();
+      if (attributeValue2.length > maxAttributeValueSize) {
         return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList);
       }
       const attributeNameLowercase = attributeName.toLowerCase();
       if (attributeNameLowercase === "expires") {
-        const expiryTime = new Date(attributeValue);
+        const expiryTime = new Date(attributeValue2);
         cookieAttributeList.expires = expiryTime;
       } else if (attributeNameLowercase === "max-age") {
-        const charCode = attributeValue.charCodeAt(0);
-        if ((charCode < 48 || charCode > 57) && attributeValue[0] !== "-") {
+        const charCode = attributeValue2.charCodeAt(0);
+        if ((charCode < 48 || charCode > 57) && attributeValue2[0] !== "-") {
           return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList);
         }
-        if (!/^\d+$/.test(attributeValue)) {
+        if (!/^\d+$/.test(attributeValue2)) {
           return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList);
         }
-        const deltaSeconds = Number(attributeValue);
+        const deltaSeconds = Number(attributeValue2);
         cookieAttributeList.maxAge = deltaSeconds;
       } else if (attributeNameLowercase === "domain") {
-        let cookieDomain = attributeValue;
+        let cookieDomain = attributeValue2;
         if (cookieDomain[0] === ".") {
           cookieDomain = cookieDomain.slice(1);
         }
@@ -16275,10 +16275,10 @@ var require_parse = __commonJS({
         cookieAttributeList.domain = cookieDomain;
       } else if (attributeNameLowercase === "path") {
         let cookiePath = "";
-        if (attributeValue.length === 0 || attributeValue[0] !== "/") {
+        if (attributeValue2.length === 0 || attributeValue2[0] !== "/") {
           cookiePath = "/";
         } else {
-          cookiePath = attributeValue;
+          cookiePath = attributeValue2;
         }
         cookieAttributeList.path = cookiePath;
       } else if (attributeNameLowercase === "secure") {
@@ -16286,7 +16286,7 @@ var require_parse = __commonJS({
       } else if (attributeNameLowercase === "httponly") {
         cookieAttributeList.httpOnly = true;
       } else if (attributeNameLowercase === "samesite") {
-        const attributeValueLowercase = attributeValue.toLowerCase();
+        const attributeValueLowercase = attributeValue2.toLowerCase();
         if (attributeValueLowercase === "none") {
           cookieAttributeList.sameSite = "None";
         } else if (attributeValueLowercase === "strict") {
@@ -16296,7 +16296,7 @@ var require_parse = __commonJS({
         }
       } else {
         cookieAttributeList.unparsed ??= [];
-        cookieAttributeList.unparsed.push(`${attributeName}=${attributeValue}`);
+        cookieAttributeList.unparsed.push(`${attributeName}=${attributeValue2}`);
       }
       return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList);
     }
@@ -21269,6 +21269,1329 @@ var require_papaparse = __commonJS({
   }
 });
 
+// ../../node_modules/@rgrove/parse-xml/dist/lib/StringScanner.js
+var require_StringScanner = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/StringScanner.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.StringScanner = void 0;
+    var emptyString = "";
+    var surrogatePair = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
+    var StringScanner = class {
+      constructor(string4) {
+        this.charCount = this.charLength(string4, true);
+        this.charIndex = 0;
+        this.length = string4.length;
+        this.multiByteMode = this.charCount !== this.length;
+        this.string = string4;
+        if (this.multiByteMode) {
+          let charsToBytes = [];
+          for (let byteIndex = 0, charIndex = 0; charIndex < this.charCount; ++charIndex) {
+            charsToBytes[charIndex] = byteIndex;
+            byteIndex += string4.codePointAt(byteIndex) > 65535 ? 2 : 1;
+          }
+          this.charsToBytes = charsToBytes;
+        }
+      }
+      /**
+       * Whether the current character index is at the end of the input string.
+       */
+      get isEnd() {
+        return this.charIndex >= this.charCount;
+      }
+      // -- Protected Methods ------------------------------------------------------
+      /**
+       * Returns the number of characters in the given string, which may differ from
+       * the byte length if the string contains multibyte characters.
+       */
+      charLength(string4, multiByteSafe = this.multiByteMode) {
+        return multiByteSafe ? string4.replace(surrogatePair, "_").length : string4.length;
+      }
+      // -- Public Methods ---------------------------------------------------------
+      /**
+       * Advances the scanner by the given number of characters, stopping if the end
+       * of the string is reached.
+       */
+      advance(count = 1) {
+        this.charIndex = Math.min(this.charCount, this.charIndex + count);
+      }
+      /**
+       * Returns the byte index of the given character index in the string. The two
+       * may differ in strings that contain multibyte characters.
+       */
+      charIndexToByteIndex(charIndex = this.charIndex) {
+        return this.multiByteMode ? this.charsToBytes[charIndex] ?? Infinity : charIndex;
+      }
+      /**
+       * Consumes and returns the given number of characters if possible, advancing
+       * the scanner and stopping if the end of the string is reached.
+       *
+       * If no characters could be consumed, an empty string will be returned.
+       */
+      consume(charCount = 1) {
+        let chars = this.peek(charCount);
+        this.advance(charCount);
+        return chars;
+      }
+      /**
+       * Consumes and returns the given number of bytes if possible, advancing the
+       * scanner and stopping if the end of the string is reached.
+       *
+       * It's up to the caller to ensure that the given byte count doesn't split a
+       * multibyte character.
+       *
+       * If no bytes could be consumed, an empty string will be returned.
+       */
+      consumeBytes(byteCount) {
+        let byteIndex = this.charIndexToByteIndex();
+        let result = this.string.slice(byteIndex, byteIndex + byteCount);
+        this.advance(this.charLength(result));
+        return result;
+      }
+      /**
+       * Consumes and returns all characters for which the given function returns
+       * `true`, stopping when `false` is returned or the end of the input is
+       * reached.
+       */
+      consumeMatchFn(fn) {
+        let { length, multiByteMode, string: string4 } = this;
+        let startByteIndex = this.charIndexToByteIndex();
+        let endByteIndex = startByteIndex;
+        if (multiByteMode) {
+          while (endByteIndex < length) {
+            let char = string4[endByteIndex];
+            let isSurrogatePair = char >= "\uD800" && char <= "\uDBFF";
+            if (isSurrogatePair) {
+              char += string4[endByteIndex + 1];
+            }
+            if (!fn(char)) {
+              break;
+            }
+            endByteIndex += isSurrogatePair ? 2 : 1;
+          }
+        } else {
+          while (endByteIndex < length && fn(string4[endByteIndex])) {
+            ++endByteIndex;
+          }
+        }
+        return this.consumeBytes(endByteIndex - startByteIndex);
+      }
+      /**
+       * Consumes the given string if it exists at the current character index, and
+       * advances the scanner.
+       *
+       * If the given string doesn't exist at the current character index, an empty
+       * string will be returned and the scanner will not be advanced.
+       */
+      consumeString(stringToConsume) {
+        let { length } = stringToConsume;
+        let byteIndex = this.charIndexToByteIndex();
+        if (stringToConsume === this.string.slice(byteIndex, byteIndex + length)) {
+          this.advance(length === 1 ? 1 : this.charLength(stringToConsume));
+          return stringToConsume;
+        }
+        return emptyString;
+      }
+      /**
+       * Consumes characters until the given global regex is matched, advancing the
+       * scanner up to (but not beyond) the beginning of the match. If the regex
+       * doesn't match, nothing will be consumed.
+       *
+       * Returns the consumed string, or an empty string if nothing was consumed.
+       */
+      consumeUntilMatch(regex) {
+        let matchByteIndex = this.string.slice(this.charIndexToByteIndex()).search(regex);
+        return matchByteIndex > 0 ? this.consumeBytes(matchByteIndex) : emptyString;
+      }
+      /**
+       * Consumes characters until the given string is found, advancing the scanner
+       * up to (but not beyond) that point. If the string is never found, nothing
+       * will be consumed.
+       *
+       * Returns the consumed string, or an empty string if nothing was consumed.
+       */
+      consumeUntilString(searchString) {
+        let byteIndex = this.charIndexToByteIndex();
+        let matchByteIndex = this.string.indexOf(searchString, byteIndex);
+        return matchByteIndex > 0 ? this.consumeBytes(matchByteIndex - byteIndex) : emptyString;
+      }
+      /**
+       * Returns the given number of characters starting at the current character
+       * index, without advancing the scanner and without exceeding the end of the
+       * input string.
+       */
+      peek(count = 1) {
+        let { charIndex, string: string4 } = this;
+        return this.multiByteMode ? string4.slice(this.charIndexToByteIndex(charIndex), this.charIndexToByteIndex(charIndex + count)) : string4.slice(charIndex, charIndex + count);
+      }
+      /**
+       * Resets the scanner position to the given character _index_, or to the start
+       * of the input string if no index is given.
+       *
+       * If _index_ is negative, the scanner position will be moved backward by that
+       * many characters, stopping if the beginning of the string is reached.
+       */
+      reset(index = 0) {
+        this.charIndex = index >= 0 ? Math.min(this.charCount, index) : Math.max(0, this.charIndex + index);
+      }
+    };
+    exports2.StringScanner = StringScanner;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/syntax.js
+var require_syntax = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/syntax.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.predefinedEntities = exports2.endCharData = exports2.attValueNormalizedWhitespace = exports2.attValueCharSingleQuote = exports2.attValueCharDoubleQuote = void 0;
+    exports2.isNameChar = isNameChar;
+    exports2.isNameStartChar = isNameStartChar;
+    exports2.isReferenceChar = isReferenceChar;
+    exports2.isWhitespace = isWhitespace;
+    exports2.isXmlCodePoint = isXmlCodePoint;
+    exports2.attValueCharDoubleQuote = /["&<]/;
+    exports2.attValueCharSingleQuote = /['&<]/;
+    exports2.attValueNormalizedWhitespace = /\r\n|[\n\r\t]/g;
+    exports2.endCharData = /<|&|]]>/;
+    exports2.predefinedEntities = Object.freeze(Object.assign(/* @__PURE__ */ Object.create(null), {
+      amp: "&",
+      apos: "'",
+      gt: ">",
+      lt: "<",
+      quot: '"'
+    }));
+    function isNameChar(char) {
+      let cp = char.codePointAt(0);
+      return cp >= 97 && cp <= 122 || cp >= 65 && cp <= 90 || cp >= 48 && cp <= 57 || cp === 45 || cp === 46 || cp === 183 || cp >= 768 && cp <= 879 || cp === 8255 || cp === 8256 || isNameStartChar(char, cp);
+    }
+    function isNameStartChar(char, cp = char.codePointAt(0)) {
+      return cp >= 97 && cp <= 122 || cp >= 65 && cp <= 90 || cp === 58 || cp === 95 || cp >= 192 && cp <= 214 || cp >= 216 && cp <= 246 || cp >= 248 && cp <= 767 || cp >= 880 && cp <= 893 || cp >= 895 && cp <= 8191 || cp === 8204 || cp === 8205 || cp >= 8304 && cp <= 8591 || cp >= 11264 && cp <= 12271 || cp >= 12289 && cp <= 55295 || cp >= 63744 && cp <= 64975 || cp >= 65008 && cp <= 65533 || cp >= 65536 && cp <= 983039;
+    }
+    function isReferenceChar(char) {
+      return char === "#" || isNameChar(char);
+    }
+    function isWhitespace(char) {
+      let cp = char.codePointAt(0);
+      return cp === 32 || cp === 9 || cp === 10 || cp === 13;
+    }
+    function isXmlCodePoint(cp) {
+      return cp >= 32 && cp <= 55295 || cp === 10 || cp === 9 || cp === 13 || cp >= 57344 && cp <= 65533 || cp >= 65536 && cp <= 1114111;
+    }
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlNode.js
+var require_XmlNode = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlNode.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlNode = void 0;
+    var XmlNode = class _XmlNode {
+      constructor() {
+        this.parent = null;
+        this.start = -1;
+        this.end = -1;
+      }
+      /**
+       * Document that contains this node, or `null` if this node is not associated
+       * with a document.
+       */
+      get document() {
+        return this.parent?.document ?? null;
+      }
+      /**
+       * Whether this node is the root node of the document (also known as the
+       * document element).
+       */
+      get isRootNode() {
+        return this.parent !== null && this.parent === this.document && this.type === _XmlNode.TYPE_ELEMENT;
+      }
+      /**
+       * Whether whitespace should be preserved in the content of this element and
+       * its children.
+       *
+       * This is influenced by the value of the special `xml:space` attribute, and
+       * will be `true` for any node whose `xml:space` attribute is set to
+       * "preserve". If a node has no such attribute, it will inherit the value of
+       * the nearest ancestor that does (if any).
+       *
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-white-space
+       */
+      get preserveWhitespace() {
+        return !!this.parent?.preserveWhitespace;
+      }
+      /**
+       * Type of this node.
+       *
+       * The value of this property is a string that matches one of the static
+       * `TYPE_*` properties on the `XmlNode` class (e.g. `TYPE_ELEMENT`,
+       * `TYPE_TEXT`, etc.).
+       *
+       * The `XmlNode` class itself is a base class and doesn't have its own type
+       * name.
+       */
+      get type() {
+        return "";
+      }
+      /**
+       * Returns a JSON-serializable object representing this node, minus properties
+       * that could result in circular references.
+       */
+      toJSON() {
+        let json2 = {
+          type: this.type
+        };
+        if (this.isRootNode) {
+          json2.isRootNode = true;
+        }
+        if (this.preserveWhitespace) {
+          json2.preserveWhitespace = true;
+        }
+        if (this.start !== -1) {
+          json2.start = this.start;
+          json2.end = this.end;
+        }
+        return json2;
+      }
+    };
+    exports2.XmlNode = XmlNode;
+    XmlNode.TYPE_CDATA = "cdata";
+    XmlNode.TYPE_COMMENT = "comment";
+    XmlNode.TYPE_DOCUMENT = "document";
+    XmlNode.TYPE_DOCUMENT_TYPE = "doctype";
+    XmlNode.TYPE_ELEMENT = "element";
+    XmlNode.TYPE_PROCESSING_INSTRUCTION = "pi";
+    XmlNode.TYPE_TEXT = "text";
+    XmlNode.TYPE_XML_DECLARATION = "xmldecl";
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlText.js
+var require_XmlText = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlText.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlText = void 0;
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlText = class extends XmlNode_js_1.XmlNode {
+      constructor(text = "") {
+        super();
+        this.text = text;
+      }
+      get type() {
+        return XmlNode_js_1.XmlNode.TYPE_TEXT;
+      }
+      toJSON() {
+        return Object.assign(XmlNode_js_1.XmlNode.prototype.toJSON.call(this), {
+          text: this.text
+        });
+      }
+    };
+    exports2.XmlText = XmlText;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlCdata.js
+var require_XmlCdata = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlCdata.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlCdata = void 0;
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlText_js_1 = require_XmlText();
+    var XmlCdata = class extends XmlText_js_1.XmlText {
+      get type() {
+        return XmlNode_js_1.XmlNode.TYPE_CDATA;
+      }
+    };
+    exports2.XmlCdata = XmlCdata;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlComment.js
+var require_XmlComment = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlComment.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlComment = void 0;
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlComment = class extends XmlNode_js_1.XmlNode {
+      constructor(content = "") {
+        super();
+        this.content = content;
+      }
+      get type() {
+        return XmlNode_js_1.XmlNode.TYPE_COMMENT;
+      }
+      toJSON() {
+        return Object.assign(XmlNode_js_1.XmlNode.prototype.toJSON.call(this), {
+          content: this.content
+        });
+      }
+    };
+    exports2.XmlComment = XmlComment;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlDeclaration.js
+var require_XmlDeclaration = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlDeclaration.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlDeclaration = void 0;
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlDeclaration = class extends XmlNode_js_1.XmlNode {
+      constructor(version2, encoding, standalone) {
+        super();
+        this.version = version2;
+        this.encoding = encoding ?? null;
+        this.standalone = standalone ?? null;
+      }
+      get type() {
+        return XmlNode_js_1.XmlNode.TYPE_XML_DECLARATION;
+      }
+      toJSON() {
+        let json2 = XmlNode_js_1.XmlNode.prototype.toJSON.call(this);
+        json2.version = this.version;
+        for (let key of ["encoding", "standalone"]) {
+          if (this[key] !== null) {
+            json2[key] = this[key];
+          }
+        }
+        return json2;
+      }
+    };
+    exports2.XmlDeclaration = XmlDeclaration;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlElement.js
+var require_XmlElement = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlElement.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlElement = void 0;
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlElement = class _XmlElement extends XmlNode_js_1.XmlNode {
+      constructor(name, attributes = /* @__PURE__ */ Object.create(null), children = []) {
+        super();
+        this.name = name;
+        this.attributes = attributes;
+        this.children = children;
+      }
+      /**
+       * Whether this element is empty (meaning it has no children).
+       */
+      get isEmpty() {
+        return this.children.length === 0;
+      }
+      get preserveWhitespace() {
+        let node = this;
+        while (node instanceof _XmlElement) {
+          if ("xml:space" in node.attributes) {
+            return node.attributes["xml:space"] === "preserve";
+          }
+          node = node.parent;
+        }
+        return false;
+      }
+      /**
+       * Text content of this element and all its descendants.
+       */
+      get text() {
+        return this.children.map((child) => "text" in child ? child.text : "").join("");
+      }
+      get type() {
+        return XmlNode_js_1.XmlNode.TYPE_ELEMENT;
+      }
+      toJSON() {
+        return Object.assign(XmlNode_js_1.XmlNode.prototype.toJSON.call(this), {
+          name: this.name,
+          attributes: this.attributes,
+          children: this.children.map((child) => child.toJSON())
+        });
+      }
+    };
+    exports2.XmlElement = XmlElement;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlDocument.js
+var require_XmlDocument = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlDocument.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlDocument = void 0;
+    var XmlElement_js_1 = require_XmlElement();
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlDocument = class extends XmlNode_js_1.XmlNode {
+      constructor(children = []) {
+        super();
+        this.children = children;
+      }
+      get document() {
+        return this;
+      }
+      /**
+       * Root element of this document, or `null` if this document is empty.
+       */
+      get root() {
+        for (let child of this.children) {
+          if (child instanceof XmlElement_js_1.XmlElement) {
+            return child;
+          }
+        }
+        return null;
+      }
+      /**
+       * Text content of this document and all its descendants.
+       */
+      get text() {
+        return this.children.map((child) => "text" in child ? child.text : "").join("");
+      }
+      get type() {
+        return XmlNode_js_1.XmlNode.TYPE_DOCUMENT;
+      }
+      toJSON() {
+        return Object.assign(XmlNode_js_1.XmlNode.prototype.toJSON.call(this), {
+          children: this.children.map((child) => child.toJSON())
+        });
+      }
+    };
+    exports2.XmlDocument = XmlDocument;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlDocumentType.js
+var require_XmlDocumentType = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlDocumentType.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlDocumentType = void 0;
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlDocumentType = class extends XmlNode_js_1.XmlNode {
+      constructor(name, publicId, systemId, internalSubset) {
+        super();
+        this.name = name;
+        this.publicId = publicId ?? null;
+        this.systemId = systemId ?? null;
+        this.internalSubset = internalSubset ?? null;
+      }
+      get type() {
+        return XmlNode_js_1.XmlNode.TYPE_DOCUMENT_TYPE;
+      }
+      toJSON() {
+        let json2 = XmlNode_js_1.XmlNode.prototype.toJSON.call(this);
+        json2.name = this.name;
+        for (let key of ["publicId", "systemId", "internalSubset"]) {
+          if (this[key] !== null) {
+            json2[key] = this[key];
+          }
+        }
+        return json2;
+      }
+    };
+    exports2.XmlDocumentType = XmlDocumentType;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlError.js
+var require_XmlError = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlError.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlError = void 0;
+    var XmlError = class extends Error {
+      constructor(message, charIndex, xml) {
+        let column = 1;
+        let excerpt = "";
+        let line = 1;
+        for (let i = 0; i < charIndex; ++i) {
+          let char = xml[i];
+          if (char === "\n") {
+            column = 1;
+            excerpt = "";
+            line += 1;
+          } else {
+            column += 1;
+            excerpt += char;
+          }
+        }
+        let eol = xml.indexOf("\n", charIndex);
+        excerpt += eol === -1 ? xml.slice(charIndex) : xml.slice(charIndex, eol);
+        let excerptStart = 0;
+        if (excerpt.length > 50) {
+          if (column < 40) {
+            excerpt = excerpt.slice(0, 50);
+          } else {
+            excerptStart = column - 20;
+            excerpt = excerpt.slice(excerptStart, column + 30);
+          }
+        }
+        super(`${message} (line ${line}, column ${column})
+  ${excerpt}
+` + " ".repeat(column - excerptStart + 1) + "^\n");
+        this.column = column;
+        this.excerpt = excerpt;
+        this.line = line;
+        this.name = "XmlError";
+        this.pos = charIndex;
+      }
+    };
+    exports2.XmlError = XmlError;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/XmlProcessingInstruction.js
+var require_XmlProcessingInstruction = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/XmlProcessingInstruction.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlProcessingInstruction = void 0;
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlProcessingInstruction = class extends XmlNode_js_1.XmlNode {
+      constructor(name, content = "") {
+        super();
+        this.name = name;
+        this.content = content;
+      }
+      get type() {
+        return XmlNode_js_1.XmlNode.TYPE_PROCESSING_INSTRUCTION;
+      }
+      toJSON() {
+        return Object.assign(XmlNode_js_1.XmlNode.prototype.toJSON.call(this), {
+          name: this.name,
+          content: this.content
+        });
+      }
+    };
+    exports2.XmlProcessingInstruction = XmlProcessingInstruction;
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/Parser.js
+var require_Parser = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/Parser.js"(exports2) {
+    "use strict";
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      var desc = Object.getOwnPropertyDescriptor(m, k);
+      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+        desc = { enumerable: true, get: function() {
+          return m[k];
+        } };
+      }
+      Object.defineProperty(o, k2, desc);
+    }) : (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      o[k2] = m[k];
+    }));
+    var __setModuleDefault = exports2 && exports2.__setModuleDefault || (Object.create ? (function(o, v) {
+      Object.defineProperty(o, "default", { enumerable: true, value: v });
+    }) : function(o, v) {
+      o["default"] = v;
+    });
+    var __importStar = exports2 && exports2.__importStar || function(mod) {
+      if (mod && mod.__esModule) return mod;
+      var result = {};
+      if (mod != null) {
+        for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+      }
+      __setModuleDefault(result, mod);
+      return result;
+    };
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.Parser = void 0;
+    var StringScanner_js_1 = require_StringScanner();
+    var syntax = __importStar(require_syntax());
+    var XmlCdata_js_1 = require_XmlCdata();
+    var XmlComment_js_1 = require_XmlComment();
+    var XmlDeclaration_js_1 = require_XmlDeclaration();
+    var XmlDocument_js_1 = require_XmlDocument();
+    var XmlDocumentType_js_1 = require_XmlDocumentType();
+    var XmlElement_js_1 = require_XmlElement();
+    var XmlError_js_1 = require_XmlError();
+    var XmlNode_js_1 = require_XmlNode();
+    var XmlProcessingInstruction_js_1 = require_XmlProcessingInstruction();
+    var XmlText_js_1 = require_XmlText();
+    var emptyString = "";
+    var Parser = class {
+      /**
+       * @param xml XML string to parse.
+       * @param options Parser options.
+       */
+      constructor(xml, options = {}) {
+        let doc = this.document = new XmlDocument_js_1.XmlDocument();
+        this.currentNode = doc;
+        this.options = options;
+        this.scanner = new StringScanner_js_1.StringScanner(xml);
+        if (this.options.includeOffsets) {
+          doc.start = 0;
+          doc.end = xml.length;
+        }
+        this.parse();
+      }
+      /**
+       * Adds the given `XmlNode` as a child of `this.currentNode`.
+       */
+      addNode(node, charIndex) {
+        node.parent = this.currentNode;
+        if (this.options.includeOffsets) {
+          node.start = this.scanner.charIndexToByteIndex(charIndex);
+          node.end = this.scanner.charIndexToByteIndex();
+        }
+        this.currentNode.children.push(node);
+        return true;
+      }
+      /**
+       * Adds the given _text_ to the document, either by appending it to a
+       * preceding `XmlText` node (if possible) or by creating a new `XmlText` node.
+       *
+       * When _normalize_ is `true` (the default), line breaks in _text_ are
+       * normalized per section 2.11 of the XML spec. This must be `false` for text
+       * that comes from a character or entity reference, since references aren't
+       * subject to line break normalization.
+       */
+      addText(text, charIndex, normalize = true) {
+        let { children } = this.currentNode;
+        let { length } = children;
+        if (normalize) {
+          text = normalizeLineBreaks(text);
+        }
+        if (length > 0) {
+          let prevNode = children[length - 1];
+          if (prevNode?.type === XmlNode_js_1.XmlNode.TYPE_TEXT) {
+            let textNode = prevNode;
+            textNode.text += text;
+            if (this.options.includeOffsets) {
+              textNode.end = this.scanner.charIndexToByteIndex();
+            }
+            return true;
+          }
+        }
+        return this.addNode(new XmlText_js_1.XmlText(text), charIndex);
+      }
+      /**
+       * Consumes element attributes.
+       *
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-starttags
+       */
+      consumeAttributes() {
+        let attributes = /* @__PURE__ */ Object.create(null);
+        while (this.consumeWhitespace()) {
+          let attrName = this.consumeName();
+          if (!attrName) {
+            break;
+          }
+          let attrValue = this.consumeEqual() && this.consumeAttributeValue();
+          if (attrValue === false) {
+            throw this.error("Attribute value expected");
+          }
+          if (attrName in attributes) {
+            throw this.error(`Duplicate attribute: ${attrName}`);
+          }
+          if (attrName === "xml:space" && attrValue !== "default" && attrValue !== "preserve") {
+            throw this.error('Value of the `xml:space` attribute must be "default" or "preserve"');
+          }
+          attributes[attrName] = attrValue;
+        }
+        if (this.options.sortAttributes) {
+          let attrNames = Object.keys(attributes).sort();
+          let sortedAttributes = /* @__PURE__ */ Object.create(null);
+          for (let i = 0; i < attrNames.length; ++i) {
+            let attrName = attrNames[i];
+            sortedAttributes[attrName] = attributes[attrName];
+          }
+          attributes = sortedAttributes;
+        }
+        return attributes;
+      }
+      /**
+       * Consumes an `AttValue` (attribute value) if possible.
+       *
+       * @returns
+       *   Contents of the `AttValue` minus quotes, or `false` if nothing was
+       *   consumed. An empty string indicates that an `AttValue` was consumed but
+       *   was empty.
+       *
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-AttValue
+       */
+      consumeAttributeValue() {
+        let { scanner } = this;
+        let quote = scanner.peek();
+        if (quote !== '"' && quote !== "'") {
+          return false;
+        }
+        scanner.advance();
+        let chars;
+        let isClosed = false;
+        let value2 = emptyString;
+        let regex = quote === '"' ? syntax.attValueCharDoubleQuote : syntax.attValueCharSingleQuote;
+        matchLoop: while (!scanner.isEnd) {
+          chars = scanner.consumeUntilMatch(regex);
+          if (chars) {
+            this.validateChars(chars);
+            value2 += chars.replace(syntax.attValueNormalizedWhitespace, " ");
+          }
+          switch (scanner.peek()) {
+            case quote:
+              isClosed = true;
+              break matchLoop;
+            case "&":
+              value2 += this.consumeReference();
+              continue;
+            case "<":
+              throw this.error("Unescaped `<` is not allowed in an attribute value");
+            default:
+              break matchLoop;
+          }
+        }
+        if (!isClosed) {
+          throw this.error("Unclosed attribute");
+        }
+        scanner.advance();
+        return value2;
+      }
+      /**
+       * Consumes a CDATA section if possible.
+       *
+       * @returns Whether a CDATA section was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-cdata-sect
+       */
+      consumeCdataSection() {
+        let { scanner } = this;
+        let startIndex = scanner.charIndex;
+        if (!scanner.consumeString("<![CDATA[")) {
+          return false;
+        }
+        let text = scanner.consumeUntilString("]]>");
+        this.validateChars(text);
+        if (!scanner.consumeString("]]>")) {
+          throw this.error("Unclosed CDATA section");
+        }
+        return this.options.preserveCdata ? this.addNode(new XmlCdata_js_1.XmlCdata(normalizeLineBreaks(text)), startIndex) : this.addText(text, startIndex);
+      }
+      /**
+       * Consumes character data if possible.
+       *
+       * @returns Whether character data was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#dt-chardata
+       */
+      consumeCharData() {
+        let { scanner } = this;
+        let startIndex = scanner.charIndex;
+        let charData = scanner.consumeUntilMatch(syntax.endCharData);
+        if (!charData) {
+          return false;
+        }
+        this.validateChars(charData);
+        if (scanner.peek(3) === "]]>") {
+          throw this.error("Element content may not contain the CDATA section close delimiter `]]>`");
+        }
+        return this.addText(charData, startIndex);
+      }
+      /**
+       * Consumes a comment if possible.
+       *
+       * @returns Whether a comment was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Comment
+       */
+      consumeComment() {
+        let { scanner } = this;
+        let startIndex = scanner.charIndex;
+        if (!scanner.consumeString("<!--")) {
+          return false;
+        }
+        let content = scanner.consumeUntilString("--");
+        this.validateChars(content);
+        if (!scanner.consumeString("-->")) {
+          if (scanner.peek(2) === "--") {
+            throw this.error("The string `--` isn't allowed inside a comment");
+          }
+          throw this.error("Unclosed comment");
+        }
+        return this.options.preserveComments ? this.addNode(new XmlComment_js_1.XmlComment(normalizeLineBreaks(content)), startIndex) : true;
+      }
+      /**
+       * Consumes a reference in a content context if possible.
+       *
+       * This differs from `consumeReference()` in that a consumed reference will be
+       * added to the document as a text node instead of returned.
+       *
+       * @returns Whether a reference was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#entproc
+       */
+      consumeContentReference() {
+        let startIndex = this.scanner.charIndex;
+        let ref = this.consumeReference();
+        return ref ? this.addText(ref, startIndex, false) : false;
+      }
+      /**
+       * Consumes a doctype declaration if possible.
+       *
+       * This is a loose implementation since doctype declarations are currently
+       * discarded without further parsing.
+       *
+       * @returns Whether a doctype declaration was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#dtd
+       */
+      consumeDoctypeDeclaration() {
+        let { scanner } = this;
+        let startIndex = scanner.charIndex;
+        if (!scanner.consumeString("<!DOCTYPE")) {
+          return false;
+        }
+        let name = this.consumeWhitespace() && this.consumeName();
+        if (!name) {
+          throw this.error("Expected a name");
+        }
+        let publicId;
+        let systemId;
+        if (this.consumeWhitespace()) {
+          if (scanner.consumeString("PUBLIC")) {
+            publicId = this.consumeWhitespace() && this.consumePubidLiteral();
+            if (publicId === false) {
+              throw this.error("Expected a public identifier");
+            }
+            this.consumeWhitespace();
+          }
+          if (publicId !== void 0 || scanner.consumeString("SYSTEM")) {
+            this.consumeWhitespace();
+            systemId = this.consumeSystemLiteral();
+            if (systemId === false) {
+              throw this.error("Expected a system identifier");
+            }
+            this.consumeWhitespace();
+          }
+        }
+        let internalSubset;
+        if (scanner.consumeString("[")) {
+          internalSubset = scanner.consumeUntilMatch(/\][\x20\t\r\n]*>/);
+          if (!scanner.consumeString("]")) {
+            throw this.error("Unclosed internal subset");
+          }
+          this.consumeWhitespace();
+        }
+        if (!scanner.consumeString(">")) {
+          throw this.error("Unclosed doctype declaration");
+        }
+        return this.options.preserveDocumentType ? this.addNode(new XmlDocumentType_js_1.XmlDocumentType(name, publicId, systemId, internalSubset), startIndex) : true;
+      }
+      /**
+       * Consumes an element if possible.
+       *
+       * @returns Whether an element was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-element
+       */
+      consumeElement() {
+        let { scanner } = this;
+        let startIndex = scanner.charIndex;
+        if (!scanner.consumeString("<")) {
+          return false;
+        }
+        let name = this.consumeName();
+        if (!name) {
+          scanner.reset(startIndex);
+          return false;
+        }
+        let attributes = this.consumeAttributes();
+        let isEmpty = !!scanner.consumeString("/>");
+        let element = new XmlElement_js_1.XmlElement(name, attributes);
+        element.parent = this.currentNode;
+        if (!isEmpty) {
+          if (!scanner.consumeString(">")) {
+            throw this.error(`Unclosed start tag for element \`${name}\``);
+          }
+          this.currentNode = element;
+          do {
+            this.consumeCharData();
+          } while (this.consumeElement() || this.consumeContentReference() || this.consumeCdataSection() || this.consumeProcessingInstruction() || this.consumeComment());
+          let endTagMark = scanner.charIndex;
+          let endTagName;
+          if (!scanner.consumeString("</") || !(endTagName = this.consumeName()) || endTagName !== name) {
+            scanner.reset(endTagMark);
+            throw this.error(`Missing end tag for element ${name}`);
+          }
+          this.consumeWhitespace();
+          if (!scanner.consumeString(">")) {
+            throw this.error(`Unclosed end tag for element ${name}`);
+          }
+          this.currentNode = element.parent;
+        }
+        return this.addNode(element, startIndex);
+      }
+      /**
+       * Consumes an `Eq` production if possible.
+       *
+       * @returns Whether an `Eq` production was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Eq
+       */
+      consumeEqual() {
+        this.consumeWhitespace();
+        if (this.scanner.consumeString("=")) {
+          this.consumeWhitespace();
+          return true;
+        }
+        return false;
+      }
+      /**
+       * Consumes `Misc` content if possible.
+       *
+       * @returns Whether anything was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Misc
+       */
+      consumeMisc() {
+        return this.consumeComment() || this.consumeProcessingInstruction() || this.consumeWhitespace();
+      }
+      /**
+       * Consumes one or more `Name` characters if possible.
+       *
+       * @returns `Name` characters, or an empty string if none were consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Name
+       */
+      consumeName() {
+        return syntax.isNameStartChar(this.scanner.peek()) ? this.scanner.consumeMatchFn(syntax.isNameChar) : emptyString;
+      }
+      /**
+       * Consumes a processing instruction if possible.
+       *
+       * @returns Whether a processing instruction was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-pi
+       */
+      consumeProcessingInstruction() {
+        let { scanner } = this;
+        let startIndex = scanner.charIndex;
+        if (!scanner.consumeString("<?")) {
+          return false;
+        }
+        let name = this.consumeName();
+        if (name) {
+          if (name.toLowerCase() === "xml") {
+            scanner.reset(startIndex);
+            throw this.error("XML declaration isn't allowed here");
+          }
+        } else {
+          throw this.error("Invalid processing instruction");
+        }
+        if (!this.consumeWhitespace()) {
+          if (scanner.consumeString("?>")) {
+            return this.addNode(new XmlProcessingInstruction_js_1.XmlProcessingInstruction(name), startIndex);
+          }
+          throw this.error("Whitespace is required after a processing instruction name");
+        }
+        let content = scanner.consumeUntilString("?>");
+        this.validateChars(content);
+        if (!scanner.consumeString("?>")) {
+          throw this.error("Unterminated processing instruction");
+        }
+        return this.addNode(new XmlProcessingInstruction_js_1.XmlProcessingInstruction(name, normalizeLineBreaks(content)), startIndex);
+      }
+      /**
+       * Consumes a prolog if possible.
+       *
+       * @returns Whether a prolog was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#sec-prolog-dtd
+       */
+      consumeProlog() {
+        let { scanner } = this;
+        let startIndex = scanner.charIndex;
+        this.consumeXmlDeclaration();
+        while (this.consumeMisc()) {
+        }
+        if (this.consumeDoctypeDeclaration()) {
+          while (this.consumeMisc()) {
+          }
+        }
+        return startIndex < scanner.charIndex;
+      }
+      /**
+       * Consumes a public identifier literal if possible.
+       *
+       * @returns
+       *   Value of the public identifier literal minus quotes, or `false` if
+       *   nothing was consumed. An empty string indicates that a public id literal
+       *   was consumed but was empty.
+       *
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-PubidLiteral
+       */
+      consumePubidLiteral() {
+        let startIndex = this.scanner.charIndex;
+        let value2 = this.consumeSystemLiteral();
+        if (value2 !== false && !/^[-\x20\r\na-zA-Z0-9'()+,./:=?;!*#@$_%]*$/.test(value2)) {
+          this.scanner.reset(startIndex);
+          throw this.error("Invalid character in public identifier");
+        }
+        return value2;
+      }
+      /**
+       * Consumes a reference if possible.
+       *
+       * This differs from `consumeContentReference()` in that a consumed reference
+       * will be returned rather than added to the document.
+       *
+       * @returns
+       *   Parsed reference value, or `false` if nothing was consumed (to
+       *   distinguish from a reference that resolves to an empty string).
+       *
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-Reference
+       */
+      consumeReference() {
+        let { scanner } = this;
+        if (!scanner.consumeString("&")) {
+          return false;
+        }
+        let ref = scanner.consumeMatchFn(syntax.isReferenceChar);
+        if (scanner.consume() !== ";") {
+          throw this.error("Unterminated reference (a reference must end with `;`)");
+        }
+        let parsedValue;
+        if (ref[0] === "#") {
+          let codePoint = ref[1] === "x" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+          if (isNaN(codePoint) || !/^#(?:x[0-9A-Fa-f]+|[0-9]+)$/.test(ref)) {
+            throw this.error("Invalid character reference");
+          }
+          if (!syntax.isXmlCodePoint(codePoint)) {
+            throw this.error("Character reference resolves to an invalid character");
+          }
+          parsedValue = String.fromCodePoint(codePoint);
+        } else {
+          parsedValue = syntax.predefinedEntities[ref];
+          if (parsedValue === void 0) {
+            let { ignoreUndefinedEntities, resolveUndefinedEntity } = this.options;
+            let wrappedRef = `&${ref};`;
+            if (resolveUndefinedEntity) {
+              let resolvedValue = resolveUndefinedEntity(wrappedRef);
+              if (resolvedValue !== null && resolvedValue !== void 0) {
+                let type = typeof resolvedValue;
+                if (type !== "string") {
+                  throw new TypeError(`\`resolveUndefinedEntity()\` must return a string, \`null\`, or \`undefined\`, but returned a value of type ${type}`);
+                }
+                return resolvedValue;
+              }
+            }
+            if (ignoreUndefinedEntities) {
+              return wrappedRef;
+            }
+            scanner.reset(-wrappedRef.length);
+            throw this.error(`Named entity isn't defined: ${wrappedRef}`);
+          }
+        }
+        return parsedValue;
+      }
+      /**
+       * Consumes a `SystemLiteral` if possible.
+       *
+       * A `SystemLiteral` is similar to an attribute value, but allows the
+       * characters `<` and `&` and doesn't replace references.
+       *
+       * @returns
+       *   Value of the `SystemLiteral` minus quotes, or `false` if nothing was
+       *   consumed. An empty string indicates that a `SystemLiteral` was consumed
+       *   but was empty.
+       *
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-SystemLiteral
+       */
+      consumeSystemLiteral() {
+        let { scanner } = this;
+        let quote = scanner.consumeString('"') || scanner.consumeString("'");
+        if (!quote) {
+          return false;
+        }
+        let value2 = scanner.consumeUntilString(quote);
+        this.validateChars(value2);
+        if (!scanner.consumeString(quote)) {
+          throw this.error("Missing end quote");
+        }
+        return value2;
+      }
+      /**
+       * Consumes one or more whitespace characters if possible.
+       *
+       * @returns Whether any whitespace characters were consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#white
+       */
+      consumeWhitespace() {
+        return !!this.scanner.consumeMatchFn(syntax.isWhitespace);
+      }
+      /**
+       * Consumes an XML declaration if possible.
+       *
+       * @returns Whether an XML declaration was consumed.
+       * @see https://www.w3.org/TR/2008/REC-xml-20081126/#NT-XMLDecl
+       */
+      consumeXmlDeclaration() {
+        let { scanner } = this;
+        let startIndex = scanner.charIndex;
+        if (!scanner.consumeString("<?xml")) {
+          return false;
+        }
+        if (syntax.isNameChar(scanner.peek())) {
+          scanner.reset(startIndex);
+          return false;
+        }
+        if (!this.consumeWhitespace()) {
+          throw this.error("Invalid XML declaration");
+        }
+        let version2 = !!scanner.consumeString("version") && this.consumeEqual() && this.consumeSystemLiteral();
+        if (version2 === false) {
+          throw this.error("XML version is missing or invalid");
+        } else if (!/^1\.[0-9]+$/.test(version2)) {
+          throw this.error("Invalid character in version number");
+        }
+        let encoding;
+        let standalone;
+        if (this.consumeWhitespace()) {
+          encoding = !!scanner.consumeString("encoding") && this.consumeEqual() && this.consumeSystemLiteral();
+          if (encoding) {
+            if (!/^[A-Za-z][\w.-]*$/.test(encoding)) {
+              throw this.error("Invalid character in encoding name");
+            }
+            this.consumeWhitespace();
+          }
+          standalone = !!scanner.consumeString("standalone") && this.consumeEqual() && this.consumeSystemLiteral();
+          if (standalone) {
+            if (standalone !== "yes" && standalone !== "no") {
+              throw this.error('Only "yes" and "no" are permitted as values of `standalone`');
+            }
+            this.consumeWhitespace();
+          }
+        }
+        if (!scanner.consumeString("?>")) {
+          throw this.error("Invalid or unclosed XML declaration");
+        }
+        return this.options.preserveXmlDeclaration ? this.addNode(new XmlDeclaration_js_1.XmlDeclaration(version2, encoding || void 0, standalone || void 0), startIndex) : true;
+      }
+      /**
+       * Returns an `XmlError` for the current scanner position.
+       */
+      error(message) {
+        let { scanner } = this;
+        return new XmlError_js_1.XmlError(message, scanner.charIndex, scanner.string);
+      }
+      /**
+       * Parses the XML input.
+       */
+      parse() {
+        this.scanner.consumeString("\uFEFF");
+        this.consumeProlog();
+        if (!this.consumeElement()) {
+          throw this.error("Root element is missing or invalid");
+        }
+        while (this.consumeMisc()) {
+        }
+        if (!this.scanner.isEnd) {
+          throw this.error("Extra content at the end of the document");
+        }
+      }
+      /**
+       * Throws an invalid character error if any character in the given _string_
+       * isn't a valid XML character.
+       */
+      validateChars(string4) {
+        let { length } = string4;
+        for (let i = 0; i < length; ++i) {
+          let cp = string4.codePointAt(i);
+          if (!syntax.isXmlCodePoint(cp)) {
+            this.scanner.reset(-([...string4].length - i));
+            throw this.error("Invalid character");
+          }
+          if (cp > 65535) {
+            i += 1;
+          }
+        }
+      }
+    };
+    exports2.Parser = Parser;
+    function normalizeLineBreaks(text) {
+      let i = 0;
+      while ((i = text.indexOf("\r", i)) !== -1) {
+        text = text[i + 1] === "\n" ? text.slice(0, i) + text.slice(i + 1) : text.slice(0, i) + "\n" + text.slice(i + 1);
+      }
+      return text;
+    }
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/lib/types.js
+var require_types = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/lib/types.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+  }
+});
+
+// ../../node_modules/@rgrove/parse-xml/dist/index.js
+var require_dist = __commonJS({
+  "../../node_modules/@rgrove/parse-xml/dist/index.js"(exports2) {
+    "use strict";
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      var desc = Object.getOwnPropertyDescriptor(m, k);
+      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+        desc = { enumerable: true, get: function() {
+          return m[k];
+        } };
+      }
+      Object.defineProperty(o, k2, desc);
+    }) : (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      o[k2] = m[k];
+    }));
+    var __exportStar = exports2 && exports2.__exportStar || function(m, exports3) {
+      for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m, p);
+    };
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.XmlText = exports2.XmlProcessingInstruction = exports2.XmlNode = exports2.XmlError = exports2.XmlElement = exports2.XmlDocumentType = exports2.XmlDocument = exports2.XmlDeclaration = exports2.XmlComment = exports2.XmlCdata = void 0;
+    exports2.parseXml = parseXml2;
+    var Parser_js_1 = require_Parser();
+    __exportStar(require_types(), exports2);
+    var XmlCdata_js_1 = require_XmlCdata();
+    Object.defineProperty(exports2, "XmlCdata", { enumerable: true, get: function() {
+      return XmlCdata_js_1.XmlCdata;
+    } });
+    var XmlComment_js_1 = require_XmlComment();
+    Object.defineProperty(exports2, "XmlComment", { enumerable: true, get: function() {
+      return XmlComment_js_1.XmlComment;
+    } });
+    var XmlDeclaration_js_1 = require_XmlDeclaration();
+    Object.defineProperty(exports2, "XmlDeclaration", { enumerable: true, get: function() {
+      return XmlDeclaration_js_1.XmlDeclaration;
+    } });
+    var XmlDocument_js_1 = require_XmlDocument();
+    Object.defineProperty(exports2, "XmlDocument", { enumerable: true, get: function() {
+      return XmlDocument_js_1.XmlDocument;
+    } });
+    var XmlDocumentType_js_1 = require_XmlDocumentType();
+    Object.defineProperty(exports2, "XmlDocumentType", { enumerable: true, get: function() {
+      return XmlDocumentType_js_1.XmlDocumentType;
+    } });
+    var XmlElement_js_1 = require_XmlElement();
+    Object.defineProperty(exports2, "XmlElement", { enumerable: true, get: function() {
+      return XmlElement_js_1.XmlElement;
+    } });
+    var XmlError_js_1 = require_XmlError();
+    Object.defineProperty(exports2, "XmlError", { enumerable: true, get: function() {
+      return XmlError_js_1.XmlError;
+    } });
+    var XmlNode_js_1 = require_XmlNode();
+    Object.defineProperty(exports2, "XmlNode", { enumerable: true, get: function() {
+      return XmlNode_js_1.XmlNode;
+    } });
+    var XmlProcessingInstruction_js_1 = require_XmlProcessingInstruction();
+    Object.defineProperty(exports2, "XmlProcessingInstruction", { enumerable: true, get: function() {
+      return XmlProcessingInstruction_js_1.XmlProcessingInstruction;
+    } });
+    var XmlText_js_1 = require_XmlText();
+    Object.defineProperty(exports2, "XmlText", { enumerable: true, get: function() {
+      return XmlText_js_1.XmlText;
+    } });
+    function parseXml2(xml, options) {
+      return new Parser_js_1.Parser(xml, options).document;
+    }
+  }
+});
+
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
@@ -25573,7 +26896,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.14">
+  <meta name="generator" content="VulnFuse 0.4.15">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -26077,7 +27400,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.14",
+            semanticVersion: "0.4.15",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -26266,7 +27589,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.14",
+            semanticVersion: "0.4.15",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor2(cluster))
           }
@@ -41203,7 +42526,13 @@ function parseCycloneDx(root, reportName) {
     if (!vulnerability)
       continue;
     const vulnerabilityId = asString(vulnerability["id"]);
-    const identifiers = extractIdentifiers([vulnerabilityId, asString(vulnerability["description"]), asString(vulnerability["detail"])], "related");
+    const referenceIds = asArray(vulnerability["references"]).map((entry) => asString(asRecord(entry)?.["id"])).filter((entry) => Boolean(entry));
+    const identifiers = extractIdentifiers([
+      vulnerabilityId,
+      ...referenceIds,
+      asString(vulnerability["description"]),
+      asString(vulnerability["detail"])
+    ], "related");
     if (vulnerabilityId) {
       const identifier = normalizeIdentifier(vulnerabilityId, "primary");
       if (identifier)
@@ -41322,11 +42651,136 @@ function affectedFixedVersion(affected) {
   return versions.length > 0 ? versions.join(", ") : void 0;
 }
 
+// ../core/dist/formats/cyclonedx-xml.js
+var import_parse_xml = __toESM(require_dist(), 1);
+var CYCLONEDX_NAMESPACE = /^https?:\/\/cyclonedx\.org\/schema\/bom\/(1\.[0-9]+)$/i;
+var DOCUMENT_TYPE = /<!DOCTYPE\b/i;
+var collectionElements = /* @__PURE__ */ new Map([
+  ["components", /* @__PURE__ */ new Set(["component"])],
+  ["services", /* @__PURE__ */ new Set(["service"])],
+  ["vulnerabilities", /* @__PURE__ */ new Set(["vulnerability"])],
+  ["ratings", /* @__PURE__ */ new Set(["rating"])],
+  ["cwes", /* @__PURE__ */ new Set(["cwe"])],
+  ["references", /* @__PURE__ */ new Set(["reference"])],
+  ["advisories", /* @__PURE__ */ new Set(["advisory"])],
+  ["affects", /* @__PURE__ */ new Set(["target"])],
+  ["versions", /* @__PURE__ */ new Set(["version"])],
+  ["responses", /* @__PURE__ */ new Set(["response"])],
+  ["properties", /* @__PURE__ */ new Set(["property"])]
+]);
+function looksLikeCycloneDxXml(content) {
+  const head = content.slice(0, 4096);
+  const root = head.match(/<(?![!?])(?:(?<prefix>[A-Za-z_][\w.-]*):)?bom\b(?<attributes>[^>]*)>/i);
+  if (!root?.groups)
+    return false;
+  const prefix = root.groups["prefix"];
+  const namespaceName = prefix ? `xmlns:${prefix}` : "xmlns";
+  const namespace = attributeValue(root.groups["attributes"] ?? "", namespaceName);
+  return Boolean(namespace && CYCLONEDX_NAMESPACE.test(namespace));
+}
+function parseCycloneDxXml(content, reportName) {
+  if (DOCUMENT_TYPE.test(content)) {
+    throw new Error(`${reportName} contains a DOCTYPE declaration; CycloneDX XML DTDs and custom entities are not supported.`);
+  }
+  let root;
+  try {
+    root = (0, import_parse_xml.parseXml)(content).root;
+  } catch (error52) {
+    throw new Error(`${reportName} is not valid CycloneDX XML: ${error52 instanceof Error ? error52.message : String(error52)}`, { cause: error52 });
+  }
+  if (!root)
+    throw new Error(`${reportName} is not valid CycloneDX XML: the document is empty.`);
+  const rootName = qualifiedName(root.name);
+  if (rootName.local !== "bom") {
+    throw new Error(`${reportName} is not CycloneDX XML: expected a bom root element.`);
+  }
+  const namespaceName = rootName.prefix ? `xmlns:${rootName.prefix}` : "xmlns";
+  const namespace = root.attributes[namespaceName];
+  const namespaceMatch = namespace?.match(CYCLONEDX_NAMESPACE);
+  if (!namespace || !namespaceMatch) {
+    throw new Error(`${reportName} is not CycloneDX XML: the bom namespace is unsupported.`);
+  }
+  const value2 = elementValue(root, rootName.prefix, namespace, 0);
+  const record2 = asRecord(value2);
+  if (!record2)
+    throw new Error(`${reportName} is not valid CycloneDX XML.`);
+  record2["bomFormat"] = "CycloneDX";
+  record2["specVersion"] = namespaceMatch[1] ?? "unknown";
+  return parseCycloneDx(record2, reportName);
+}
+function elementValue(element, expectedPrefix, expectedNamespace, depth) {
+  if (depth > 100)
+    throw new Error("CycloneDX XML element nesting exceeds the limit of 100.");
+  const ownName = qualifiedName(element.name);
+  if (ownName.prefix !== expectedPrefix)
+    return void 0;
+  const namespaceName = expectedPrefix ? `xmlns:${expectedPrefix}` : "xmlns";
+  const declaredNamespace = element.attributes[namespaceName];
+  if (declaredNamespace && declaredNamespace !== expectedNamespace)
+    return void 0;
+  const elementChildren = element.children.filter((child) => child.type === "element");
+  if (elementChildren.length === 0)
+    return element.text.trim();
+  const collection = collectionElements.get(ownName.local);
+  if (collection && elementChildren.every((child) => {
+    const childName = qualifiedName(child.name);
+    return childName.prefix === expectedPrefix && collection.has(childName.local);
+  })) {
+    return elementChildren.map((child) => elementValue(child, expectedPrefix, expectedNamespace, depth + 1)).filter((value2) => value2 !== void 0);
+  }
+  if (ownName.local === "tools") {
+    const toolChildren = elementChildren.filter((child) => {
+      const childName = qualifiedName(child.name);
+      return childName.prefix === expectedPrefix && childName.local === "tool";
+    });
+    if (toolChildren.length === elementChildren.length) {
+      return toolChildren.map((child) => elementValue(child, expectedPrefix, expectedNamespace, depth + 1)).filter((value2) => value2 !== void 0);
+    }
+  }
+  const result = {};
+  for (const [name, value2] of Object.entries(element.attributes)) {
+    if (name === "xmlns" || name.startsWith("xmlns:"))
+      continue;
+    const attrName = qualifiedName(name);
+    if (!attrName.prefix)
+      result[attrName.local] = value2;
+  }
+  for (const child of elementChildren) {
+    const childName = qualifiedName(child.name);
+    if (childName.prefix !== expectedPrefix)
+      continue;
+    const value2 = elementValue(child, expectedPrefix, expectedNamespace, depth + 1);
+    if (value2 === void 0)
+      continue;
+    const previous = result[childName.local];
+    if (previous === void 0)
+      result[childName.local] = value2;
+    else if (Array.isArray(previous))
+      previous.push(value2);
+    else
+      result[childName.local] = [previous, value2];
+  }
+  return result;
+}
+function qualifiedName(name) {
+  const separator = name.indexOf(":");
+  if (separator < 0)
+    return { local: name };
+  return { prefix: name.slice(0, separator), local: name.slice(separator + 1) };
+}
+function attributeValue(attributes, name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match3 = attributes.match(new RegExp(`(?:^|\\s)${escaped}\\s*=\\s*(["'])(.*?)\\1`, "i"));
+  return match3?.[2];
+}
+
 // ../core/dist/formats/detect.js
 function detectFormat(content, fileName = "report") {
   const trimmed = content.trim();
   if (fileName.toLowerCase().endsWith(".csv"))
     return "csv";
+  if (looksLikeCycloneDxXml(trimmed))
+    return "cyclonedx";
   if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
     return looksLikeDelimitedText(trimmed) ? "csv" : "unknown";
   }
@@ -42561,6 +44015,9 @@ function parseReport(input, options = {}) {
   const format = options.format ?? detectFormat(content, input.name);
   if (format === "csv")
     return parseCsv(content, input.name);
+  if (format === "cyclonedx" && content.trimStart().startsWith("<")) {
+    return parseCycloneDxXml(content, input.name);
+  }
   if (format === "unknown") {
     throw new Error(`Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OpenVEX, OSV-Scanner, CSV, and VulnFuse JSON.`);
   }

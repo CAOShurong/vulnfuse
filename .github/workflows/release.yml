@@ -34,9 +34,9 @@ jobs:
           npm install --ignore-scripts "$GITHUB_WORKSPACE/release/vulnfuse-core-$version.tgz" "$GITHUB_WORKSPACE/release/vulnfuse-$version.tgz"
           npm sbom --sbom-format cyclonedx --omit dev > "$GITHUB_WORKSPACE/release/vulnfuse-sbom.cdx.json"
           cd "$GITHUB_WORKSPACE"
-          node scripts/verify-sbom.mjs release/vulnfuse-sbom.cdx.json vulnfuse @vulnfuse/core commander tinyglobby fdir picomatch
-          node scripts/verify-sbom.mjs release/vulnfuse-action-sbom.cdx.json @vulnfuse/action @actions/core @actions/glob @vulnfuse/core
-          tar -czf "release/vulnfuse-action-${GITHUB_REF_NAME}.tar.gz" action.yml packages/action/dist LICENSE README.md
+          node scripts/verify-sbom.mjs release/vulnfuse-sbom.cdx.json vulnfuse @vulnfuse/core @rgrove/parse-xml commander tinyglobby fdir picomatch
+          node scripts/verify-sbom.mjs release/vulnfuse-action-sbom.cdx.json @vulnfuse/action @actions/core @actions/glob @vulnfuse/core @rgrove/parse-xml
+          tar -czf "release/vulnfuse-action-${GITHUB_REF_NAME}.tar.gz" action.yml packages/action/dist LICENSE THIRD_PARTY_NOTICES.md README.md
           sha256sum release/* > release/SHA256SUMS.txt
       - name: Publish GitHub release
         env:

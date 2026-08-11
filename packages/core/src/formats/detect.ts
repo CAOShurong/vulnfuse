@@ -1,9 +1,11 @@
 import type { ReportFormat } from "../model.js";
 import { asArray, asRecord, asString } from "../utils.js";
+import { looksLikeCycloneDxXml } from "./cyclonedx-xml.js";
 
 export function detectFormat(content: string, fileName = "report"): ReportFormat {
   const trimmed = content.trim();
   if (fileName.toLowerCase().endsWith(".csv")) return "csv";
+  if (looksLikeCycloneDxXml(trimmed)) return "cyclonedx";
   if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
     return looksLikeDelimitedText(trimmed) ? "csv" : "unknown";
   }

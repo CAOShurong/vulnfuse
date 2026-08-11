@@ -43,6 +43,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 | Malformed suppression bypasses a gate    | Unknown containers, kinds, or statuses warn and remain active; mixed clusters remain active       |
 | Malformed result kind bypasses a gate    | Unknown, non-string, or contradictory kinds warn and remain active; active corroboration wins     |
 | Untrusted OpenVEX bypasses a gate        | VEX status is preserved but never converted into suppression or non-finding state                 |
+| XML entity expansion or external access  | Reject every DOCTYPE and nesting over 100; never load DTDs, schemas, entities, or URLs            |
 | Failed output write exposes partial data | Unique exclusive temporary sibling, flush, rename, and cleanup on reported failure                |
 | Symlink escape in Action globbing        | Symbolic-link following is disabled                                                               |
 | Script or HTML injection in workbench    | React text rendering; no `dangerouslySetInnerHTML`                                                |
@@ -72,6 +73,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 15. **OpenVEX status and authorship are not authenticated.** A standalone document can claim `not_affected` or `fixed` without a valid signature, complete product scope, or sound analysis. VulnFuse keeps those labels active and visible, does not fetch JSON-LD contexts or unwrap attestations, and does not verify signatures, authors, reachability, or remediation. Validate provenance through the distribution channel before relying on a VEX assertion outside VulnFuse.
 16. **Run-health metadata is useful but producer-controlled and optional.** VulnFuse warns on SARIF's documented incomplete-result signals and can fail after preserving the output. A compromised or buggy producer can falsely claim success, omit invocations, or fail to describe unscanned targets and rules. The absence of an incomplete warning is not proof of coverage; retain the scanner exit status, logs, configuration, and target inventory for consequential decisions.
 17. **Portable URI-base resolution does not prove filesystem identity.** VulnFuse can recover relative prefixes embedded in `originalUriBaseIds`, but it deliberately omits absolute producer roots and does not know the consumer's checkout mapping, symlinks, case rules, or mounted filesystems. A malicious producer can still supply misleading but syntactically valid relative prefixes. Review source evidence when a location match is consequential.
+18. **CycloneDX XML support is not schema validation.** VulnFuse accepts the CycloneDX `bom` namespace and maps only documented correlation fields. It rejects DTDs and never fetches external resources, but unknown extensions and unsupported fields are ignored. A syntactically accepted document can still violate the CycloneDX XSD or contain untrusted producer claims.
 
 ## Non-goals
 
