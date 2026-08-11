@@ -59,6 +59,14 @@ The ecosystem already provides useful identity primitives:
 
 These standards do not provide a complete cross-scanner correlation policy. They provide the evidence from which a conservative, reviewable policy can be built.
 
+## Why runtime errors are concise by default
+
+A fresh installation of the public v0.4.3 release returned the correct exit code for a missing report and did not create the requested output, but Node.js printed 31 lines of runtime frames. The useful information was already present in the error message: the `ENOENT` code, failed `open` operation, and missing path. The remaining stack exposed internal module and local filesystem paths without helping the ordinary correction.
+
+This behavior came from an uncaught rejection at the executable entry point, not from a parsing limitation. Node.js documents that uncaught exceptions print a stack and terminate the process; Commander documents asynchronous action handlers through `parseAsync`, so the rejection can be handled at that boundary without another dependency. Mature scanner CLIs such as Trivy expose a deliberate global `--debug` mode rather than making verbose diagnostics the default. See the Node.js [process error behavior](https://nodejs.org/api/process.html#event-uncaughtexception), Commander's [`parseAsync` guidance](https://github.com/tj/commander.js#action-handler), and Trivy's [global CLI options](https://trivy.dev/docs/latest/references/configuration/cli/trivy/).
+
+VulnFuse therefore prints one `vulnfuse: <message>` line for runtime and report-input failures, preserves exit code 1 and clean stdout, and provides an explicit `--debug` escape hatch. Debug stacks may contain local paths and should be reviewed before sharing. This is a usability and log-hygiene improvement, not a security-boundary claim.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.

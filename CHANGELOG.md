@@ -4,6 +4,17 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-08-11
+
+### Fixed
+
+- Print runtime and report-input failures as one concise `vulnfuse: <message>` diagnostic instead of an unhandled Node.js stack trace.
+- Preserve exit code 1, clean stdout, output-file safety, and the existing report-before-policy-exit behavior.
+
+### Added
+
+- Add an explicit global `--debug` option for full runtime stacks when diagnosing a failure; debug output may contain local paths.
+
 ## [0.4.3] - 2026-08-11
 
 ### Fixed
@@ -97,7 +108,8 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.4
 [0.4.3]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.3
 [0.4.2]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.2
 [0.4.1]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.1
