@@ -67,6 +67,14 @@ This behavior came from an uncaught rejection at the executable entry point, not
 
 VulnFuse therefore prints one `vulnfuse: <message>` line for runtime and report-input failures, preserves exit code 1 and clean stdout, and provides an explicit `--debug` escape hatch. Debug stacks may contain local paths and should be reviewed before sharing. This is a usability and log-hygiene improvement, not a security-boundary claim.
 
+## Why a post-read byte check is not a memory bound
+
+The public v0.4.4 CLI rejected an oversized report correctly, but its file path called `readFile` before comparing the returned buffer length with `--max-bytes`; the GitHub Action used the same order. In one local Windows probe, a synthetic 128 MiB file with a 1 MiB limit exited 1 with clean stdout and no output file, but reached a sampled 183.9 MiB peak working set because the full file was buffered first. The timing and memory number is one synthetic run, not a general benchmark; the source order independently establishes the allocation-before-check behavior.
+
+Node.js documents `readFile` as reading the entire contents, and its `FileHandle` API exposes metadata, bounded `read` calls, and explicit close behavior. MITRE's CWE-400 guidance treats allocations triggered without an effective resource limit as an availability risk and recommends enforcing predetermined limits. See the Node.js [file-system API](https://nodejs.org/api/fs.html) and [CWE-400](https://cwe.mitre.org/data/definitions/400.html).
+
+VulnFuse now opens each Node-side input once, rejects a known oversized file from metadata before content reads, and still stops after at most `maxBytes + 1` observed bytes if a file grows or metadata is not predictive. The handle closes on every path. This bounds input acquisition rather than total memory: accepted text is decoded and parsed into additional objects, multiple reports coexist during correlation, and a blocking device can still consume time. The browser keeps its separate `File`-size check and browser memory model.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import {
@@ -16,8 +16,9 @@ import {
   type Severity,
 } from "@vulnfuse/core";
 import { Command, InvalidArgumentError, Option } from "commander";
+import { readFileLimited } from "@vulnfuse/core/node";
 
-const version = "0.4.4";
+const version = "0.4.5";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -232,16 +233,6 @@ async function readInputs(paths: string[], maxBytes: number): Promise<ReportInpu
     }
   }
   return inputs;
-}
-
-async function readFileLimited(path: string, maxBytes: number): Promise<string> {
-  const handle = await readFile(path);
-  if (handle.byteLength > maxBytes) {
-    throw new Error(
-      `${path} is ${handle.byteLength.toLocaleString()} bytes; the configured limit is ${maxBytes.toLocaleString()} bytes.`,
-    );
-  }
-  return handle.toString("utf8");
 }
 
 async function readStdin(maxBytes: number): Promise<string> {

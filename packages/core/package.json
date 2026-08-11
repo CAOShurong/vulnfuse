@@ -1,6 +1,6 @@
 {
   "name": "@vulnfuse/core",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Canonical vulnerability model, report parsers, and explainable correlation engine",
   "type": "module",
   "license": "Apache-2.0",
@@ -11,6 +11,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
     }
   },
   "files": [
@@ -20,7 +24,7 @@
   ],
   "scripts": {
     "prepack": "node ../../scripts/sync-package-license.mjs",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node ../../scripts/clean-workspace-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"

@@ -107,6 +107,25 @@ describe("CLI", () => {
     expect(failure.stderr).not.toMatch(/\n\s+at /);
   });
 
+  it("rejects an oversized report without writing output", async () => {
+    const oversized = join(testDirectory, "oversized.json");
+    const output = join(testDirectory, "oversized-output.json");
+    await writeFile(oversized, "123456", "utf8");
+    const failure = await executeFailure([
+      cli,
+      "merge",
+      oversized,
+      "--max-bytes",
+      "5",
+      "--output",
+      output,
+    ]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain("is 6 bytes; the configured limit is 5 bytes");
+    await expect(readFile(output, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("refuses to overwrite an input report", async () => {
     await expect(
       execute(process.execPath, [cli, "merge", trivy, "--output", trivy]),

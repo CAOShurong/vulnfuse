@@ -1,18 +1,18 @@
 {
   "name": "@vulnfuse/web",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "vite build",
+    "build": "node ../../scripts/clean-workspace-dist.mjs && vite build",
     "dev": "vite",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@vulnfuse/core": "0.4.4",
+    "@vulnfuse/core": "0.4.5",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

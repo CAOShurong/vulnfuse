@@ -10,6 +10,7 @@ const required = [
   "CONTRIBUTING.md",
   "action.yml",
   "package-lock.json",
+  "scripts/clean-workspace-dist.mjs",
   "packages/action/dist/index.cjs",
   "docs/MATCHING.md",
   "docs/FORMATS.md",

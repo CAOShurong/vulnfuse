@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import * as core from "@actions/core";
@@ -16,6 +16,7 @@ import {
   type ParsedReport,
   type Severity,
 } from "@vulnfuse/core";
+import { readFileLimited } from "@vulnfuse/core/node";
 
 const allowedFormats = new Set<OutputFormat>(["json", "sarif", "csv", "markdown", "html"]);
 const allowedScopes = new Set<MatchScope>(["instance", "root-cause"]);
@@ -134,13 +135,8 @@ async function readMatchedReports(
   core.info(`VulnFuse is reading ${files.length} ${label} report${files.length === 1 ? "" : "s"}.`);
   const reports: ParsedReport[] = [];
   for (const file of files) {
-    const buffer = await readFile(file);
-    if (buffer.byteLength > maxBytes) {
-      throw new Error(
-        `${file} is ${buffer.byteLength.toLocaleString()} bytes; the configured limit is ${maxBytes.toLocaleString()} bytes.`,
-      );
-    }
-    const report = parseReport({ name: file, content: buffer.toString("utf8") }, { maxBytes });
+    const content = await readFileLimited(file, maxBytes);
+    const report = parseReport({ name: file, content }, { maxBytes });
     core.info(`${report.tool}: ${report.findings.length} findings from ${file}`);
     reports.push(report);
   }
