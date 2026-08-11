@@ -33,6 +33,82 @@ afterEach(async () => {
 });
 
 describe("GitHub Action bundle", () => {
+  it("bounds hosted SARIF text from Trivy while preserving exact originals", async () => {
+    const input = join(testDirectory, "long-trivy.json");
+    const outputReport = join(testDirectory, "long-trivy.sarif");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    const originalName = `CUSTOM-${"N".repeat(246)}😀tail`;
+    const originalTitle = `${"T".repeat(1022)}😀title-tail`;
+    const originalDescription = `${"D".repeat(1022)}😀description-tail`;
+    const trivyReport = JSON.parse(await readFile(trivy, "utf8")) as {
+      Results: Array<{
+        Vulnerabilities: Array<{
+          VulnerabilityID: string;
+          Title: string;
+          Description?: string;
+        }>;
+      }>;
+    };
+    const vulnerability = trivyReport.Results[0]?.Vulnerabilities[0];
+    expect(vulnerability).toBeDefined();
+    if (!vulnerability) return;
+    vulnerability.VulnerabilityID = originalName;
+    vulnerability.Title = originalTitle;
+    vulnerability.Description = originalDescription;
+    trivyReport.Results[0]!.Vulnerabilities = [vulnerability];
+    await writeFile(input, `${JSON.stringify(trivyReport, null, 2)}\n`, "utf8");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: input,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "sarif",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+    const sarif = JSON.parse(await readFile(outputReport, "utf8")) as {
+      runs: Array<{
+        tool: {
+          driver: {
+            rules: Array<{
+              name: string;
+              shortDescription: { text: string };
+              fullDescription: { text: string };
+              properties: {
+                vulnfuseOriginalName?: string;
+                vulnfuseOriginalShortDescription?: string;
+                vulnfuseOriginalFullDescription?: string;
+              };
+            }>;
+          };
+        };
+        results: Array<{
+          message: { text: string };
+          properties: { vulnfuseOriginalMessage?: string };
+        }>;
+      }>;
+    };
+    const rule = sarif.runs[0]?.tool.driver.rules[0];
+    const result = sarif.runs[0]?.results[0];
+
+    expect(rule?.name.length).toBeLessThanOrEqual(255);
+    expect(rule?.shortDescription.text.length).toBeLessThanOrEqual(1024);
+    expect(rule?.fullDescription.text.length).toBeLessThanOrEqual(1024);
+    expect(result?.message.text.length).toBeLessThanOrEqual(1024);
+    expect(rule?.properties.vulnfuseOriginalName).toBe(originalName.toUpperCase());
+    expect(rule?.properties.vulnfuseOriginalShortDescription).toBe(originalTitle);
+    expect(rule?.properties.vulnfuseOriginalFullDescription).toBe(originalDescription);
+    expect(result?.properties.vulnfuseOriginalMessage).toContain(originalTitle);
+  });
+
   it("bounds SARIF rule tags while preserving every parsed identifier", async () => {
     const aliases = Array.from(
       { length: 30 },

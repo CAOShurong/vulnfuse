@@ -119,6 +119,40 @@ jobs:
           if ($aliasRule.properties.tags.Count -ne 9 -or $aliasRule.properties.vulnfuseOmittedIdentifierTagCount -ne 24 -or $aliasResult.properties.identifiers.Count -ne 31) {
             throw "SARIF rule-tag bounds did not preserve complete identifier evidence on Windows"
           }
+          $longInput = "${{ runner.temp }}/vulnfuse-long-metadata-trivy.json"
+          $longOutput = "${{ runner.temp }}/vulnfuse-long-metadata.sarif"
+          $longBaselineOutput = "${{ runner.temp }}/vulnfuse-long-metadata-baseline.sarif"
+          $emptyBaseline = "${{ runner.temp }}/vulnfuse-empty-baseline.csv"
+          $astral = [char]::ConvertFromUtf32(0x1F600)
+          $longName = "CUSTOM-" + ("N" * 246) + $astral + "tail"
+          $normalizedLongName = $longName.ToUpperInvariant()
+          $longTitle = ("T" * 1022) + $astral + "title-tail"
+          $aliases = (1..30 | ForEach-Object { "OSV-2026-$($_.ToString('0000'))" }) -join " "
+          $longDescription = ("D" * 1022) + $astral + "description-tail " + $aliases
+          $longTrivy = Get-Content -Raw packages/core/test/fixtures/trivy.json | ConvertFrom-Json
+          $longVulnerability = $longTrivy.Results[0].Vulnerabilities[0]
+          $longVulnerability.VulnerabilityID = $longName
+          $longVulnerability.Title = $longTitle
+          $longVulnerability.Description = $longDescription
+          $longTrivy.Results[0].Vulnerabilities = @($longVulnerability)
+          $longTrivy | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $longInput
+          [IO.File]::WriteAllText($emptyBaseline, "title`n", [Text.UTF8Encoding]::new($false))
+          node packages/cli/dist/index.js merge $longInput --format sarif --output $longOutput
+          node packages/cli/dist/index.js diff --baseline $emptyBaseline $longInput --format sarif --output $longBaselineOutput
+          foreach ($path in @($longOutput, $longBaselineOutput)) {
+            $boundedSarif = Get-Content -Raw $path | ConvertFrom-Json
+            $boundedRule = $boundedSarif.runs[0].tool.driver.rules[0]
+            $boundedResult = $boundedSarif.runs[0].results[0]
+            if ($boundedRule.name.Length -gt 255 -or $boundedRule.shortDescription.text.Length -gt 1024 -or $boundedRule.fullDescription.text.Length -gt 1024 -or $boundedResult.message.text.Length -gt 1024) {
+              throw "Hosted SARIF text limits were exceeded on Windows: $path"
+            }
+            if ($boundedRule.properties.tags.Count -ne 9 -or $boundedRule.properties.vulnfuseOmittedIdentifierTagCount -ne 24) {
+              throw "Hosted SARIF tag bounds were not shared by all exporters on Windows: $path"
+            }
+            if ($boundedRule.properties.vulnfuseOriginalName -ne $normalizedLongName -or $boundedRule.properties.vulnfuseOriginalShortDescription -ne $longTitle -or $boundedRule.properties.vulnfuseOriginalFullDescription -ne $longDescription -or -not $boundedResult.properties.vulnfuseOriginalMessage.Contains($longTitle)) {
+              throw "Hosted SARIF truncation did not preserve exact original evidence on Windows: $path"
+            }
+          }
           $versionCurrent = "${{ runner.temp }}/vulnfuse-version-current.sarif"
           $versionDocument = Get-Content -Raw packages/core/test/fixtures/sarif.json | ConvertFrom-Json
           $versionDocument.runs[0].tool.driver.semanticVersion = "2.26.2"
@@ -193,6 +227,23 @@ jobs:
         env:
           REPORT: ${{ steps.alias-tags.outputs.report }}
         run: node -e "const fs=require('fs');const sarif=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const rule=sarif.runs[0].tool.driver.rules[0];const result=sarif.runs[0].results[0];if(rule.properties.tags.length!==9||rule.properties.vulnfuseOmittedIdentifierTagCount!==24||result.properties.identifiers.length!==31)throw new Error('Unexpected Action SARIF tag/identifier contract');"
+      - name: Prepare a long Unicode Trivy workflow fixture
+        env:
+          LONG_REPORT: ${{ runner.temp }}/vulnfuse-long-metadata-trivy.json
+          EMPTY_BASELINE: ${{ runner.temp }}/vulnfuse-empty-baseline.csv
+        run: node -e "const fs=require('fs');const report=JSON.parse(fs.readFileSync('packages/core/test/fixtures/trivy.json','utf8'));const finding=report.Results[0].Vulnerabilities[0];const aliases=Array.from({length:30},(_,i)=>'OSV-2026-'+String(i+1).padStart(4,'0')).join(' ');finding.VulnerabilityID='CUSTOM-'+'N'.repeat(246)+'😀tail';finding.Title='T'.repeat(1022)+'😀title-tail';finding.Description='D'.repeat(1022)+'😀description-tail '+aliases;report.Results[0].Vulnerabilities=[finding];fs.writeFileSync(process.env.LONG_REPORT,JSON.stringify(report));fs.writeFileSync(process.env.EMPTY_BASELINE,'title\n');"
+      - id: bounded-host-text
+        name: Export bounded baseline SARIF text with the repository Action
+        uses: ./
+        with:
+          reports: ${{ runner.temp }}/vulnfuse-long-metadata-trivy.json
+          baseline-reports: ${{ runner.temp }}/vulnfuse-empty-baseline.csv
+          format: sarif
+          output: ${{ runner.temp }}/vulnfuse-long-metadata.sarif
+      - name: Validate Action text bounds and exact retained originals
+        env:
+          REPORT: ${{ steps.bounded-host-text.outputs.report }}
+        run: node -e "const fs=require('fs');const sarif=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const rule=sarif.runs[0].tool.driver.rules[0];const result=sarif.runs[0].results[0];const name=('CUSTOM-'+'N'.repeat(246)+'😀tail').toUpperCase();const title='T'.repeat(1022)+'😀title-tail';if(rule.name.length>255||rule.shortDescription.text.length>1024||rule.fullDescription.text.length>1024||result.message.text.length>1024)throw new Error('Hosted Action SARIF text limit exceeded');if(rule.properties.tags.length!==9||rule.properties.vulnfuseOmittedIdentifierTagCount!==24)throw new Error('Baseline Action did not share tag bounds');if(rule.properties.vulnfuseOriginalName!==name||rule.properties.vulnfuseOriginalShortDescription!==title||!result.properties.vulnfuseOriginalMessage.includes(title))throw new Error('Action did not retain exact original text');"
       - id: fuse
         name: Correlate fixture reports with the repository Action
         uses: ./

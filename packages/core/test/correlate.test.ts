@@ -487,6 +487,95 @@ describe("exports", () => {
     expect(sarif.runs[0]?.results[0]?.properties.identifiers).toHaveLength(30);
   });
 
+  it("bounds hosted SARIF text without splitting Unicode or losing original evidence", () => {
+    const longMetadata = structuredClone(result);
+    const cluster = longMetadata.clusters[0];
+    expect(cluster).toBeDefined();
+    if (!cluster) return;
+    const originalName = `CUSTOM-${"N".repeat(246)}😀tail`;
+    const originalTitle = `${"T".repeat(1022)}😀title-tail`;
+    const originalDescription = `${"D".repeat(1022)}😀description-tail`;
+    cluster.identifiers = [
+      { scheme: "CUSTOM", value: originalName, relationship: "primary" },
+      ...Array.from({ length: 29 }, (_, index) => ({
+        scheme: "ALIAS",
+        value: `ALIAS-${String(index + 1).padStart(2, "0")}`,
+        relationship: "alias" as const,
+      })),
+    ];
+    cluster.primary.title = originalTitle;
+    cluster.primary.description = originalDescription;
+
+    const sarif = JSON.parse(exportCorrelation(longMetadata, "sarif")) as {
+      runs: Array<{
+        tool: {
+          driver: {
+            rules: Array<{
+              name: string;
+              shortDescription: { text: string };
+              fullDescription: { text: string };
+              properties: {
+                vulnfuseOriginalName?: string;
+                vulnfuseOriginalShortDescription?: string;
+                vulnfuseOriginalFullDescription?: string;
+                vulnfuseTruncatedFields?: string[];
+              };
+            }>;
+          };
+        };
+        results: Array<{
+          message: { text: string };
+          properties: { vulnfuseOriginalMessage?: string };
+        }>;
+      }>;
+    };
+    const rule = sarif.runs[0]?.tool.driver.rules[0];
+    const sarifResult = sarif.runs[0]?.results[0];
+
+    expect(rule?.name.length).toBeLessThanOrEqual(255);
+    expect(rule?.shortDescription.text.length).toBeLessThanOrEqual(1024);
+    expect(rule?.fullDescription.text.length).toBeLessThanOrEqual(1024);
+    expect(sarifResult?.message.text.length).toBeLessThanOrEqual(1024);
+    expect(rule?.name.endsWith("…")).toBe(true);
+    expect(rule?.shortDescription.text.endsWith("…")).toBe(true);
+    expect(rule?.fullDescription.text.endsWith("…")).toBe(true);
+    expect(sarifResult?.message.text.endsWith("…")).toBe(true);
+    expect([...(rule?.name ?? "")]).not.toContain("\uFFFD");
+    expect(rule?.properties).toMatchObject({
+      vulnfuseOriginalName: originalName,
+      vulnfuseOriginalShortDescription: originalTitle,
+      vulnfuseOriginalFullDescription: originalDescription,
+      vulnfuseTruncatedFields: ["name", "shortDescription.text", "fullDescription.text"],
+    });
+    expect(sarifResult?.properties.vulnfuseOriginalMessage).toContain(originalTitle);
+
+    const baselineSarif = JSON.parse(
+      exportBaselineDiff(compareCorrelations(correlateReports([]), longMetadata), "sarif"),
+    ) as {
+      runs: Array<{
+        tool: {
+          driver: {
+            rules: Array<{
+              name: string;
+              properties: {
+                tags: string[];
+                vulnfuseOriginalName?: string;
+                vulnfuseOmittedIdentifierTagCount?: number;
+              };
+            }>;
+          };
+        };
+        results: Array<{ message: { text: string } }>;
+      }>;
+    };
+    const baselineRule = baselineSarif.runs[0]?.tool.driver.rules[0];
+    expect(baselineRule?.name.length).toBeLessThanOrEqual(255);
+    expect(baselineRule?.properties.tags).toHaveLength(9);
+    expect(baselineRule?.properties.vulnfuseOmittedIdentifierTagCount).toBe(23);
+    expect(baselineRule?.properties.vulnfuseOriginalName).toBe(originalName);
+    expect(baselineSarif.runs[0]?.results[0]?.message.text.length).toBeLessThanOrEqual(1024);
+  });
+
   it("exports reviewable Markdown and CSV", () => {
     const markdown = exportCorrelation(result, "markdown");
     expect(markdown).toContain("Why merged");

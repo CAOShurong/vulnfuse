@@ -4,6 +4,35 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.21] - 2026-08-12
+
+### Fixed
+
+- Bound hosted SARIF rule names to 255 UTF-16 code units and rule
+  descriptions/result messages to 1,024 without splitting a surrogate pair.
+- Preserve exact over-limit values in named VulnFuse properties and list every
+  shortened rule field instead of silently discarding source evidence.
+- Share one rule builder between plain and baseline-comparison SARIF, closing a
+  baseline path that still emitted unbounded identifier tags after v0.4.20.
+
+### Verification
+
+- Reproduced standards-valid output with a 307-character rule name, 1,311-
+  character short description, 1,517-character full description, and 1,357-
+  character result message from the real CLI before the fix.
+- The over-limit artifact passed the SARIF 2.1 JSON schema and Microsoft SARIF
+  Multitool 5.6.0 validation, demonstrating that general validation does not
+  enforce hosted-platform text limits.
+- Added core, separate-process CLI, committed Action, and baseline-comparison
+  regressions using a Trivy-shaped report with boundary-splitting Unicode.
+
+### Limitations
+
+- These conservative bounds cover fields documented by GitHub and GitLab, not
+  every ingestion rule or an exact local emulation of either hosted service.
+- Hosted interfaces may ignore the custom properties containing original text;
+  retain the generated artifact or JSON export when the complete source matters.
+
 ## [0.4.20] - 2026-08-12
 
 ### Fixed

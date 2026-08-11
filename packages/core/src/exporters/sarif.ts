@@ -1,10 +1,9 @@
 import type { CorrelationResult, FindingCluster } from "../model.js";
-
-const maximumGithubCodeScanningRuleTags = 9;
-const identifierRelationshipPriority: Record<
-  FindingCluster["identifiers"][number]["relationship"],
-  number
-> = { primary: 5, alias: 4, related: 3, weakness: 2, rule: 1 };
+import {
+  boundHostedSarifText,
+  hostedSarifRule,
+  maximumHostedResultMessageLength,
+} from "./sarif-host.js";
 
 export function exportSarif(result: CorrelationResult): string {
   const emittedClusters = result.clusters.filter((cluster) => !cluster.nonFinding);
@@ -17,9 +16,11 @@ export function exportSarif(result: CorrelationResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.20",
+            semanticVersion: "0.4.21",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
-            rules: emittedClusters.map((cluster) => ruleFor(cluster)),
+            rules: emittedClusters.map((cluster) =>
+              hostedSarifRule(cluster, securityScore(cluster.severity)),
+            ),
           },
         },
         invocations: [
@@ -44,44 +45,16 @@ export function exportSarif(result: CorrelationResult): string {
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
-function ruleFor(cluster: FindingCluster): Record<string, unknown> {
-  const identifierTags = [...cluster.identifiers]
-    .sort((left, right) => {
-      const relationshipDelta =
-        identifierRelationshipPriority[right.relationship] -
-        identifierRelationshipPriority[left.relationship];
-      if (relationshipDelta !== 0) return relationshipDelta;
-      return `${left.scheme}:${left.value}`.localeCompare(`${right.scheme}:${right.value}`);
-    })
-    .map((identifier) => identifier.value);
-  const identifierTagBudget = maximumGithubCodeScanningRuleTags - 2;
-  const omittedIdentifierTagCount = Math.max(0, identifierTags.length - identifierTagBudget);
-  return {
-    id: cluster.id,
-    name: cluster.identifiers[0]?.value ?? cluster.id,
-    shortDescription: { text: cluster.primary.title },
-    ...(cluster.primary.description
-      ? { fullDescription: { text: cluster.primary.description } }
-      : {}),
-    ...(cluster.primary.references[0] ? { helpUri: cluster.primary.references[0] } : {}),
-    properties: {
-      tags: ["security", cluster.primary.kind, ...identifierTags.slice(0, identifierTagBudget)],
-      ...(omittedIdentifierTagCount > 0
-        ? { vulnfuseOmittedIdentifierTagCount: omittedIdentifierTagCount }
-        : {}),
-      "security-severity": securityScore(cluster.severity),
-    },
-  };
-}
-
 function resultFor(cluster: FindingCluster): Record<string, unknown> {
   const location = cluster.primary.location;
   const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
+  const originalMessage = `${cluster.primary.title} (${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`;
+  const message = boundHostedSarifText(originalMessage, maximumHostedResultMessageLength);
   return {
     ruleId: cluster.id,
     level: sarifLevel(cluster.severity),
     message: {
-      text: `${cluster.primary.title} (${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`,
+      text: message.text,
     },
     fingerprints: { vulnfuseClusterId: cluster.id },
     partialFingerprints: { primaryLocationLineHash: cluster.id },
@@ -115,6 +88,7 @@ function resultFor(cluster: FindingCluster): Record<string, unknown> {
       matchConfidence: cluster.confidence,
       identifiers: cluster.identifiers,
       assets: cluster.assets,
+      ...(message.truncated ? { vulnfuseOriginalMessage: originalMessage } : {}),
     },
   };
 }

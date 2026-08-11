@@ -10,6 +10,11 @@ import { clusterDisposition } from "../model.js";
 import { describeScanSetChange } from "../compare.js";
 import { exportBaselineHtml } from "./html.js";
 import { coverageMarkdownLines } from "./markdown.js";
+import {
+  boundHostedSarifText,
+  hostedSarifRule,
+  maximumHostedResultMessageLength,
+} from "./sarif-host.js";
 
 export function exportBaselineDiff(result: BaselineDiffResult, format: OutputFormat): string {
   switch (format) {
@@ -127,9 +132,11 @@ function exportDiffSarif(result: BaselineDiffResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.20",
+            semanticVersion: "0.4.21",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
-            rules: clusters.map(ruleFor),
+            rules: clusters.map((cluster) =>
+              hostedSarifRule(cluster, securityScore(cluster.severity)),
+            ),
           },
         },
         invocations: [
@@ -156,37 +163,19 @@ function exportDiffSarif(result: BaselineDiffResult): string {
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
-function ruleFor(cluster: FindingCluster): Record<string, unknown> {
-  return {
-    id: cluster.id,
-    name: cluster.identifiers[0]?.value ?? cluster.id,
-    shortDescription: { text: cluster.primary.title },
-    ...(cluster.primary.description
-      ? { fullDescription: { text: cluster.primary.description } }
-      : {}),
-    ...(cluster.primary.references[0] ? { helpUri: cluster.primary.references[0] } : {}),
-    properties: {
-      tags: [
-        "security",
-        cluster.primary.kind,
-        ...cluster.identifiers.map((identifier) => identifier.value),
-      ],
-      "security-severity": securityScore(cluster.severity),
-    },
-  };
-}
-
 function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
   const cluster = item.cluster;
   const location = cluster.primary.location;
   const stableIdentity = item.baselineCluster?.id ?? cluster.id;
   const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
+  const originalMessage = `${cluster.primary.title} (${item.state}; ${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`;
+  const message = boundHostedSarifText(originalMessage, maximumHostedResultMessageLength);
   return {
     ruleId: cluster.id,
     level: sarifLevel(cluster.severity),
     baselineState: item.state,
     message: {
-      text: `${cluster.primary.title} (${item.state}; ${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`,
+      text: message.text,
     },
     fingerprints: { vulnfuseClusterId: stableIdentity },
     partialFingerprints: { primaryLocationLineHash: stableIdentity },
@@ -204,6 +193,7 @@ function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
       identifiers: cluster.identifiers,
       assets: cluster.assets,
       ...(item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {}),
+      ...(message.truncated ? { vulnfuseOriginalMessage: originalMessage } : {}),
     },
   };
 }

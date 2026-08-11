@@ -597,6 +597,61 @@ This prevents one documented rejection mode; only GitHub's ingestion service
 can decide whether a complete upload satisfies every current limit, permission,
 and product-availability rule.
 
+## Hosted SARIF text-limit research (v0.4.21)
+
+The general SARIF 2.1.0 schema and hosted ingestion contracts are different
+layers. The current [SARIF JSON schema](https://json.schemastore.org/sarif-2.1.0.json)
+defines `reportingDescriptor.name` and message text as strings without
+`maxLength`. GitHub's current
+[supported SARIF subset](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support)
+limits a rule name to 255 characters and each rule short/full description to
+1,024. GitLab's
+[SARIF ingestion documentation](https://docs.gitlab.com/user/application_security/detect/sarif/)
+uses those limits and also limits `result.message.text` to 1,024; an over-limit
+string skips a result, and a drop rate above 50% aborts the scan. These are
+platform contracts, not conclusions implied by standards validity.
+
+VulnFuse 0.4.20 copied identifier, title, and description data into those fields
+without a bound. A real CLI reproduction produced a 307-character rule name,
+1,311-character short description, 1,517-character full description, and
+1,357-character result message. The file passed both the generic JSON schema
+through Ajv 8.17.1 and Microsoft SARIF Multitool 5.6.0 validation with zero
+reported errors. It was not uploaded because that would publish a synthetic
+security analysis; the documented limits and local false-negative validation
+are sufficient to justify a producer-side preflight.
+
+Reviewing both exporters exposed a second failure path. Plain SARIF received the
+v0.4.20 nine-tag guard, but baseline-comparison SARIF kept a duplicate rule
+builder and could still emit every correlated identifier as a tag. Sharing a
+single rule builder fixes the observed divergence rather than copying another
+patch into both paths.
+
+Maintained alternatives remain useful but do not replace the producer fix:
+
+- `github/codeql-action/upload-sarif` is an active MIT upload client. It adds
+  GitHub workflow integration and fingerprints, but waiting for a hosted upload
+  to reject or degrade generated data is later and more expensive than emitting
+  compatible fields at the source.
+- Microsoft SARIF Multitool 5.6.0 is an active MIT validator and transformer,
+  distributed through a small npm launcher plus a platform-specific binary. It
+  accepted the reproduced artifact and would add a separate normalization step
+  without knowing where VulnFuse retains original evidence.
+- `sarif-tools` 3.0.5 is an MIT Python 3.8+ inspection/transformation suite.
+  It adds a Python runtime and workflow step, and generic format handling cannot
+  choose VulnFuse's evidence-preservation fields automatically.
+- `advanced-security/filter-sarif` is a maintained Apache-2.0 Action for
+  filtering results by paths or severity, not bounding rule/result display text.
+
+The selected implementation adds no dependency, service, network call, or user
+configuration. It conservatively counts UTF-16 code units, reserves space for
+an ellipsis, and iterates full Unicode code points so a surrogate pair is never
+split. Exact originals remain under explicitly named VulnFuse properties only
+when a field is shortened. Core, separate-process CLI, committed Action, and
+baseline-comparison tests use a Trivy-shaped report at the Unicode boundary.
+This improves GitHub/GitLab fit; it is not an exact emulator or a guarantee that
+an upload satisfies every permission, size, count, URI, or evolving product
+rule.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.

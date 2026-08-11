@@ -27007,7 +27007,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.20">
+  <meta name="generator" content="VulnFuse 0.4.21">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -27413,6 +27413,60 @@ function inlineCode(value2) {
   return `${delimiter}${needsPadding ? " " : ""}${value2}${needsPadding ? " " : ""}${delimiter}`;
 }
 
+// ../core/dist/exporters/sarif-host.js
+var maximumHostedRuleTags = 9;
+var maximumHostedRuleNameLength = 255;
+var maximumHostedDescriptionLength = 1024;
+var maximumHostedResultMessageLength = 1024;
+var identifierRelationshipPriority = { primary: 5, alias: 4, related: 3, weakness: 2, rule: 1 };
+function hostedSarifRule(cluster, securitySeverity) {
+  const originalName = cluster.identifiers[0]?.value ?? cluster.id;
+  const name = boundHostedSarifText(originalName, maximumHostedRuleNameLength);
+  const shortDescription = boundHostedSarifText(cluster.primary.title, maximumHostedDescriptionLength);
+  const fullDescription = cluster.primary.description ? boundHostedSarifText(cluster.primary.description, maximumHostedDescriptionLength) : void 0;
+  const truncatedFields = [
+    ...name.truncated ? ["name"] : [],
+    ...shortDescription.truncated ? ["shortDescription.text"] : [],
+    ...fullDescription?.truncated ? ["fullDescription.text"] : []
+  ];
+  const identifierTags = [...cluster.identifiers].sort((left, right) => {
+    const relationshipDelta = identifierRelationshipPriority[right.relationship] - identifierRelationshipPriority[left.relationship];
+    if (relationshipDelta !== 0)
+      return relationshipDelta;
+    return `${left.scheme}:${left.value}`.localeCompare(`${right.scheme}:${right.value}`);
+  }).map((identifier) => identifier.value);
+  const identifierTagBudget = maximumHostedRuleTags - 2;
+  const omittedIdentifierTagCount = Math.max(0, identifierTags.length - identifierTagBudget);
+  return {
+    id: cluster.id,
+    name: name.text,
+    shortDescription: { text: shortDescription.text },
+    ...fullDescription ? { fullDescription: { text: fullDescription.text } } : {},
+    ...cluster.primary.references[0] ? { helpUri: cluster.primary.references[0] } : {},
+    properties: {
+      tags: ["security", cluster.primary.kind, ...identifierTags.slice(0, identifierTagBudget)],
+      ...omittedIdentifierTagCount > 0 ? { vulnfuseOmittedIdentifierTagCount: omittedIdentifierTagCount } : {},
+      ...name.truncated ? { vulnfuseOriginalName: originalName } : {},
+      ...shortDescription.truncated ? { vulnfuseOriginalShortDescription: cluster.primary.title } : {},
+      ...fullDescription?.truncated ? { vulnfuseOriginalFullDescription: cluster.primary.description } : {},
+      ...truncatedFields.length > 0 ? { vulnfuseTruncatedFields: truncatedFields } : {},
+      "security-severity": securitySeverity
+    }
+  };
+}
+function boundHostedSarifText(value2, maximumUtf16Length) {
+  if (value2.length <= maximumUtf16Length)
+    return { text: value2, truncated: false };
+  const contentBudget = maximumUtf16Length - 1;
+  let text = "";
+  for (const character of value2) {
+    if (text.length + character.length > contentBudget)
+      break;
+    text += character;
+  }
+  return { text: `${text}\u2026`, truncated: true };
+}
+
 // ../core/dist/exporters/baseline.js
 function exportBaselineDiff(result, format) {
   switch (format) {
@@ -27511,9 +27565,9 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.20",
+            semanticVersion: "0.4.21",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
-            rules: clusters.map(ruleFor)
+            rules: clusters.map((cluster) => hostedSarifRule(cluster, securityScore(cluster.severity)))
           }
         },
         invocations: [
@@ -27539,34 +27593,19 @@ function exportDiffSarif(result) {
   return `${JSON.stringify(document, null, 2)}
 `;
 }
-function ruleFor(cluster) {
-  return {
-    id: cluster.id,
-    name: cluster.identifiers[0]?.value ?? cluster.id,
-    shortDescription: { text: cluster.primary.title },
-    ...cluster.primary.description ? { fullDescription: { text: cluster.primary.description } } : {},
-    ...cluster.primary.references[0] ? { helpUri: cluster.primary.references[0] } : {},
-    properties: {
-      tags: [
-        "security",
-        cluster.primary.kind,
-        ...cluster.identifiers.map((identifier) => identifier.value)
-      ],
-      "security-severity": securityScore(cluster.severity)
-    }
-  };
-}
 function diffResultFor(item) {
   const cluster = item.cluster;
   const location = cluster.primary.location;
   const stableIdentity = item.baselineCluster?.id ?? cluster.id;
   const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
+  const originalMessage = `${cluster.primary.title} (${item.state}; ${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`;
+  const message = boundHostedSarifText(originalMessage, maximumHostedResultMessageLength);
   return {
     ruleId: cluster.id,
     level: sarifLevel(cluster.severity),
     baselineState: item.state,
     message: {
-      text: `${cluster.primary.title} (${item.state}; ${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`
+      text: message.text
     },
     fingerprints: { vulnfuseClusterId: stableIdentity },
     partialFingerprints: { primaryLocationLineHash: stableIdentity },
@@ -27583,7 +27622,8 @@ function diffResultFor(item) {
       matchConfidence: item.explanation?.confidence ?? "none",
       identifiers: cluster.identifiers,
       assets: cluster.assets,
-      ...item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {}
+      ...item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {},
+      ...message.truncated ? { vulnfuseOriginalMessage: originalMessage } : {}
     }
   };
 }
@@ -27689,8 +27729,6 @@ function exportJson(result) {
 }
 
 // ../core/dist/exporters/sarif.js
-var maximumGithubCodeScanningRuleTags = 9;
-var identifierRelationshipPriority = { primary: 5, alias: 4, related: 3, weakness: 2, rule: 1 };
 function exportSarif(result) {
   const emittedClusters = result.clusters.filter((cluster) => !cluster.nonFinding);
   const nonFindingClusters = result.clusters.filter((cluster) => cluster.nonFinding);
@@ -27702,9 +27740,9 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.20",
+            semanticVersion: "0.4.21",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
-            rules: emittedClusters.map((cluster) => ruleFor2(cluster))
+            rules: emittedClusters.map((cluster) => hostedSarifRule(cluster, securityScore2(cluster.severity)))
           }
         },
         invocations: [
@@ -27728,36 +27766,16 @@ function exportSarif(result) {
   return `${JSON.stringify(document, null, 2)}
 `;
 }
-function ruleFor2(cluster) {
-  const identifierTags = [...cluster.identifiers].sort((left, right) => {
-    const relationshipDelta = identifierRelationshipPriority[right.relationship] - identifierRelationshipPriority[left.relationship];
-    if (relationshipDelta !== 0)
-      return relationshipDelta;
-    return `${left.scheme}:${left.value}`.localeCompare(`${right.scheme}:${right.value}`);
-  }).map((identifier) => identifier.value);
-  const identifierTagBudget = maximumGithubCodeScanningRuleTags - 2;
-  const omittedIdentifierTagCount = Math.max(0, identifierTags.length - identifierTagBudget);
-  return {
-    id: cluster.id,
-    name: cluster.identifiers[0]?.value ?? cluster.id,
-    shortDescription: { text: cluster.primary.title },
-    ...cluster.primary.description ? { fullDescription: { text: cluster.primary.description } } : {},
-    ...cluster.primary.references[0] ? { helpUri: cluster.primary.references[0] } : {},
-    properties: {
-      tags: ["security", cluster.primary.kind, ...identifierTags.slice(0, identifierTagBudget)],
-      ...omittedIdentifierTagCount > 0 ? { vulnfuseOmittedIdentifierTagCount: omittedIdentifierTagCount } : {},
-      "security-severity": securityScore2(cluster.severity)
-    }
-  };
-}
 function resultFor(cluster) {
   const location = cluster.primary.location;
   const suppressions = cluster.suppressed ? sarifSuppressions2(cluster) : [];
+  const originalMessage = `${cluster.primary.title} (${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`;
+  const message = boundHostedSarifText(originalMessage, maximumHostedResultMessageLength);
   return {
     ruleId: cluster.id,
     level: sarifLevel2(cluster.severity),
     message: {
-      text: `${cluster.primary.title} (${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`
+      text: message.text
     },
     fingerprints: { vulnfuseClusterId: cluster.id },
     partialFingerprints: { primaryLocationLineHash: cluster.id },
@@ -27786,7 +27804,8 @@ function resultFor(cluster) {
       suppressionEvidence: suppressionEvidence2(cluster),
       matchConfidence: cluster.confidence,
       identifiers: cluster.identifiers,
-      assets: cluster.assets
+      assets: cluster.assets,
+      ...message.truncated ? { vulnfuseOriginalMessage: originalMessage } : {}
     }
   };
 }
