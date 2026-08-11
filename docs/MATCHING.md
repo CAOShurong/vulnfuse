@@ -37,7 +37,7 @@ A blocker prevents a merge even if the numeric score reaches the threshold.
 3. **Asset conflict in `instance` scope.** Both records name assets and their normalized asset keys differ.
 4. **Finding-kind conflict.** Both kinds are known and materially different. `sca` and `container` are compatible because the same package vulnerability may be described from either perspective.
 
-The canonical JSON result includes up to 1,000 highest-scoring rejected candidates that had blockers. The browser workbench shows blockers related to the selected cluster.
+The canonical JSON result includes up to 1,000 highest-scoring rejected candidates that had blockers. This includes member pairs that stopped a transitive cluster merge even when the proposed edge itself had enough positive evidence. The browser workbench shows blockers related to the selected cluster.
 
 ## Scope
 
@@ -69,7 +69,13 @@ One invocation is limited to 2,000,000 candidate comparisons. If the limit is re
 
 ## Clustering
 
-Matched pairs form edges in an undirected graph. Connected components become clusters using union-find. This means A can join C through B even when A and C do not have a direct matched edge. Every actual matched edge remains in the result, so a reviewer can see the chain.
+Candidate pairs are scored first, then considered in descending score and confidence order with stable finding IDs as the final tie-breaker. Before union-find joins two clusters, VulnFuse evaluates every member pair across those clusters with the same hard-blocker policy. If any cross-cluster pair has an identifier, component, in-scope asset, or kind blocker, the proposed union is refused and the blocking pair is retained as rejected evidence.
+
+This is stricter than ordinary connected-components clustering. A-B and B-C matches do not force A and C into one cluster when A-C has a hard conflict. Stronger direct evidence wins before a weaker bridge, and report order does not change the resulting partition.
+
+Cluster-safety work is limited to 1,000,000 member-pair comparisons per invocation. VulnFuse fails with a split-by-asset recommendation instead of skipping the remaining checks or returning a partially guarded result. This conservative policy can keep a legitimate relationship separate when the supplied records do not expose enough compatible identity evidence; VulnFuse does not query OSV or another live database to repair incomplete aliases.
+
+Every accepted matched edge within a cluster remains in the result so a reviewer can inspect the actual path of evidence.
 
 The primary record is selected deterministically by:
 

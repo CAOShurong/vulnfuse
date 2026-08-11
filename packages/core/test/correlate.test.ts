@@ -12,6 +12,7 @@ import {
   exportCorrelation,
   parseReport,
   type CanonicalFinding,
+  type ParsedReport,
 } from "../src/index.js";
 
 function fixture(name: string): string {
@@ -61,6 +62,85 @@ describe("explainable correlation", () => {
     expect(explanation.blockers.map((blocker) => blocker.feature)).toContain("identifier");
     expect(explanation.matched).toBe(false);
   });
+
+  it("prevents a matched chain from carrying a hard blocker into one cluster", () => {
+    const chain = [
+      ["Scanner A", "CVE-2024-1000", "", "alpha", "rule-a"],
+      ["Scanner B", "CVE-2024-1000", "CVE-2024-2000", "", "rule-a"],
+      ["Scanner C", "CVE-2024-2000", "", "beta", "rule-c"],
+    ].map(([tool, vulnerabilityId, aliases, component, ruleId]) =>
+      parseReport({
+        name: `${tool}.csv`,
+        content: [
+          "title,severity,vulnerability_id,aliases,component,version,asset,tool,kind,rule_id",
+          `Remote execution issue,high,${vulnerabilityId},${aliases},${component},1.0,prod-api,${tool},sca,${ruleId}`,
+        ].join("\n"),
+      }),
+    );
+
+    const result = correlateReports(chain);
+    expect(result.summary.clusters).toBe(2);
+    expect(
+      result.clusters.every((cluster) =>
+        cluster.members.every((left, leftIndex) =>
+          cluster.members
+            .slice(leftIndex + 1)
+            .every((right) => explainMatch(left, right).blockers.length === 0),
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      result.rejectedCandidates.some((edge) =>
+        edge.explanation.blockers.some((blocker) => blocker.feature === "component"),
+      ),
+    ).toBe(true);
+    expect(result.clusters.find((cluster) => cluster.members.length === 2)?.sourceTools).toEqual([
+      "Scanner A",
+      "Scanner B",
+    ]);
+
+    const partition = (reports: typeof chain) =>
+      correlateReports(reports)
+        .clusters.map((cluster) =>
+          cluster.members
+            .map((member) => member.id)
+            .sort()
+            .join("|"),
+        )
+        .sort();
+    expect(partition([...chain].reverse())).toEqual(partition(chain));
+  });
+
+  it("fails visibly instead of skipping an excessive cluster-safety check", () => {
+    const size = 1_416;
+    const findings: CanonicalFinding[] = Array.from({ length: size }, (_, index) => ({
+      id: `synthetic-${String(index).padStart(5, "0")}`,
+      source: { tool: "Synthetic Scanner", report: "synthetic-chain.json" },
+      kind: "sca",
+      title: "Synthetic bridge candidate",
+      severity: "medium",
+      identifiers: [],
+      fingerprints: {
+        ...(index > 0 ? { left: `edge-${index - 1}` } : {}),
+        ...(index < size - 1 ? { right: `edge-${index}` } : {}),
+      },
+      references: [],
+      properties: {},
+    }));
+    const oversized: ParsedReport = {
+      format: "vulnfuse",
+      sourceName: "synthetic-chain.json",
+      tool: "Synthetic Scanner",
+      tools: ["Synthetic Scanner"],
+      findings,
+      warnings: [],
+      metadata: {},
+    };
+
+    expect(() => correlateReports([oversized])).toThrow(
+      /more than 1,000,000 cluster-safety comparisons/,
+    );
+  }, 20_000);
 
   it("produces stable cluster IDs", () => {
     const reports = [report("trivy.json"), report("grype.json")];

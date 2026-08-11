@@ -4,6 +4,14 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-08-11
+
+### Fixed
+
+- Prevent a chain of individually matched pairs from merging two findings that have a direct identifier, component, asset, or kind blocker.
+- Process candidate matches by strongest evidence and stable finding IDs so the safe partition does not depend on report order.
+- Preserve the blocking member pair as rejected evidence and fail visibly above one million cluster-safety comparisons.
+
 ## [0.4.2] - 2026-08-09
 
 ### Fixed
@@ -89,7 +97,8 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.3
 [0.4.2]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.2
 [0.4.1]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.1
 [0.4.0]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.0

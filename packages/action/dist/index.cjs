@@ -25094,13 +25094,16 @@ function roundRatio(value2) {
 
 // ../core/dist/correlate.js
 var maximumPairComparisons = 2e6;
+var maximumClusterSafetyComparisons = 1e6;
 var maximumRejectedCandidates = 1e3;
 var UnionFind = class {
   parent;
   rank;
+  groupMembers;
   constructor(size) {
     this.parent = Array.from({ length: size }, (_, index) => index);
     this.rank = Array.from({ length: size }, () => 0);
+    this.groupMembers = Array.from({ length: size }, (_, index) => [index]);
   }
   find(index) {
     const parent = this.parent[index];
@@ -25117,14 +25120,27 @@ var UnionFind = class {
       return;
     const leftRank = this.rank[leftRoot] ?? 0;
     const rightRank = this.rank[rightRoot] ?? 0;
-    if (leftRank < rightRank)
+    let retainedRoot;
+    let absorbedRoot;
+    if (leftRank < rightRank) {
       this.parent[leftRoot] = rightRoot;
-    else if (leftRank > rightRank)
+      retainedRoot = rightRoot;
+      absorbedRoot = leftRoot;
+    } else if (leftRank > rightRank) {
       this.parent[rightRoot] = leftRoot;
-    else {
+      retainedRoot = leftRoot;
+      absorbedRoot = rightRoot;
+    } else {
       this.parent[rightRoot] = leftRoot;
       this.rank[leftRoot] = leftRank + 1;
+      retainedRoot = leftRoot;
+      absorbedRoot = rightRoot;
     }
+    this.groupMembers[retainedRoot]?.push(...this.groupMembers[absorbedRoot] ?? []);
+    this.groupMembers[absorbedRoot] = [];
+  }
+  members(index) {
+    return this.groupMembers[this.find(index)] ?? [];
   }
 };
 function confidenceRank2(confidence) {
@@ -25176,6 +25192,7 @@ function correlateReports(reports, options = {}) {
   const edges = [];
   const rejectedCandidates = [];
   const pairs = candidatePairs2(findings, resolved);
+  const matchedCandidates = [];
   for (const [leftIndex, rightIndex] of pairs) {
     const left = findings[leftIndex];
     if (!left)
@@ -25185,11 +25202,30 @@ function correlateReports(reports, options = {}) {
       continue;
     const explanation = explainMatch(left, right, resolved);
     if (explanation.matched) {
-      unionFind.union(leftIndex, rightIndex);
-      edges.push({ leftId: left.id, rightId: right.id, explanation });
+      matchedCandidates.push({
+        leftIndex,
+        rightIndex,
+        edge: { leftId: left.id, rightId: right.id, explanation }
+      });
     } else if (explanation.blockers.length > 0 && explanation.score > 0) {
       rejectedCandidates.push({ leftId: left.id, rightId: right.id, explanation });
     }
+  }
+  matchedCandidates.sort(compareIndexedMatches);
+  const blockerCache = /* @__PURE__ */ new Map();
+  const safetyBudget = { comparisons: 0 };
+  for (const candidate of matchedCandidates) {
+    const leftRoot = unionFind.find(candidate.leftIndex);
+    const rightRoot = unionFind.find(candidate.rightIndex);
+    if (leftRoot !== rightRoot) {
+      const blockedBy = firstClusterBlocker(unionFind.members(leftRoot), unionFind.members(rightRoot), findings, resolved, blockerCache, safetyBudget);
+      if (blockedBy) {
+        rejectedCandidates.push(blockedBy);
+        continue;
+      }
+      unionFind.union(leftRoot, rightRoot);
+    }
+    edges.push(candidate.edge);
   }
   const groups = /* @__PURE__ */ new Map();
   findings.forEach((finding, index) => {
@@ -25238,7 +25274,7 @@ function correlateReports(reports, options = {}) {
     options: resolved,
     reports: reportSummaries,
     clusters,
-    rejectedCandidates: rejectedCandidates.sort((left, right) => right.explanation.score - left.explanation.score).slice(0, maximumRejectedCandidates),
+    rejectedCandidates: uniqueBy(rejectedCandidates.sort(compareRejectedCandidates), (edge) => `${edgePairKey(edge.leftId, edge.rightId)}:${edge.explanation.blockers.map((blocker) => `${blocker.feature}:${blocker.message}`).join("|")}`).slice(0, maximumRejectedCandidates),
     summary: {
       inputReports: reports.length,
       inputFindings: findings.length,
@@ -25250,6 +25286,48 @@ function correlateReports(reports, options = {}) {
       coverage
     }
   };
+}
+function compareIndexedMatches(left, right) {
+  return right.edge.explanation.score - left.edge.explanation.score || confidenceRank2(right.edge.explanation.confidence) - confidenceRank2(left.edge.explanation.confidence) || edgePairKey(left.edge.leftId, left.edge.rightId).localeCompare(edgePairKey(right.edge.leftId, right.edge.rightId));
+}
+function compareRejectedCandidates(left, right) {
+  return right.explanation.score - left.explanation.score || edgePairKey(left.leftId, left.rightId).localeCompare(edgePairKey(right.leftId, right.rightId));
+}
+function edgePairKey(leftId, rightId) {
+  return [leftId, rightId].sort().join(":");
+}
+function firstClusterBlocker(leftMembers, rightMembers, findings, options, cache, budget) {
+  const left = [...leftMembers].sort((a, b) => (findings[a]?.id ?? "").localeCompare(findings[b]?.id ?? ""));
+  const right = [...rightMembers].sort((a, b) => (findings[a]?.id ?? "").localeCompare(findings[b]?.id ?? ""));
+  for (const leftIndex of left) {
+    for (const rightIndex of right) {
+      const leftFinding = findings[leftIndex];
+      const rightFinding = findings[rightIndex];
+      if (!leftFinding || !rightFinding)
+        continue;
+      const key = edgePairKey(leftFinding.id, rightFinding.id);
+      let explanation = cache.get(key);
+      if (explanation === void 0) {
+        budget.comparisons += 1;
+        if (budget.comparisons > maximumClusterSafetyComparisons) {
+          throw new Error(`Correlation would require more than ${maximumClusterSafetyComparisons.toLocaleString()} cluster-safety comparisons. Raise the match threshold or split the reports by asset.`);
+        }
+        const evaluated = explainMatch(leftFinding, rightFinding, options);
+        if (evaluated.blockers.length > 0) {
+          explanation = evaluated;
+          cache.set(key, explanation);
+        }
+      }
+      if (explanation) {
+        return {
+          leftId: leftFinding.id,
+          rightId: rightFinding.id,
+          explanation
+        };
+      }
+    }
+  }
+  return void 0;
 }
 function candidatePairs2(findings, options) {
   const weakEvidenceMaximum = 5 + options.titleWeight;
@@ -25395,7 +25473,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.2">
+  <meta name="generator" content="VulnFuse 0.4.3">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -25842,7 +25920,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.2",
+            semanticVersion: "0.4.3",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -25985,7 +26063,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.2",
+            semanticVersion: "0.4.3",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor2(cluster))
           }
