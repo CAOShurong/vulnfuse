@@ -32,11 +32,17 @@ describe("safe browser demo", () => {
       },
     );
     const current = correlateReports(reports, { scope: "instance" });
-    expect(compareCorrelations(baseline, current).summary).toMatchObject({
+    const diff = compareCorrelations(baseline, current);
+    expect(diff.summary).toMatchObject({
       new: 2,
       updated: 1,
       unchanged: 1,
       absent: 0,
+    });
+    expect(diff.scanSetChange).toMatchObject({
+      detected: true,
+      addedTools: ["Grype", "Snyk"],
+      removedTools: [],
     });
   });
 });

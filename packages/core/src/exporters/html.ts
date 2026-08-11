@@ -11,6 +11,7 @@ import type {
   MatchReason,
   Severity,
 } from "../model.js";
+import { describeScanSetChange } from "../compare.js";
 
 interface PortableItem {
   cluster: FindingCluster;
@@ -30,6 +31,7 @@ interface PortableReport {
   severityCounts: Record<Severity, number>;
   coverage: CoverageSummary;
   stateCounts?: Record<BaselineState, number>;
+  scanSetWarning?: string;
 }
 
 export function exportHtml(result: CorrelationResult): string {
@@ -91,6 +93,9 @@ export function exportBaselineHtml(result: BaselineDiffResult): string {
       absent: result.summary.absent,
       unchanged: result.summary.unchanged,
     },
+    ...(result.scanSetChange.detected
+      ? { scanSetWarning: describeScanSetChange(result.scanSetChange) }
+      : {}),
   });
 }
 
@@ -132,7 +137,7 @@ function renderPortableReport(report: PortableReport): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.7">
+  <meta name="generator" content="VulnFuse 0.4.8">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -183,6 +188,7 @@ function renderPortableReport(report: PortableReport): string {
       ${items || '<p class="empty">No vulnerability clusters were produced.</p>'}
     </section>
     ${report.stateCounts ? '<p class="notice"><strong>Important:</strong> absent means a cluster was not observed in the current inputs. It is not proof of remediation.</p>' : ""}
+    ${report.scanSetWarning ? `<p class="notice"><strong>Scan set changed:</strong> ${escapeHtml(report.scanSetWarning.replace(/^Scan set changed:\s*/, ""))}</p>` : ""}
   </main>
   <footer>
     <strong>VulnFuse</strong>

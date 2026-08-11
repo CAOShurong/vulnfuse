@@ -98,6 +98,8 @@ Every cluster receives one state:
 
 `absent` means only that the evidence is missing from the supplied current reports. It does not prove remediation; a scanner might have failed, changed scope, or stopped reporting the affected asset.
 
+Every comparison also records a `scanSetChange` object. It lists scanner tools present only in one run and report-count changes for tools present in both. CLI, Action, browser, Markdown, SARIF, row-bearing CSV, and HTML surfaces warn when that structure reports drift. An empty CSV has no data row on which to repeat report-level metadata, so use JSON, Markdown, SARIF, or HTML when that distinction must survive an empty comparison. The opt-in CLI/Action scan-set gate fails only after writing the comparison. This check catches an observable class of coverage change; equal tool names and counts do not prove equal targets, settings, versions, rule sets, databases, or successful scan completion.
+
 Baseline candidate indexing uses stable IDs, vulnerability identifiers, components, scanner fingerprints, and—when the threshold allows weaker evidence—asset, path, and rule context. A comparison is capped at 1,000,000 cluster pairs and 2,000,000 underlying source-record pairs, and fails visibly rather than returning a partial diff.
 
 ## Example

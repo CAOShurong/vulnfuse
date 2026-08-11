@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { detectFormat, parseReport } from "../src/index.js";
 
@@ -19,6 +20,10 @@ describe("report parsing", () => {
     ["sarif.json", "sarif", "CodeQL", 1],
     ["generic.csv", "csv", "Legacy Scanner", 1],
   ] as const;
+
+  it("disables Zod JIT for strict browser content security policies", () => {
+    expect(z.config().jitless).toBe(true);
+  });
 
   it.each(cases)("detects and parses %s", (name, format, tool, count) => {
     const content = fixture(name);

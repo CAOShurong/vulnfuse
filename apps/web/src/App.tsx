@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   compareCorrelations,
   correlateReports,
+  describeScanSetChange,
   exportBaselineDiff,
   exportCorrelation,
   parseReport,
@@ -639,15 +640,25 @@ function BaselineSummary({ diff }: { diff: NonNullable<ReturnType<typeof compare
     ["unchanged", diff.summary.unchanged, "stable across runs"],
   ] as const;
   return (
-    <div className="baseline-summary" aria-label="Baseline comparison summary">
-      {cards.map(([state, count, note]) => (
-        <article className={state} key={state}>
-          <span>{state}</span>
-          <strong>{count}</strong>
-          <small>{note}</small>
-        </article>
-      ))}
-    </div>
+    <>
+      {diff.scanSetChange.detected && (
+        <div className="scan-set-warning" role="status">
+          <strong>Scan set changed</strong>
+          <span>
+            {describeScanSetChange(diff.scanSetChange).replace(/^Scan set changed:\s*/, "")}
+          </span>
+        </div>
+      )}
+      <div className="baseline-summary" aria-label="Baseline comparison summary">
+        {cards.map(([state, count, note]) => (
+          <article className={state} key={state}>
+            <span>{state}</span>
+            <strong>{count}</strong>
+            <small>{note}</small>
+          </article>
+        ))}
+      </div>
+    </>
   );
 }
 

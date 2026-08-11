@@ -219,11 +219,25 @@ export interface BaselineDiffSummary {
   newBySeverity: Record<Severity, number>;
 }
 
+export interface ScanSetReportCountChange {
+  tool: string;
+  baseline: number;
+  current: number;
+}
+
+export interface ScanSetChange {
+  detected: boolean;
+  addedTools: string[];
+  removedTools: string[];
+  changedReportCounts: ScanSetReportCountChange[];
+}
+
 export interface BaselineDiffResult {
   schemaVersion: "1.0";
   options: CorrelationOptions;
   baselineSummary: CorrelationSummary;
   currentSummary: CorrelationSummary;
+  scanSetChange: ScanSetChange;
   items: BaselineDiffItem[];
   summary: BaselineDiffSummary;
 }

@@ -95,6 +95,39 @@ describe("GitHub Action bundle", () => {
     expect(await readFile(stepSummary, "utf8")).toContain("Baseline:");
   });
 
+  it("writes a baseline diff before failing on a changed scanner set", async () => {
+    const outputReport = join(testDirectory, "scan-set-change.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: `${trivy}\n${csv}`,
+          "INPUT_BASELINE-REPORTS": trivy,
+          INPUT_OUTPUT: outputReport,
+          INPUT_FORMAT: "json",
+          "INPUT_FAIL-ON-SCAN-SET-CHANGE": "true",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+
+    const diff = JSON.parse(await readFile(outputReport, "utf8")) as {
+      scanSetChange: { detected: boolean; addedTools: string[] };
+    };
+    expect(diff.scanSetChange).toMatchObject({ detected: true, addedTools: ["Legacy Scanner"] });
+    expect(await readFile(githubOutput, "utf8")).toContain("scan-set-changed");
+    expect(await readFile(stepSummary, "utf8")).toContain("Scan set changed");
+  });
+
   it("allows the Action to emit a self-contained baseline HTML report", async () => {
     const outputReport = join(testDirectory, "baseline.html");
     const githubOutput = join(testDirectory, "github-output.txt");
@@ -102,7 +135,7 @@ describe("GitHub Action bundle", () => {
     await writeFile(githubOutput, "", "utf8");
     await writeFile(stepSummary, "", "utf8");
 
-    await execute(process.execPath, [action], {
+    const execution = await execute(process.execPath, [action], {
       cwd: repository,
       env: {
         ...process.env,
@@ -123,6 +156,8 @@ describe("GitHub Action bundle", () => {
     expect(html).toContain("VulnFuse baseline comparison");
     expect(html).toContain('id="state-filter"');
     expect(html).toContain("Content-Security-Policy");
+    expect(execution.stdout).toContain("::warning");
+    expect(execution.stdout).toContain("Scan set changed");
   });
 
   it("rejects an oversized report without writing output", async () => {

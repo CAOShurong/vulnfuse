@@ -39,10 +39,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.7 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.8 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.7/vulnfuse-core-0.4.7.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.7/vulnfuse-0.4.7.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.8/vulnfuse-core-0.4.8.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.8/vulnfuse-0.4.8.tgz
 vulnfuse --version
 ```
 
@@ -103,10 +103,11 @@ node packages/cli/dist/index.js diff \
   current/trivy.json current/grype.json \
   --format markdown \
   --output vulnfuse-baseline.md \
-  --fail-on-new high
+  --fail-on-new high \
+  --fail-on-scan-set-change
 ```
 
-The comparison preserves matched evidence and labels every cluster as `new`, `updated`, `unchanged`, or `absent`. SARIF export writes the standard `baselineState` field for every result.
+The comparison preserves matched evidence and labels every cluster as `new`, `updated`, `unchanged`, or `absent`. It also records added or removed scanner tools and changed per-tool report counts in `scanSetChange`. A detected change prints a warning by default because `new` or `absent` states may reflect coverage drift; `--fail-on-scan-set-change` returns exit code 1 only after the complete comparison is written. Matching names and counts still do not prove that the asset, configuration, scanner version, or vulnerability database was identical. SARIF export writes the standard `baselineState` field for every result and the scan-set evidence in invocation properties.
 
 Create a single portable report that a reviewer can open offline, search, filter, and expand without installing VulnFuse or sending evidence to a server:
 
@@ -127,7 +128,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.7
+  uses: CAOShurong/vulnfuse@v0.4.8
   with:
     reports: |
       reports/trivy.json
@@ -150,9 +151,10 @@ To gate only new findings, download or otherwise provide the previous raw scanne
 ```yaml
 baseline-reports: previous-reports/*.json
 fail-on-new: high
+fail-on-scan-set-change: "true"
 ```
 
-When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action writes a job summary and exposes `findings`, `clusters`, `duplicates-collapsed`, `single-tool`, `multi-tool`, `new`, `updated`, `absent`, `unchanged`, and `report` outputs.
+When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action warns when the scanner set changes and can fail after preserving the report. It writes a job summary and exposes `findings`, `clusters`, `duplicates-collapsed`, `single-tool`, `multi-tool`, `new`, `updated`, `absent`, `unchanged`, `scan-set-changed`, and `report` outputs.
 
 ## Supported input
 
@@ -206,7 +208,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.4.7` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, cross-run baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.8` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

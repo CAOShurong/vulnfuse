@@ -21769,6 +21769,9 @@ function debug(message) {
 function error(message, properties = {}) {
   issueCommand("error", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
+function warning(message, properties = {}) {
+  issueCommand("warning", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
+}
 function info(message) {
   process.stdout.write(message + os4.EOL);
 }
@@ -24747,6 +24750,7 @@ function compareCorrelations(baseline, current) {
   if (baseline.options.scope !== current.options.scope) {
     throw new Error(`Baseline scope '${baseline.options.scope}' does not match current scope '${current.options.scope}'. Rebuild both with the same scope before comparing them.`);
   }
+  const scanSetChange = compareScanSets(baseline, current);
   const candidates = matchCandidates(baseline.clusters, current.clusters, current.options);
   const matchedBaseline = /* @__PURE__ */ new Set();
   const matchedCurrent = /* @__PURE__ */ new Set();
@@ -24789,6 +24793,7 @@ function compareCorrelations(baseline, current) {
     options: current.options,
     baselineSummary: baseline.summary,
     currentSummary: current.summary,
+    scanSetChange,
     items,
     summary: {
       baselineClusters: baseline.clusters.length,
@@ -24800,6 +24805,47 @@ function compareCorrelations(baseline, current) {
       newBySeverity
     }
   };
+}
+function describeScanSetChange(change) {
+  if (!change.detected) {
+    return "Scan set did not change by tool names or per-tool report counts.";
+  }
+  const details = [];
+  if (change.addedTools.length > 0) {
+    details.push(`added ${change.addedTools.map(toolLabel).join(", ")}`);
+  }
+  if (change.removedTools.length > 0) {
+    details.push(`removed ${change.removedTools.map(toolLabel).join(", ")}`);
+  }
+  if (change.changedReportCounts.length > 0) {
+    details.push(`report counts ${change.changedReportCounts.map((item) => `${toolLabel(item.tool)} ${item.baseline} to ${item.current}`).join(", ")}`);
+  }
+  return `Scan set changed: ${details.join("; ")}. New and absent states may reflect coverage change rather than a code or remediation change.`;
+}
+function toolLabel(tool) {
+  return JSON.stringify(tool);
+}
+function compareScanSets(baseline, current) {
+  const baselineCounts = reportCounts(baseline);
+  const currentCounts = reportCounts(current);
+  const baselineTools = [...baselineCounts.keys()].sort();
+  const currentTools = [...currentCounts.keys()].sort();
+  const addedTools = currentTools.filter((tool) => !baselineCounts.has(tool));
+  const removedTools = baselineTools.filter((tool) => !currentCounts.has(tool));
+  const changedReportCounts = baselineTools.filter((tool) => currentCounts.has(tool) && baselineCounts.get(tool) !== currentCounts.get(tool)).map((tool) => ({
+    tool,
+    baseline: baselineCounts.get(tool) ?? 0,
+    current: currentCounts.get(tool) ?? 0
+  }));
+  return {
+    detected: addedTools.length > 0 || removedTools.length > 0 || changedReportCounts.length > 0,
+    addedTools,
+    removedTools,
+    changedReportCounts
+  };
+}
+function reportCounts(result) {
+  return new Map(result.summary.coverage.tools.map((tool) => [tool.tool, tool.reports]));
 }
 function matchCandidates(baseline, current, options) {
   const pairs = candidatePairs(baseline, current, options);
@@ -25454,7 +25500,8 @@ function exportBaselineHtml(result) {
       updated: result.summary.updated,
       absent: result.summary.absent,
       unchanged: result.summary.unchanged
-    }
+    },
+    ...result.scanSetChange.detected ? { scanSetWarning: describeScanSetChange(result.scanSetChange) } : {}
   });
 }
 function renderPortableReport(report) {
@@ -25472,7 +25519,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.7">
+  <meta name="generator" content="VulnFuse 0.4.8">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -25518,6 +25565,7 @@ function renderPortableReport(report) {
       ${items || '<p class="empty">No vulnerability clusters were produced.</p>'}
     </section>
     ${report.stateCounts ? '<p class="notice"><strong>Important:</strong> absent means a cluster was not observed in the current inputs. It is not proof of remediation.</p>' : ""}
+    ${report.scanSetWarning ? `<p class="notice"><strong>Scan set changed:</strong> ${escapeHtml(report.scanSetWarning.replace(/^Scan set changed:\s*/, ""))}</p>` : ""}
   </main>
   <footer>
     <strong>VulnFuse</strong>
@@ -25848,7 +25896,10 @@ function exportBaselineDiff(result, format) {
   }
 }
 function exportDiffCsv(result) {
+  const scanSetMessage = result.scanSetChange.detected ? describeScanSetChange(result.scanSetChange) : "";
   const rows = result.items.map((item) => ({
+    scan_set_changed: result.scanSetChange.detected,
+    scan_set_change: scanSetMessage,
     baseline_state: item.state,
     changed_fields: item.changedFields.join(";"),
     cluster_id: item.cluster.id,
@@ -25871,6 +25922,7 @@ function exportDiffMarkdown(result) {
     "",
     `> Compared ${result.summary.currentClusters} current clusters with ${result.summary.baselineClusters} baseline clusters: **${result.summary.new} new**, **${result.summary.updated} updated**, **${result.summary.absent} absent**, and ${result.summary.unchanged} unchanged.`,
     "",
+    ...result.scanSetChange.detected ? [`> **Warning:** ${escapeMarkdown2(describeScanSetChange(result.scanSetChange))}`, ""] : [],
     "| State | Clusters |",
     "| --- | ---: |",
     `| New | ${result.summary.new} |`,
@@ -25919,7 +25971,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.7",
+            semanticVersion: "0.4.8",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -25929,6 +25981,7 @@ function exportDiffSarif(result) {
             executionSuccessful: true,
             properties: {
               baselineComparison: result.summary,
+              scanSetChange: result.scanSetChange,
               correlationOptions: result.options
             }
           }
@@ -26062,7 +26115,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.7",
+            semanticVersion: "0.4.8",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor2(cluster))
           }
@@ -40676,6 +40729,7 @@ function date4(params) {
 config(en_default());
 
 // ../core/dist/schema.js
+external_exports.config({ jitless: true });
 var jsonValueSchema = external_exports.lazy(() => external_exports.union([
   external_exports.string(),
   external_exports.number(),
@@ -41824,12 +41878,16 @@ async function run() {
     const scope = inputChoice("scope", "instance", allowedScopes);
     const failOn = inputChoice("fail-on", "none", allowedFailOn);
     const failOnNew = inputChoice("fail-on-new", "none", allowedFailOn);
+    const failOnScanSetChange = inputBoolean("fail-on-scan-set-change", false);
     const threshold = inputNumber("threshold", 70, 0, 100);
     const maxBytes = inputNumber("max-bytes", 100 * 1024 * 1024, 1, 1024 ** 3, true);
     if (!baselinePatterns && failOnNew !== "none") {
       throw new Error(
         "fail-on-new requires baseline-reports so existing findings are not treated as new."
       );
+    }
+    if (!baselinePatterns && failOnScanSetChange) {
+      throw new Error("fail-on-scan-set-change requires baseline-reports.");
     }
     const reports = await readMatchedReports(patterns, "current", maxBytes, output);
     const result = correlateReports(reports, { threshold, scope });
@@ -41858,6 +41916,7 @@ async function run() {
     setOutput("updated", baselineDiff?.summary.updated ?? 0);
     setOutput("absent", baselineDiff?.summary.absent ?? 0);
     setOutput("unchanged", baselineDiff?.summary.unchanged ?? 0);
+    setOutput("scan-set-changed", baselineDiff?.scanSetChange.detected ?? false);
     setOutput("report", output);
     await writeSummary(result, output, baselineDiff);
     info(
@@ -41870,6 +41929,9 @@ async function run() {
       info(
         `Baseline comparison: ${baselineDiff.summary.new} new, ${baselineDiff.summary.updated} updated, ${baselineDiff.summary.absent} absent, and ${baselineDiff.summary.unchanged} unchanged.`
       );
+      if (baselineDiff.scanSetChange.detected) {
+        warning(describeScanSetChange(baselineDiff.scanSetChange));
+      }
     }
     if (failOn !== "none" && hasSeverityAtLeast(result.summary.bySeverity, failOn)) {
       setFailed(
@@ -41879,6 +41941,11 @@ async function run() {
     if (baselineDiff && failOnNew !== "none" && hasSeverityAtLeast(baselineDiff.summary.newBySeverity, failOnNew)) {
       setFailed(
         `At least one new vulnerability cluster met the '${failOnNew}' severity threshold. The baseline comparison was still written to ${output}.`
+      );
+    }
+    if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
+      setFailed(
+        `The scanner tools or per-tool report counts changed from the baseline. The comparison was still written to ${output}.`
       );
     }
   } catch (error52) {
@@ -41950,6 +42017,9 @@ async function writeSummary(result, output, baselineDiff) {
   ).addTable(coverageTable).addDetails("Pairwise scanner overlap", pairwiseCoverage).addRaw(
     baselineDiff ? `Baseline: **${baselineDiff.summary.new} new**, **${baselineDiff.summary.updated} updated**, **${baselineDiff.summary.absent} absent**, and ${baselineDiff.summary.unchanged} unchanged.` : "",
     Boolean(baselineDiff)
+  ).addRaw(
+    baselineDiff?.scanSetChange.detected ? `**Scan set changed.** ${escapeSummary(describeScanSetChange(baselineDiff.scanSetChange).replace(/^Scan set changed:\s*/, ""))}` : "",
+    Boolean(baselineDiff?.scanSetChange.detected)
   ).addDetails(
     baselineDiff ? "Highest-severity new clusters" : "Highest-severity clusters",
     (baselineDiff ? baselineDiff.items.filter((item) => item.state === "new").map((item) => item.cluster) : result.clusters).slice(0, 20).map(
@@ -41970,6 +42040,13 @@ function inputNumber(name, fallback, minimum, maximum, integer2 = false) {
     );
   }
   return value2;
+}
+function inputBoolean(name, fallback) {
+  const value2 = getInput(name).trim().toLowerCase();
+  if (!value2) return fallback;
+  if (value2 === "true") return true;
+  if (value2 === "false") return false;
+  throw new Error(`${name} must be true or false.`);
 }
 function hasSeverityAtLeast(counts, threshold) {
   const minimum = severityOrder.indexOf(threshold);

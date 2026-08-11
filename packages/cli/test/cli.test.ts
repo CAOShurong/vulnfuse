@@ -155,6 +155,52 @@ describe("CLI", () => {
     expect(markdown).toContain("[NEW]");
   });
 
+  it("writes the diff before failing on a changed scanner set", async () => {
+    const output = join(testDirectory, "scan-set-change.json");
+    const failure = await executeFailure([
+      cli,
+      "diff",
+      "--baseline",
+      trivy,
+      trivy,
+      csv,
+      "--format",
+      "json",
+      "--output",
+      output,
+      "--fail-on-scan-set-change",
+    ]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain("Scan set changed");
+    const diff = JSON.parse(await readFile(output, "utf8")) as {
+      scanSetChange: { detected: boolean; addedTools: string[] };
+    };
+    expect(diff.scanSetChange).toMatchObject({ detected: true, addedTools: ["Legacy Scanner"] });
+  });
+
+  it("warns but succeeds by default when the scanner set changes", async () => {
+    const output = join(testDirectory, "scan-set-warning.json");
+    const result = await execute(process.execPath, [
+      cli,
+      "diff",
+      "--baseline",
+      trivy,
+      trivy,
+      csv,
+      "--format",
+      "json",
+      "--output",
+      output,
+    ]);
+
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Scan set changed");
+    expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({
+      scanSetChange: { detected: true },
+    });
+  });
+
   it("writes a portable HTML report from the same CLI workflow", async () => {
     const output = join(testDirectory, "portable.html");
     await execute(process.execPath, [

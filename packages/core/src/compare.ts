@@ -8,6 +8,7 @@ import {
   type CorrelationResult,
   type FindingCluster,
   type MatchExplanation,
+  type ScanSetChange,
   type Severity,
 } from "./model.js";
 import { assetKey, componentKey, normalizePath } from "./utils.js";
@@ -31,6 +32,8 @@ export function compareCorrelations(
       `Baseline scope '${baseline.options.scope}' does not match current scope '${current.options.scope}'. Rebuild both with the same scope before comparing them.`,
     );
   }
+
+  const scanSetChange = compareScanSets(baseline, current);
 
   const candidates = matchCandidates(baseline.clusters, current.clusters, current.options);
   const matchedBaseline = new Set<number>();
@@ -77,6 +80,7 @@ export function compareCorrelations(
     options: current.options,
     baselineSummary: baseline.summary,
     currentSummary: current.summary,
+    scanSetChange,
     items,
     summary: {
       baselineClusters: baseline.clusters.length,
@@ -88,6 +92,59 @@ export function compareCorrelations(
       newBySeverity,
     },
   };
+}
+
+export function describeScanSetChange(change: ScanSetChange): string {
+  if (!change.detected) {
+    return "Scan set did not change by tool names or per-tool report counts.";
+  }
+  const details: string[] = [];
+  if (change.addedTools.length > 0) {
+    details.push(`added ${change.addedTools.map(toolLabel).join(", ")}`);
+  }
+  if (change.removedTools.length > 0) {
+    details.push(`removed ${change.removedTools.map(toolLabel).join(", ")}`);
+  }
+  if (change.changedReportCounts.length > 0) {
+    details.push(
+      `report counts ${change.changedReportCounts
+        .map((item) => `${toolLabel(item.tool)} ${item.baseline} to ${item.current}`)
+        .join(", ")}`,
+    );
+  }
+  return `Scan set changed: ${details.join("; ")}. New and absent states may reflect coverage change rather than a code or remediation change.`;
+}
+
+function toolLabel(tool: string): string {
+  return JSON.stringify(tool);
+}
+
+function compareScanSets(baseline: CorrelationResult, current: CorrelationResult): ScanSetChange {
+  const baselineCounts = reportCounts(baseline);
+  const currentCounts = reportCounts(current);
+  const baselineTools = [...baselineCounts.keys()].sort();
+  const currentTools = [...currentCounts.keys()].sort();
+  const addedTools = currentTools.filter((tool) => !baselineCounts.has(tool));
+  const removedTools = baselineTools.filter((tool) => !currentCounts.has(tool));
+  const changedReportCounts = baselineTools
+    .filter(
+      (tool) => currentCounts.has(tool) && baselineCounts.get(tool) !== currentCounts.get(tool),
+    )
+    .map((tool) => ({
+      tool,
+      baseline: baselineCounts.get(tool) ?? 0,
+      current: currentCounts.get(tool) ?? 0,
+    }));
+  return {
+    detected: addedTools.length > 0 || removedTools.length > 0 || changedReportCounts.length > 0,
+    addedTools,
+    removedTools,
+    changedReportCounts,
+  };
+}
+
+function reportCounts(result: CorrelationResult): Map<string, number> {
+  return new Map(result.summary.coverage.tools.map((tool) => [tool.tool, tool.reports]));
 }
 
 function matchCandidates(
