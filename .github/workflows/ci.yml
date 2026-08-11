@@ -42,6 +42,28 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Generate a portable checksum manifest on Windows
+        shell: pwsh
+        run: |
+          $fixtureDirectory = Join-Path "${{ runner.temp }}" "vulnfuse-release-fixtures"
+          New-Item -ItemType Directory -Path $fixtureDirectory | Out-Null
+          Copy-Item packages/core/test/fixtures/sarif.json (Join-Path $fixtureDirectory "sample.sarif")
+          Copy-Item packages/core/test/fixtures/openvex.json (Join-Path $fixtureDirectory "sample.openvex.json")
+          $manifestPath = Join-Path $fixtureDirectory "SHA256SUMS.txt"
+          node scripts/write-release-checksums.mjs $fixtureDirectory $manifestPath
+          $manifest = Get-Content $manifestPath
+          if ($manifest.Count -ne 2 -or $manifest -match "[\\/]vulnfuse-release-fixtures[\\/]") {
+            throw "Checksum manifest is not a flat two-fixture inventory"
+          }
+          foreach ($line in $manifest) {
+            if ($line -notmatch "^([0-9a-f]{64})  ([A-Za-z0-9._+@-]+)$") {
+              throw "Malformed checksum entry: $line"
+            }
+            $actual = (Get-FileHash -Algorithm SHA256 (Join-Path $fixtureDirectory $Matches[2])).Hash.ToLowerInvariant()
+            if ($actual -ne $Matches[1]) {
+              throw "Checksum mismatch for $($Matches[2])"
+            }
+          }
       - name: Correlate fixture reports
         shell: pwsh
         run: |
@@ -318,6 +340,11 @@ jobs:
           mkdir -p package-artifacts
           npm pack -w @vulnfuse/core --pack-destination package-artifacts
           npm pack -w vulnfuse --pack-destination package-artifacts
+      - name: Verify a flat checksum manifest for packed artifacts
+        run: |
+          node scripts/write-release-checksums.mjs package-artifacts package-artifacts/SHA256SUMS.txt
+          cd package-artifacts
+          sha256sum -c SHA256SUMS.txt
       - name: Install both tarballs in a clean project
         run: |
           mkdir clean-install

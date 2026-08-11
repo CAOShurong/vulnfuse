@@ -1,6 +1,6 @@
 {
   "name": "vulnfuse-workspace",
-  "version": "0.4.17",
+  "version": "0.4.18",
   "private": true,
   "description": "Local-first, explainable cross-scanner vulnerability correlation",
   "type": "module",
@@ -18,7 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:repo": "node scripts/check-repository.mjs",
-    "test": "npm run test --workspaces --if-present",
+    "test": "node --test scripts/write-release-checksums.test.mjs && npm run test --workspaces --if-present",
     "test:coverage": "npm run test:coverage --workspaces --if-present",
     "typecheck": "npm run build -w @vulnfuse/core && npm run typecheck --workspaces --if-present",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run check:repo",
