@@ -4,4 +4,6 @@ Node.js command-line interface for [VulnFuse](https://github.com/CAOShurong/vuln
 
 `--max-bytes` rejects a file whose known size is already over the per-report limit before content reads, then enforces the same limit incrementally. Report-input failures are concise by default; put the global `--debug` option before the command to include a stack that may contain local paths.
 
+Report arguments can be exact paths or quoted glob patterns. Use forward slashes for cross-platform patterns, for example `vulnfuse inspect "reports/**/*.json"`. Exact existing paths win over glob syntax; matches are file-only, do not follow symbolic-link directories, are deduplicated, and count toward the 1,000-report limit after expansion.
+
 The public package is not yet published to npm. Build and run it from the repository as documented in the root [README](../../README.md).

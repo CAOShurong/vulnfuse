@@ -21,7 +21,7 @@ The page still originates from GitHub Pages, so normal hosting infrastructure ca
 
 ### CLI
 
-The CLI reads only named input paths or standard input and writes only the requested output path. It rejects an output path that resolves to an input file and writes through a temporary sibling before rename.
+The CLI reads only named input paths, files matched by named glob patterns, or standard input and writes only the requested output path. It rejects an output path that resolves to an expanded input file and writes through a temporary sibling before rename. Glob expansion matches files only and does not follow symbolic-link directories.
 
 ### GitHub Action
 
@@ -32,7 +32,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 | Risk                                     | Mitigation                                                                                        |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Oversized report memory exhaustion       | 100 MiB per-report default; browser size check; CLI/Action metadata preflight and bounded read    |
-| Excessive file expansion                 | 1,000-report limit in CLI/Action/browser                                                          |
+| Excessive file expansion                 | 1,000-report limit after CLI/Action expansion and before report reads                             |
 | Quadratic matching denial of service     | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
 | Quadratic scanner-pair output            | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
 | Output destroys an input                 | CLI and Action reject identical resolved input/output paths                                       |
@@ -58,6 +58,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 8. **Baseline mode retains two report sets.** Browser and runner memory use can approach the combined size of the baseline and current inputs, plus their parsed models and comparison output.
 9. **Coverage statistics can be misread.** A tool may appear exclusive because it scanned a different asset, package inventory, configuration, database snapshot, or advisory namespace. Pairwise overlap is not an accuracy score.
 10. **Atomic replacement is filesystem-dependent.** A caught write or rename error preserves the old destination and cleans its temporary sibling, but a hard termination can leave a `.vulnfuse-*.tmp` file. The implementation does not claim directory-fsync power-loss durability or atomic replacement on every network or unusual filesystem.
+11. **Glob traversal happens before the report-count limit.** A quoted CLI pattern does not follow symbolic-link directories and cannot make VulnFuse process more than 1,000 reports, but a broad pattern can still traverse a large directory tree and allocate its match list before that count is checked. Treat workflow-provided patterns as filesystem-read authority and scope them to a known report directory.
 
 ## Non-goals
 

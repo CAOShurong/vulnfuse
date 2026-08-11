@@ -49,7 +49,7 @@ The separate `@vulnfuse/core/node` entry point uses only Node.js built-ins and p
 
 ### `vulnfuse` CLI
 
-The CLI adds filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, and new-only baseline gates. It does not contain a second implementation of parsing, matching, Node file limits, or atomic report replacement.
+The CLI adds exact-path-first, shell-independent report globbing, filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, and new-only baseline gates. It does not contain a second implementation of parsing, matching, Node file limits, or atomic report replacement. Glob expansion is CLI-only; the Action keeps its runner-native `@actions/glob` adapter.
 
 ### `@vulnfuse/action`
 

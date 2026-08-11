@@ -22,10 +22,20 @@ jobs:
       - run: npm run verify
       - name: Build release artifacts
         run: |
+          version=$(node -p "require('./package.json').version")
           mkdir -p release
           npm pack -w @vulnfuse/core --pack-destination release
           npm pack -w vulnfuse --pack-destination release
-          npm sbom --sbom-format cyclonedx --omit dev > release/vulnfuse-sbom.cdx.json
+          npm sbom -w @vulnfuse/action --sbom-format cyclonedx --omit dev > release/vulnfuse-action-sbom.cdx.json
+          sbom_dir="$RUNNER_TEMP/vulnfuse-sbom-$version"
+          mkdir -p "$sbom_dir"
+          cd "$sbom_dir"
+          npm init -y
+          npm install --ignore-scripts "$GITHUB_WORKSPACE/release/vulnfuse-core-$version.tgz" "$GITHUB_WORKSPACE/release/vulnfuse-$version.tgz"
+          npm sbom --sbom-format cyclonedx --omit dev > "$GITHUB_WORKSPACE/release/vulnfuse-sbom.cdx.json"
+          cd "$GITHUB_WORKSPACE"
+          node scripts/verify-sbom.mjs release/vulnfuse-sbom.cdx.json vulnfuse @vulnfuse/core commander tinyglobby fdir picomatch
+          node scripts/verify-sbom.mjs release/vulnfuse-action-sbom.cdx.json @vulnfuse/action @actions/core @actions/glob @vulnfuse/core
           tar -czf "release/vulnfuse-action-${GITHUB_REF_NAME}.tar.gz" action.yml packages/action/dist LICENSE README.md
           sha256sum release/* > release/SHA256SUMS.txt
       - name: Publish GitHub release
