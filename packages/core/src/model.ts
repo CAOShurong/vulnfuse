@@ -121,6 +121,10 @@ export interface ReportInput {
 export type MatchScope = "instance" | "root-cause";
 export type OutputFormat = "json" | "sarif" | "csv" | "markdown" | "html";
 
+export interface ExportOptions {
+  sarifFallbackLocation?: string;
+}
+
 export interface CorrelationOptions {
   threshold: number;
   scope: MatchScope;

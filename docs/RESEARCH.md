@@ -652,6 +652,63 @@ This improves GitHub/GitLab fit; it is not an exact emulator or a guarantee that
 an upload satisfies every permission, size, count, URI, or evolving product
 rule.
 
+## Locationless SARIF visibility research (v0.4.22)
+
+Standards validity and GitHub code-scanning visibility differ. SARIF 2.1 says a
+result `locations` array should be present, but explicitly permits rare results
+without a location when none can be specified. GitHub's current supported-SARIF
+reference is stricter: at least one location is required for code scanning to
+display a result, and a repository-relative `artifactLocation.uri` is
+recommended. See the [OASIS SARIF 2.1 result location contract](https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html#def_result_locations)
+and GitHub's [SARIF support reference](https://docs.github.com/en/enterprise-cloud@latest/code-security/reference/code-scanning/sarif-files/sarif-support#result-object).
+
+The public v0.4.21 CLI reproduced the gap from formats VulnFuse advertises: the
+OpenVEX fixture produced three SARIF results with zero `locations`, and the
+CycloneDX fixture produced one with zero. Both outputs passed the generic SARIF
+2.1 JSON schema and Microsoft SARIF Multitool 5.6.0 with zero validation errors.
+That is expected standards behavior, but those package findings do not satisfy
+GitHub's display contract. No synthetic analysis was uploaded to code scanning;
+the platform requirement and a real independent rejection are enough to justify
+an opt-in producer fix without publishing misleading alerts.
+
+The independent practitioner case is concrete. Apache-2.0
+[`proofhouse/gomodscan`](https://github.com/proofhouse/gomodscan) reported that
+every upload was rejected with `expected a physical location`; its May 2026
+[fix](https://github.com/proofhouse/gomodscan/pull/1) anchors each finding to the
+real `vendor/modules.txt` line the scanner already reads. The repository was
+active when checked on 2026-08-12. VulnFuse cannot infer an equivalent file from
+arbitrary OpenVEX, CycloneDX, SBOM, image, or mixed-report evidence, so silently
+choosing `package-lock.json` or another ecosystem-specific file would invent
+provenance and fail on many repositories.
+
+Maintained alternatives address adjacent layers:
+
+- GitHub's MIT-licensed `github/codeql-action` is the correct upload client and
+  can add fingerprints, but it cannot infer a truthful repository file for
+  locationless package evidence. It also ties the workflow to GitHub's hosted
+  service rather than repairing the producer artifact for other consumers.
+- Microsoft SARIF SDK/Multitool 5.6.0 is maintained and MIT-licensed. It adds a
+  .NET/platform binary and a separate transform step, and generic validation
+  accepted the reproduced locationless output because the SARIF standard
+  permits it.
+- `gomodscan` demonstrates the best answer when a scanner owns a real source
+  mapping: emit the exact file and line. Its Go-specific `vendor/modules.txt`
+  solution is not reusable for VulnFuse's heterogeneous SARIF, SBOM, and VEX
+  inputs.
+
+The selected design therefore adds no dependency, service, upload, or operating
+cost. The caller may explicitly supply one syntactically safe repository-relative
+URI. VulnFuse attaches its line 1 only to results lacking a physical URI, keeps all
+scanner locations untouched, and marks the substitution as
+`user-supplied-fallback`. Plain and baseline exporters share the behavior. The
+path validator rejects absolute/schemed values, traversal, backslashes, empty
+segments, queries, fragments, whitespace/control characters, invalid percent
+encoding, and encoded separators. It does not open the file or prove that it is
+tracked in the uploaded commit. This closes a daily workflow gap while keeping
+the causal claim honest: the fallback is a navigation anchor, not evidence that
+the finding originated in that file, and only a real hosted upload can prove
+acceptance.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.

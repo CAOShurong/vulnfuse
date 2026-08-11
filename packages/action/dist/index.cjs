@@ -27007,7 +27007,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.21">
+  <meta name="generator" content="VulnFuse 0.4.22">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -27466,15 +27466,51 @@ function boundHostedSarifText(value2, maximumUtf16Length) {
   }
   return { text: `${text}\u2026`, truncated: true };
 }
+function validateSarifFallbackLocation(value2) {
+  if (!value2 || value2.trim() !== value2) {
+    throw new Error("SARIF fallback location must be a non-empty repository-relative URI.");
+  }
+  if (/[\\?#\s]/u.test(value2) || containsControlCharacter(value2)) {
+    throw new Error("SARIF fallback location must use forward slashes and contain no whitespace, query, fragment, or control characters.");
+  }
+  if (value2.startsWith("/") || /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value2)) {
+    throw new Error("SARIF fallback location must be relative to the repository root.");
+  }
+  const segments = value2.split("/");
+  for (const [index, segment] of segments.entries()) {
+    if (!segment) {
+      throw new Error("SARIF fallback location must not contain empty path segments.");
+    }
+    let decoded;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      throw new Error("SARIF fallback location contains invalid percent encoding.");
+    }
+    if (decoded === "." || decoded === ".." || decoded.includes("/") || decoded.includes("\\") || /[%?#\s]/u.test(decoded) || containsControlCharacter(decoded) || index === 0 && /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(decoded)) {
+      throw new Error("SARIF fallback location must not contain traversal, nested encoding, encoded separators, whitespace, query, fragment, control characters, or an absolute URI scheme.");
+    }
+  }
+  return value2;
+}
+function containsControlCharacter(value2) {
+  return [...value2].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 31 || codePoint === 127;
+  });
+}
 
 // ../core/dist/exporters/baseline.js
-function exportBaselineDiff(result, format) {
+function exportBaselineDiff(result, format, options = {}) {
+  if (options.sarifFallbackLocation !== void 0 && format !== "sarif") {
+    throw new Error("SARIF fallback location can only be used with SARIF output.");
+  }
   switch (format) {
     case "json":
       return `${JSON.stringify(result, null, 2)}
 `;
     case "sarif":
-      return exportDiffSarif(result);
+      return exportDiffSarif(result, options);
     case "csv":
       return exportDiffCsv(result);
     case "markdown":
@@ -27553,7 +27589,8 @@ function diffItemMarkdown(item) {
     ""
   ];
 }
-function exportDiffSarif(result) {
+function exportDiffSarif(result, options) {
+  const fallbackLocation = options.sarifFallbackLocation === void 0 ? void 0 : validateSarifFallbackLocation(options.sarifFallbackLocation);
   const emittedItems = result.items.filter((item) => !item.cluster.nonFinding);
   const clusters = uniqueClusters(emittedItems.map((item) => item.cluster));
   const nonFindingItems = result.items.filter((item) => item.cluster.nonFinding);
@@ -27565,7 +27602,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.21",
+            semanticVersion: "0.4.22",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map((cluster) => hostedSarifRule(cluster, securityScore(cluster.severity)))
           }
@@ -27582,7 +27619,7 @@ function exportDiffSarif(result) {
             }
           }
         ],
-        results: emittedItems.map(diffResultFor),
+        results: emittedItems.map((item) => diffResultFor(item, fallbackLocation)),
         properties: {
           nonFindingItems,
           nonFindingExportNote: "Retained here instead of results[] because GitHub code scanning does not document result.kind in its supported SARIF subset."
@@ -27593,9 +27630,11 @@ function exportDiffSarif(result) {
   return `${JSON.stringify(document, null, 2)}
 `;
 }
-function diffResultFor(item) {
+function diffResultFor(item, fallbackLocation) {
   const cluster = item.cluster;
   const location = cluster.primary.location;
+  const fallbackLocationUsed = !location?.uri && Boolean(fallbackLocation);
+  const locationUri = location?.uri ?? fallbackLocation;
   const stableIdentity = item.baselineCluster?.id ?? cluster.id;
   const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
   const originalMessage = `${cluster.primary.title} (${item.state}; ${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`;
@@ -27610,7 +27649,15 @@ function diffResultFor(item) {
     fingerprints: { vulnfuseClusterId: stableIdentity },
     partialFingerprints: { primaryLocationLineHash: stableIdentity },
     ...suppressions.length > 0 ? { suppressions } : {},
-    ...location?.uri ? { locations: [sarifLocation(location)] } : {},
+    ...locationUri ? {
+      locations: [
+        sarifLocation({
+          ...location ?? {},
+          uri: locationUri,
+          ...fallbackLocationUsed ? { startLine: 1 } : {}
+        })
+      ]
+    } : {},
     properties: {
       baselineState: item.state,
       changedFields: item.changedFields,
@@ -27623,6 +27670,7 @@ function diffResultFor(item) {
       identifiers: cluster.identifiers,
       assets: cluster.assets,
       ...item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {},
+      ...fallbackLocationUsed ? { vulnfuseLocationProvenance: "user-supplied-fallback" } : {},
       ...message.truncated ? { vulnfuseOriginalMessage: originalMessage } : {}
     }
   };
@@ -27729,7 +27777,8 @@ function exportJson(result) {
 }
 
 // ../core/dist/exporters/sarif.js
-function exportSarif(result) {
+function exportSarif(result, options = {}) {
+  const fallbackLocation = options.sarifFallbackLocation === void 0 ? void 0 : validateSarifFallbackLocation(options.sarifFallbackLocation);
   const emittedClusters = result.clusters.filter((cluster) => !cluster.nonFinding);
   const nonFindingClusters = result.clusters.filter((cluster) => cluster.nonFinding);
   const document = {
@@ -27740,7 +27789,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.21",
+            semanticVersion: "0.4.22",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => hostedSarifRule(cluster, securityScore2(cluster.severity)))
           }
@@ -27755,7 +27804,7 @@ function exportSarif(result) {
             }
           }
         ],
-        results: emittedClusters.map((cluster) => resultFor(cluster)),
+        results: emittedClusters.map((cluster) => resultFor(cluster, fallbackLocation)),
         properties: {
           nonFindingClusters,
           nonFindingExportNote: "Retained here instead of results[] because GitHub code scanning does not document result.kind in its supported SARIF subset."
@@ -27766,8 +27815,10 @@ function exportSarif(result) {
   return `${JSON.stringify(document, null, 2)}
 `;
 }
-function resultFor(cluster) {
+function resultFor(cluster, fallbackLocation) {
   const location = cluster.primary.location;
+  const fallbackLocationUsed = !location?.uri && Boolean(fallbackLocation);
+  const locationUri = location?.uri ?? fallbackLocation;
   const suppressions = cluster.suppressed ? sarifSuppressions2(cluster) : [];
   const originalMessage = `${cluster.primary.title} (${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`;
   const message = boundHostedSarifText(originalMessage, maximumHostedResultMessageLength);
@@ -27780,12 +27831,12 @@ function resultFor(cluster) {
     fingerprints: { vulnfuseClusterId: cluster.id },
     partialFingerprints: { primaryLocationLineHash: cluster.id },
     ...suppressions.length > 0 ? { suppressions } : {},
-    ...location?.uri ? {
+    ...locationUri ? {
       locations: [
         {
           physicalLocation: {
-            artifactLocation: { uri: location.uri },
-            ...location.startLine ? {
+            artifactLocation: { uri: locationUri },
+            ...fallbackLocationUsed ? { region: { startLine: 1 } } : location?.startLine ? {
               region: {
                 startLine: location.startLine,
                 ...location.endLine ? { endLine: location.endLine } : {},
@@ -27805,6 +27856,7 @@ function resultFor(cluster) {
       matchConfidence: cluster.confidence,
       identifiers: cluster.identifiers,
       assets: cluster.assets,
+      ...fallbackLocationUsed ? { vulnfuseLocationProvenance: "user-supplied-fallback" } : {},
       ...message.truncated ? { vulnfuseOriginalMessage: originalMessage } : {}
     }
   };
@@ -27844,12 +27896,15 @@ function securityScore2(severity) {
 }
 
 // ../core/dist/exporters/index.js
-function exportCorrelation(result, format) {
+function exportCorrelation(result, format, options = {}) {
+  if (options.sarifFallbackLocation !== void 0 && format !== "sarif") {
+    throw new Error("SARIF fallback location can only be used with SARIF output.");
+  }
   switch (format) {
     case "json":
       return exportJson(result);
     case "sarif":
-      return exportSarif(result);
+      return exportSarif(result, options);
     case "csv":
       return exportCsv(result);
     case "markdown":
@@ -44443,6 +44498,13 @@ async function run() {
     const failOnIncomplete = inputBoolean("fail-on-incomplete", false);
     const threshold = inputNumber("threshold", 70, 0, 100);
     const maxBytes = inputNumber("max-bytes", 100 * 1024 * 1024, 1, 1024 ** 3, true);
+    const sarifFallbackLocationInput = getInput("sarif-fallback-location", {
+      trimWhitespace: false
+    });
+    if (sarifFallbackLocationInput && format !== "sarif") {
+      throw new Error("sarif-fallback-location requires format 'sarif'.");
+    }
+    const exportOptions = sarifFallbackLocationInput ? { sarifFallbackLocation: validateSarifFallbackLocation(sarifFallbackLocationInput) } : {};
     if (!baselinePatterns && failOnNew !== "none") {
       throw new Error(
         "fail-on-new requires baseline-reports so existing findings are not treated as new."
@@ -44471,7 +44533,7 @@ async function run() {
     ]);
     await writeFileAtomic(
       output,
-      baselineDiff ? exportBaselineDiff(baselineDiff, format) : exportCorrelation(result, format)
+      baselineDiff ? exportBaselineDiff(baselineDiff, format, exportOptions) : exportCorrelation(result, format, exportOptions)
     );
     setOutput("findings", result.summary.inputFindings);
     setOutput("clusters", result.summary.clusters);

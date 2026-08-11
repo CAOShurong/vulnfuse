@@ -30,6 +30,7 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 - **SARIF analysis identity stays visible.** A category change or lost category on `run.automationDetails.id` is reported even when the tool, version, and finding set stay unchanged.
 - **Alias-rich clusters stay within GitHub's SARIF rule-tag guidance.** Exported rules keep at most nine display/filter tags while the result retains every parsed identifier and reports how many identifier tags were omitted.
 - **Hosted SARIF text stays ingestible without hiding the source.** Rule names are bounded to 255 UTF-16 code units and rule descriptions/result messages to 1,024, while exact over-limit originals remain in clearly named VulnFuse properties.
+- **Locationless package evidence can be hosted deliberately.** An explicit repository-relative fallback anchors only results that lack a physical file location, without replacing scanner locations or pretending the anchor is finding provenance.
 - **SARIF suppression stays auditable.** Preserve every suppression kind, status, and justification, but exclude a cluster from severity gates only when every source record is effectively suppressed.
 - **SARIF outcomes remain distinct.** Keep valid `pass`, `informational`, and `notApplicable` records as reviewable non-finding evidence instead of counting them as active vulnerabilities.
 - **Portable SARIF paths correlate.** Apply validated relative `uriBaseId` chains before matching file assets, while omitting producer-specific absolute roots and warning on malformed chains.
@@ -47,10 +48,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.21 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.22 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.21/vulnfuse-core-0.4.21.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.21/vulnfuse-0.4.21.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.22/vulnfuse-core-0.4.22.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.22/vulnfuse-0.4.22.tgz
 vulnfuse --version
 ```
 
@@ -66,10 +67,10 @@ sha256sum -c SHA256SUMS.txt
 For online provenance verification, use a current GitHub CLI and constrain the expected repository, workflow, tag, and hosted-runner environment:
 
 ```bash
-gh attestation verify vulnfuse-0.4.21.tgz \
+gh attestation verify vulnfuse-0.4.22.tgz \
   --repo CAOShurong/vulnfuse \
   --signer-workflow CAOShurong/vulnfuse/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.4.21 \
+  --source-ref refs/tags/v0.4.22 \
   --deny-self-hosted-runners
 ```
 
@@ -112,6 +113,26 @@ cat osv-results.json | node packages/cli/dist/index.js merge - trivy.json \
   --output vulnfuse-results.sarif \
   --fail-on high
 ```
+
+GitHub code scanning requires a physical location to display a SARIF result,
+while package-oriented OpenVEX and CycloneDX evidence often has no source file.
+If the repository contains a real tracked manifest or evidence file, opt in to
+using it only as a navigation anchor:
+
+```bash
+vulnfuse merge reports/openvex.json \
+  --format sarif \
+  --sarif-fallback-location package-lock.json \
+  --output reports/vulnfuse.sarif
+```
+
+The path must be a safe forward-slash repository-relative URI. VulnFuse applies
+it at line 1 only where the source finding has no physical URI and records
+`vulnfuseLocationProvenance: user-supplied-fallback`; scanner-supplied locations
+remain unchanged. It does not open the path or prove that it exists, is tracked
+in the uploaded revision, contains the vulnerable component, or caused the
+finding. Without this option, locationless output remains locationless. The
+option is rejected for non-SARIF formats.
 
 Run `node packages/cli/dist/index.js merge --help` for all policy and safety options.
 
@@ -161,7 +182,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.21
+  uses: CAOShurong/vulnfuse@v0.4.22
   with:
     reports: |
       reports/trivy.json
@@ -172,6 +193,8 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
     scope: instance
     fail-on: high
     fail-on-incomplete: "true"
+    # Needed only when package/VEX results have no physical location.
+    sarif-fallback-location: package-lock.json
 
 - name: Upload correlated SARIF
   if: always()
@@ -183,6 +206,11 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 VulnFuse exports no more than nine `properties.tags` values for each SARIF rule, following GitHub's conservative troubleshooting guidance while avoiding the documented hard ceiling. The stable `security` and finding-kind tags come first; identifier tags are ordered by relationship and value. Every parsed identifier remains in `results[].properties.identifiers`, and `vulnfuseOmittedIdentifierTagCount` records any identifiers omitted from the rule tags. Both plain and baseline-comparison SARIF use the same rule builder.
 
 Hosted code-scanning platforms impose text limits that the general SARIF 2.1 schema does not. VulnFuse conservatively counts JavaScript UTF-16 code units, never splits a surrogate pair, and adds an ellipsis within the limit: 255 for `reportingDescriptor.name`, and 1,024 for `shortDescription.text`, `fullDescription.text`, and `result.message.text`. When text is shortened, the exact value remains in `vulnfuseOriginalName`, `vulnfuseOriginalShortDescription`, `vulnfuseOriginalFullDescription`, or `vulnfuseOriginalMessage`; `vulnfuseTruncatedFields` lists shortened rule fields. GitHub or GitLab may ignore custom properties, so retain the SARIF/JSON artifact when the full text matters. These bounds prevent documented incompatibilities; they do not emulate every current ingestion rule or validate permissions, product enablement, compressed file size, result/rule/location counts, URI lengths, or upload success.
+
+The optional line-1 fallback location is similarly narrow. It addresses GitHub's
+documented display requirement but is not a schema validator or hosted-upload
+emulator. Use a stable file that exists in the analyzed revision, and treat the
+anchor as workflow metadata rather than scanner evidence.
 
 To gate only new findings, download or otherwise provide the previous raw scanner reports and add:
 
@@ -245,13 +273,32 @@ Scanner reports can contain repository paths, package inventories, hostnames, co
 - A SARIF suppression is producer-supplied review state. VulnFuse preserves and applies it to gates; it does not independently validate the justification or mutate an alert in GitHub or another platform.
 - A SARIF non-finding kind is producer-supplied rule outcome. VulnFuse preserves and applies it to local gates; it does not rerun the check or prove the outcome or applicability.
 - An OpenVEX status is a producer assertion. VulnFuse preserves it for review but does not authenticate the author, verify an attestation, prove reachability, or convert `not_affected` or `fixed` into a quiet gate bypass.
+- A user-supplied SARIF fallback location is a navigation aid. VulnFuse labels it, never overwrites scanner locations, and does not claim that the finding originated in the selected file.
 - GitHub code scanning does not document `result.kind` in its supported SARIF subset. VulnFuse therefore omits non-finding clusters from exported `results[]` and retains them under `run.properties.nonFindingClusters`; GitHub will not display those retained property records as alerts.
 
 Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in automation. Report suspected vulnerabilities through the private process in [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-`v0.4.21` is a public alpha with explainable, cluster-safe cross-scanner correlation, standalone OpenVEX and CycloneDX JSON/XML VEX input, three-state SARIF disposition, portable SARIF URI-base prefixes, bounded hosted-SARIF rule tags and visible text, SARIF incomplete-run warnings and an opt-in post-write gate, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Release assets include flat checksum entries and GitHub build-provenance attestations; these establish byte integrity and tag-workflow provenance under their documented trust assumptions, not software safety. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. OpenVEX and CycloneDX support validates available PURLs and preserves producer context, but does not fetch external evidence, validate the complete CycloneDX schema, process XML DTDs/entities, verify attestations or authors, or turn VEX status into a suppression verdict. SARIF URI-base handling retains validated relative prefixes but intentionally omits producer absolute roots; it does not map a symbolic root to the local checkout, navigate to files, resolve symlinks, or prove workspace equivalence. SARIF run health preserves partial results and producer failure metadata, but does not prove which targets or rules ran, fetch external properties, or establish that a report without health metadata was complete. Three-state disposition separates active findings, effectively suppressed findings, and producer-declared SARIF non-finding outcomes without deleting source evidence. It does not independently validate a suppression, rerun a check, establish applicability, or change hosted alert state. Scan-set awareness detects tool-name, report-count, embedded producer-version, and SARIF automation-category evidence drift; categories remain optional producer/user-supplied identifiers and cannot establish actual scanned scope. Hosted-SARIF bounds preserve complete originals in VulnFuse properties but do not validate every GitHub or GitLab ingestion constraint or prove that an upload will succeed. The core behavior is covered by synthetic cross-format fixtures, pinned public OpenVEX, SARIF, and CycloneDX fixtures, Microsoft SARIF Tutorials, and Microsoft BinSkim samples, and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.22` is a public alpha with explainable, cluster-safe cross-scanner
+correlation; standalone OpenVEX and CycloneDX JSON/XML VEX input; three-state
+SARIF disposition; portable URI-base paths; bounded hosted-SARIF rule tags and
+visible text; and explicit labeled fallback anchors for otherwise locationless
+hosted SARIF. It also includes incomplete-run gates, scanner coverage,
+scan-set-aware baselines, and self-contained offline HTML review across the core
+library, CLI, browser workbench, and GitHub Action.
+
+Release checksums and GitHub build-provenance attestations establish byte
+integrity and tag-workflow provenance under their documented trust assumptions,
+not software safety. Correlation, VEX assertions, suppressions, result kinds,
+scanner versions/categories, URI bases, hosted-text bounds, and fallback anchors
+remain evidence with the limitations described above; none independently proves
+ground truth, exploitability, scan completeness, source causation, or hosted
+upload acceptance. Tests use synthetic cross-format fixtures plus pinned public
+OpenVEX, SARIF, CycloneDX, Microsoft SARIF Tutorials, and BinSkim samples, but
+real vendor output varies by version. Please open a sanitized
+[format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml)
+when a legitimate report is not parsed correctly.
 
 Near-term work:
 

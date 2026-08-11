@@ -33,6 +33,104 @@ afterEach(async () => {
 });
 
 describe("GitHub Action bundle", () => {
+  it("anchors locationless OpenVEX SARIF only with an explicit safe fallback", async () => {
+    const outputReport = join(testDirectory, "anchored-openvex.sarif");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    const fallback = "security/openvex.json";
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: openVex,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "sarif",
+        "INPUT_SARIF-FALLBACK-LOCATION": fallback,
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+    const sarif = JSON.parse(await readFile(outputReport, "utf8")) as {
+      runs: Array<{
+        results: Array<{
+          locations?: Array<{ physicalLocation: { artifactLocation: { uri: string } } }>;
+          properties: { vulnfuseLocationProvenance?: string };
+        }>;
+      }>;
+    };
+
+    expect(sarif.runs[0]?.results).toHaveLength(3);
+    expect(
+      sarif.runs[0]?.results.every(
+        (item) =>
+          item.locations?.[0]?.physicalLocation.artifactLocation.uri === fallback &&
+          item.properties.vulnfuseLocationProvenance === "user-supplied-fallback",
+      ),
+    ).toBe(true);
+
+    const invalidOutput = join(testDirectory, "invalid-fallback.sarif");
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: openVex,
+          INPUT_OUTPUT: invalidOutput,
+          INPUT_FORMAT: "sarif",
+          "INPUT_SARIF-FALLBACK-LOCATION": "../outside.json",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(readFile(invalidOutput, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const whitespaceOutput = join(testDirectory, "whitespace-fallback.sarif");
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: openVex,
+          INPUT_OUTPUT: whitespaceOutput,
+          INPUT_FORMAT: "sarif",
+          "INPUT_SARIF-FALLBACK-LOCATION": ` ${fallback}`,
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(readFile(whitespaceOutput, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const wrongFormatOutput = join(testDirectory, "wrong-format.json");
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: openVex,
+          INPUT_OUTPUT: wrongFormatOutput,
+          INPUT_FORMAT: "json",
+          "INPUT_SARIF-FALLBACK-LOCATION": fallback,
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(readFile(wrongFormatOutput, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("bounds hosted SARIF text from Trivy while preserving exact originals", async () => {
     const input = join(testDirectory, "long-trivy.json");
     const outputReport = join(testDirectory, "long-trivy.sarif");

@@ -11,6 +11,7 @@ import {
   exportCorrelation,
   parseReport,
   severityOrder,
+  validateSarifFallbackLocation,
   type MatchScope,
   type OutputFormat,
   type ParsedReport,
@@ -21,7 +22,7 @@ import { Command, InvalidArgumentError, Option } from "commander";
 import { glob, isDynamicPattern } from "tinyglobby";
 import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.21";
+const version = "0.4.22";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -34,6 +35,7 @@ interface MergeOptions {
   maxBytes: number;
   failOn: Severity | "none";
   failOnIncomplete?: boolean;
+  sarifFallbackLocation?: string;
 }
 
 interface DiffOptions extends Omit<MergeOptions, "failOn"> {
@@ -90,7 +92,12 @@ export function createProgram(): Command {
       "--fail-on-incomplete",
       "Exit 1 after writing when SARIF metadata says an input run may be incomplete",
     )
+    .option(
+      "--sarif-fallback-location <repo-relative-path>",
+      "Anchor locationless SARIF results to an explicit repository file",
+    )
     .action(async (reportPaths: string[], options: MergeOptions) => {
+      const exportOptions = sarifExportOptions(options.format, options.sarifFallbackLocation);
       reportPaths = await expandReportPaths(reportPaths);
       assertReportArguments(reportPaths);
       assertOutputIsNotInput(options.output, reportPaths);
@@ -103,7 +110,7 @@ export function createProgram(): Command {
         lineWindow: options.lineWindow,
         titleWeight: options.titleWeight,
       });
-      const output = exportCorrelation(result, options.format);
+      const output = exportCorrelation(result, options.format, exportOptions);
       if (options.output) await writeFileAtomic(options.output, output);
       else process.stdout.write(output);
       if (
@@ -163,7 +170,12 @@ export function createProgram(): Command {
       "--fail-on-incomplete",
       "Exit 1 after writing when current or baseline SARIF may be incomplete",
     )
+    .option(
+      "--sarif-fallback-location <repo-relative-path>",
+      "Anchor locationless SARIF results to an explicit repository file",
+    )
     .action(async (reportPaths: string[], options: DiffOptions) => {
+      const exportOptions = sarifExportOptions(options.format, options.sarifFallbackLocation);
       reportPaths = await expandReportPaths(reportPaths, "Current report pattern");
       options.baseline = await expandReportPaths(options.baseline, "Baseline report pattern");
       assertReportArguments(reportPaths);
@@ -198,7 +210,7 @@ export function createProgram(): Command {
       const baseline = correlateReports(baselineReports, correlationOptions);
       const current = correlateReports(currentReports, correlationOptions);
       const result = compareCorrelations(baseline, current);
-      const output = exportBaselineDiff(result, options.format);
+      const output = exportBaselineDiff(result, options.format, exportOptions);
       if (options.output) await writeFileAtomic(options.output, output);
       else process.stdout.write(output);
       if (result.scanSetChange.detected) {
@@ -426,6 +438,14 @@ function assertReportArguments(paths: string[], label = "report"): void {
 
 function collectValue(value: string, previous: string[]): string[] {
   return [...previous, value];
+}
+
+function sarifExportOptions(format: OutputFormat, fallbackLocation: string | undefined) {
+  if (fallbackLocation === undefined) return {};
+  if (format !== "sarif") {
+    throw new Error("sarif-fallback-location requires format 'sarif'.");
+  }
+  return { sarifFallbackLocation: validateSarifFallbackLocation(fallbackLocation) };
 }
 
 function assertOutputIsNotInput(output: string | undefined, paths: string[]): void {

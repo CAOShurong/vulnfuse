@@ -11,6 +11,7 @@ import {
   exportCorrelation,
   parseReport,
   severityOrder,
+  validateSarifFallbackLocation,
   type BaselineDiffResult,
   type MatchScope,
   type OutputFormat,
@@ -43,6 +44,15 @@ export async function run(): Promise<void> {
     const failOnIncomplete = inputBoolean("fail-on-incomplete", false);
     const threshold = inputNumber("threshold", 70, 0, 100);
     const maxBytes = inputNumber("max-bytes", 100 * 1024 * 1024, 1, 1024 ** 3, true);
+    const sarifFallbackLocationInput = core.getInput("sarif-fallback-location", {
+      trimWhitespace: false,
+    });
+    if (sarifFallbackLocationInput && format !== "sarif") {
+      throw new Error("sarif-fallback-location requires format 'sarif'.");
+    }
+    const exportOptions = sarifFallbackLocationInput
+      ? { sarifFallbackLocation: validateSarifFallbackLocation(sarifFallbackLocationInput) }
+      : {};
     if (!baselinePatterns && failOnNew !== "none") {
       throw new Error(
         "fail-on-new requires baseline-reports so existing findings are not treated as new.",
@@ -72,7 +82,9 @@ export async function run(): Promise<void> {
     ]);
     await writeFileAtomic(
       output,
-      baselineDiff ? exportBaselineDiff(baselineDiff, format) : exportCorrelation(result, format),
+      baselineDiff
+        ? exportBaselineDiff(baselineDiff, format, exportOptions)
+        : exportCorrelation(result, format, exportOptions),
     );
 
     core.setOutput("findings", result.summary.inputFindings);

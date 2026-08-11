@@ -4,6 +4,39 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.22] - 2026-08-12
+
+### Added
+
+- Add an explicit `--sarif-fallback-location` CLI option and matching GitHub
+  Action input for attaching a user-selected repository file at line 1 to
+  otherwise locationless SARIF results.
+- Apply the same opt-in fallback to plain and baseline-comparison SARIF, while
+  preserving every scanner-supplied physical location unchanged.
+- Mark generated locations with
+  `vulnfuseLocationProvenance: user-supplied-fallback` so reviewers can
+  distinguish navigation aids from scanner evidence.
+
+### Security
+
+- Reject absolute paths and URI schemes, traversal, backslashes, empty path
+  segments, queries, fragments, whitespace/control characters, invalid percent
+  encoding, and encoded separators. VulnFuse does not open or verify the file.
+
+### Verification
+
+- Reproduced three locationless SARIF results from the real OpenVEX CLI path and
+  one from CycloneDX; both were standards-valid but lacked the physical location
+  GitHub documents as necessary to display a code-scanning result.
+- Added core, separate-process CLI, bundled Action, plain/baseline, mixed
+  located/locationless, malformed-path, Windows, and Linux Action regressions.
+
+### Limitations
+
+- The caller must select a real, tracked file that exists in the uploaded
+  revision. A fallback is an explicit navigation anchor, not evidence that the
+  vulnerability originated in that file or that GitHub accepted the upload.
+
 ## [0.4.21] - 2026-08-12
 
 ### Fixed

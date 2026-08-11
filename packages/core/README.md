@@ -6,4 +6,10 @@ It provides defensive parsers, including bounded CycloneDX JSON/XML VDR/VEX inge
 
 The default entry point is runtime-neutral. Node.js adapters can import `readFileLimited` and `writeFileAtomic` from `@vulnfuse/core/node`. The reader rejects a known oversized file before content reads and enforces the limit again while reading. The writer flushes a unique temporary sibling before renaming it over the destination, so caught write failures preserve an existing complete file. The byte limit does not bound parsing, correlation, export, or total-process memory; atomic replacement and crash durability still depend on the filesystem.
 
+`exportCorrelation` and `exportBaselineDiff` accept
+`{ sarifFallbackLocation: "package-lock.json" }` only for SARIF output. This
+adds a labeled line-1 anchor solely to results without a physical URI; it never
+replaces scanner location evidence. The caller remains responsible for choosing
+a real tracked repository file.
+
 See the root [README](../../README.md), [matching policy](../../docs/MATCHING.md), and [format contract](../../docs/FORMATS.md).

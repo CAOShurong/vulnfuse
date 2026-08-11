@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import type {
   BaselineDiffItem,
   BaselineDiffResult,
+  ExportOptions,
   FindingCluster,
   OutputFormat,
 } from "../model.js";
@@ -14,14 +15,22 @@ import {
   boundHostedSarifText,
   hostedSarifRule,
   maximumHostedResultMessageLength,
+  validateSarifFallbackLocation,
 } from "./sarif-host.js";
 
-export function exportBaselineDiff(result: BaselineDiffResult, format: OutputFormat): string {
+export function exportBaselineDiff(
+  result: BaselineDiffResult,
+  format: OutputFormat,
+  options: ExportOptions = {},
+): string {
+  if (options.sarifFallbackLocation !== undefined && format !== "sarif") {
+    throw new Error("SARIF fallback location can only be used with SARIF output.");
+  }
   switch (format) {
     case "json":
       return `${JSON.stringify(result, null, 2)}\n`;
     case "sarif":
-      return exportDiffSarif(result);
+      return exportDiffSarif(result, options);
     case "csv":
       return exportDiffCsv(result);
     case "markdown":
@@ -120,7 +129,11 @@ function diffItemMarkdown(item: BaselineDiffItem): string[] {
   ];
 }
 
-function exportDiffSarif(result: BaselineDiffResult): string {
+function exportDiffSarif(result: BaselineDiffResult, options: ExportOptions): string {
+  const fallbackLocation =
+    options.sarifFallbackLocation === undefined
+      ? undefined
+      : validateSarifFallbackLocation(options.sarifFallbackLocation);
   const emittedItems = result.items.filter((item) => !item.cluster.nonFinding);
   const clusters = uniqueClusters(emittedItems.map((item) => item.cluster));
   const nonFindingItems = result.items.filter((item) => item.cluster.nonFinding);
@@ -132,7 +145,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.21",
+            semanticVersion: "0.4.22",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map((cluster) =>
               hostedSarifRule(cluster, securityScore(cluster.severity)),
@@ -151,7 +164,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
             },
           },
         ],
-        results: emittedItems.map(diffResultFor),
+        results: emittedItems.map((item) => diffResultFor(item, fallbackLocation)),
         properties: {
           nonFindingItems,
           nonFindingExportNote:
@@ -163,9 +176,14 @@ function exportDiffSarif(result: BaselineDiffResult): string {
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
-function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
+function diffResultFor(
+  item: BaselineDiffItem,
+  fallbackLocation: string | undefined,
+): Record<string, unknown> {
   const cluster = item.cluster;
   const location = cluster.primary.location;
+  const fallbackLocationUsed = !location?.uri && Boolean(fallbackLocation);
+  const locationUri = location?.uri ?? fallbackLocation;
   const stableIdentity = item.baselineCluster?.id ?? cluster.id;
   const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
   const originalMessage = `${cluster.primary.title} (${item.state}; ${cluster.members.length} source record${cluster.members.length === 1 ? "" : "s"}: ${cluster.sourceTools.join(", ")})`;
@@ -180,7 +198,17 @@ function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
     fingerprints: { vulnfuseClusterId: stableIdentity },
     partialFingerprints: { primaryLocationLineHash: stableIdentity },
     ...(suppressions.length > 0 ? { suppressions } : {}),
-    ...(location?.uri ? { locations: [sarifLocation(location)] } : {}),
+    ...(locationUri
+      ? {
+          locations: [
+            sarifLocation({
+              ...(location ?? {}),
+              uri: locationUri,
+              ...(fallbackLocationUsed ? { startLine: 1 } : {}),
+            }),
+          ],
+        }
+      : {}),
     properties: {
       baselineState: item.state,
       changedFields: item.changedFields,
@@ -193,6 +221,7 @@ function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
       identifiers: cluster.identifiers,
       assets: cluster.assets,
       ...(item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {}),
+      ...(fallbackLocationUsed ? { vulnfuseLocationProvenance: "user-supplied-fallback" } : {}),
       ...(message.truncated ? { vulnfuseOriginalMessage: originalMessage } : {}),
     },
   };

@@ -29,31 +29,32 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 
 ## Implemented safeguards
 
-| Risk                                     | Mitigation                                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Oversized report memory exhaustion       | 100 MiB per-report default; browser size check; CLI/Action metadata preflight and bounded read    |
-| Excessive file expansion                 | 1,000-report limit after CLI/Action expansion and before report reads                             |
-| Quadratic matching denial of service     | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
-| Quadratic scanner-pair output            | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
-| Output destroys an input                 | CLI and Action reject identical resolved input/output paths                                       |
-| Baseline coverage drift is misread       | Structured scanner/report-count/version-evidence warning; optional post-write CLI/Action failure  |
-| Failed SARIF run looks complete          | Preserve partial findings; targeted run-health warnings; optional post-write CLI/Action failure   |
-| Oversized hosted SARIF text drops alerts | Bound rule/display text; preserve exact originals in explicit custom properties                   |
-| SARIF URI base leaks producer paths      | Retain validated relative prefixes; omit absolute roots; never open or fetch referenced artifacts |
-| Malformed SARIF URI-base traversal       | Reject loops, `..`, queries, fragments, backslashes, bad encoding, and chains over 100 entries    |
-| Malformed suppression bypasses a gate    | Unknown containers, kinds, or statuses warn and remain active; mixed clusters remain active       |
-| Malformed result kind bypasses a gate    | Unknown, non-string, or contradictory kinds warn and remain active; active corroboration wins     |
-| Untrusted OpenVEX bypasses a gate        | VEX status is preserved but never converted into suppression or non-finding state                 |
-| XML entity expansion or external access  | Reject every DOCTYPE and nesting over 100; never load DTDs, schemas, entities, or URLs            |
-| Failed output write exposes partial data | Unique exclusive temporary sibling, flush, rename, and cleanup on reported failure                |
-| Symlink escape in Action globbing        | Symbolic-link following is disabled                                                               |
-| Script or HTML injection in workbench    | React text rendering; no `dangerouslySetInnerHTML`                                                |
-| Script or HTML injection in HTML export  | Contextual escaping; fixed data-free script/style blocks; restrictive Content Security Policy     |
-| Unsafe advisory schemes                  | Only HTTP(S) references are rendered as links in portable HTML                                    |
-| Spreadsheet formula injection            | CSV exporter enables formula escaping                                                             |
-| Remote code execution from report data   | No template evaluation, dynamic import, shell construction, or executable deserialization         |
-| Silent evidence loss                     | Source members and actual match edges remain attached to clusters                                 |
-| Unsafe false merge                       | Explicit identity, component, asset, and kind conflicts can block merging                         |
+| Risk                                      | Mitigation                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Oversized report memory exhaustion        | 100 MiB per-report default; browser size check; CLI/Action metadata preflight and bounded read    |
+| Excessive file expansion                  | 1,000-report limit after CLI/Action expansion and before report reads                             |
+| Quadratic matching denial of service      | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
+| Quadratic scanner-pair output             | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
+| Output destroys an input                  | CLI and Action reject identical resolved input/output paths                                       |
+| Baseline coverage drift is misread        | Structured scanner/report-count/version-evidence warning; optional post-write CLI/Action failure  |
+| Failed SARIF run looks complete           | Preserve partial findings; targeted run-health warnings; optional post-write CLI/Action failure   |
+| Oversized hosted SARIF text drops alerts  | Bound rule/display text; preserve exact originals in explicit custom properties                   |
+| Locationless SARIF is invisible on GitHub | Require an explicit safe repository-relative fallback; label it as user-supplied provenance       |
+| SARIF URI base leaks producer paths       | Retain validated relative prefixes; omit absolute roots; never open or fetch referenced artifacts |
+| Malformed SARIF URI-base traversal        | Reject loops, `..`, queries, fragments, backslashes, bad encoding, and chains over 100 entries    |
+| Malformed suppression bypasses a gate     | Unknown containers, kinds, or statuses warn and remain active; mixed clusters remain active       |
+| Malformed result kind bypasses a gate     | Unknown, non-string, or contradictory kinds warn and remain active; active corroboration wins     |
+| Untrusted OpenVEX bypasses a gate         | VEX status is preserved but never converted into suppression or non-finding state                 |
+| XML entity expansion or external access   | Reject every DOCTYPE and nesting over 100; never load DTDs, schemas, entities, or URLs            |
+| Failed output write exposes partial data  | Unique exclusive temporary sibling, flush, rename, and cleanup on reported failure                |
+| Symlink escape in Action globbing         | Symbolic-link following is disabled                                                               |
+| Script or HTML injection in workbench     | React text rendering; no `dangerouslySetInnerHTML`                                                |
+| Script or HTML injection in HTML export   | Contextual escaping; fixed data-free script/style blocks; restrictive Content Security Policy     |
+| Unsafe advisory schemes                   | Only HTTP(S) references are rendered as links in portable HTML                                    |
+| Spreadsheet formula injection             | CSV exporter enables formula escaping                                                             |
+| Remote code execution from report data    | No template evaluation, dynamic import, shell construction, or executable deserialization         |
+| Silent evidence loss                      | Source members and actual match edges remain attached to clusters                                 |
+| Unsafe false merge                        | Explicit identity, component, asset, and kind conflicts can block merging                         |
 
 ## Important residual risks
 
@@ -78,6 +79,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 19. **Release verification is evidence, not a safety verdict.** A matching `SHA256SUMS.txt` entry detects changed bytes only when the manifest is obtained through a trusted path. GitHub/Sigstore provenance binds an asset digest to this repository's tag workflow and identity, but it does not prove the workflow source, hosted runner, dependency graph, scanner databases, or resulting program are uncompromised or vulnerability-free. Verify the `actions/attest` statement with `gh attestation verify`; the repository does not currently enable the separate immutable-release policy required by `gh release verify`. Apply the same dependency and execution controls used for other third-party tools.
 20. **Bounded SARIF tags are not bounded evidence.** GitHub-facing rule tags are limited to nine values to avoid a documented ingestion failure and display truncation, but the complete parsed identifier array remains in VulnFuse-specific result properties. GitHub may ignore those custom properties, and successful tag cardinality does not validate file size, result counts, permissions, feature enablement, or every other ingestion rule. Review the retained report or JSON export before treating the tags visible in a hosted alert as the complete alias set.
 21. **Bounded hosted text is not complete platform validation.** VulnFuse limits rule names, descriptions, and result messages using a conservative UTF-16 count and keeps exact over-limit originals in custom properties. GitHub, GitLab, or another consumer may ignore those originals and can impose additional limits that VulnFuse does not emulate. Keep the artifact, and treat a successful local export as preparation for ingestion rather than proof that a hosted upload will succeed.
+22. **A fallback SARIF location is not finding provenance.** The CLI or Action caller can select a safe repository-relative URI whose line 1 anchors results that otherwise lack a physical location. VulnFuse labels that substitution and never replaces a scanner URI, but it does not open the path, prove it exists in the uploaded revision, or establish that the vulnerability originated there. A malicious workflow author can still choose a misleading valid path; review the retained source evidence and workflow configuration.
 
 ## Non-goals
 
