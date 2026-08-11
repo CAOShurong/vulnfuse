@@ -57,6 +57,13 @@ describe("report parsing", () => {
     const cyclonedx = parseReport({ name: "cyclonedx.json", content: fixture("cyclonedx.json") });
     expect(cyclonedx.findings[0]?.source.version).toBe("1.0.0");
     expect(cyclonedx.metadata["specVersion"]).toBe("1.6");
+    expect(cyclonedx.toolVersions).toEqual({ Syft: ["1.0.0"] });
+
+    const sarif = parseReport({ name: "codeql.sarif", content: fixture("sarif.json") });
+    expect(sarif.toolVersions).toEqual({ CodeQL: ["2.20.0"] });
+
+    const grype = parseReport({ name: "grype.json", content: fixture("grype.json") });
+    expect(grype.toolVersions).toEqual({ Grype: ["0.99.0"] });
 
     const trivyDocument = JSON.parse(fixture("trivy.json")) as Record<string, unknown>;
     trivyDocument["Trivy"] = { Version: "0.66.0" };
@@ -66,11 +73,39 @@ describe("report parsing", () => {
     });
     expect(trivy.findings.every((finding) => finding.source.version === "0.66.0")).toBe(true);
     expect(trivy.metadata["schemaVersion"]).toBe("2");
+    expect(trivy.toolVersions).toEqual({ Trivy: ["0.66.0"] });
 
     const legacyTrivy = parseReport({ name: "trivy.json", content: fixture("trivy.json") });
     expect(legacyTrivy.findings.every((finding) => finding.source.version === undefined)).toBe(
       true,
     );
+    expect(legacyTrivy.toolVersions).toEqual({});
+
+    const csv = parseReport({
+      name: "versioned.csv",
+      content:
+        "vulnerability_id,title,tool,tool_version\nCVE-2026-0001,Example issue,CSV Scanner,3.4.5\n",
+    });
+    expect(csv.toolVersions).toEqual({ "CSV Scanner": ["3.4.5"] });
+
+    const emptySarif = parseReport({
+      name: "empty.sarif",
+      content: JSON.stringify({
+        version: "2.1.0",
+        runs: [
+          { tool: { driver: { name: "Empty Scanner", semanticVersion: "4.5.6" } }, results: [] },
+        ],
+      }),
+    });
+    expect(emptySarif.findings).toEqual([]);
+    expect(emptySarif.toolVersions).toEqual({ "Empty Scanner": ["4.5.6"] });
+
+    const reconstructed = parseReport({
+      name: "empty-correlation.json",
+      content: JSON.stringify(correlateReports([emptySarif])),
+    });
+    expect(reconstructed.tools).toEqual(["Empty Scanner"]);
+    expect(reconstructed.toolVersions).toEqual({ "Empty Scanner": ["4.5.6"] });
   });
 
   it("parses supported evidence from the official CycloneDX XML VEX fixture", () => {

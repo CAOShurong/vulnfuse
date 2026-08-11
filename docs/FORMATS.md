@@ -28,7 +28,7 @@ Missing evidence is not fabricated. For example, a CVSS score is not inferred wh
 
 VulnFuse reads:
 
-- `runs[].tool.driver` name, version, rules, descriptions, tags, and `security-severity`;
+- `runs[].tool.driver` name, `semanticVersion` (falling back to `version`), rules, descriptions, tags, and `security-severity`;
 - `runs[].invocations[]` boolean execution status plus error-level tool and configuration notifications;
 - `results[]` rule ID, kind, level, message, properties, fingerprints, partial fingerprints, and references;
 - first physical and logical location, including URI, region, and fully qualified symbol.
@@ -160,6 +160,7 @@ CSV requires a header row. Header matching is case-insensitive and trims whitesp
 | Recommendation    | `recommendation`, `remediation`, `fix`                       |
 | References        | `references`, `reference`, `url`                             |
 | Tool              | `tool`, `scanner`, `source`                                  |
+| Tool version      | `tool_version`, `scanner_version`                            |
 
 CSV references can be separated by whitespace, commas, or semicolons. Only HTTP(S) references survive normalization. CSV export prefixes spreadsheet-formula cells defensively.
 
@@ -171,11 +172,11 @@ Canonical VulnFuse JSON can be supplied again as input. Valid cluster members ar
 
 A plain correlation exports the complete `CorrelationResult`. A baseline comparison exports a `BaselineDiffResult` containing baseline/current report summaries and warnings, correlation summaries, a structured `scanSetChange`, and one item per `new`, `updated`, `unchanged`, or `absent` cluster. JSON preserves full evidence; each emitted CSV finding row repeats the scan-set warning plus `baseline_state` and changed fields, while an empty CSV has only its header; Markdown focuses on changes; SARIF writes `baselineState` on every result, a stable `primaryLocationLineHash` partial fingerprint, and source-report health plus scan-set structure in invocation properties.
 
-Every report summary has a primary `tool` plus a sorted `tools` list. The list records every producer represented by a mixed CSV file or multi-run SARIF document, including declared SARIF runs with zero findings.
+Every report summary has a primary `tool` plus a sorted `tools` list and a `toolVersions` map when the producer supplied version evidence. The tool list records every producer represented by a mixed CSV file or multi-run SARIF document, including declared SARIF runs with zero findings. Version sets are trimmed, deduplicated, and sorted as opaque strings; they are not ordered or interpreted as upgrades.
 
 Every correlation summary includes total, active, and effectively suppressed cluster counts and per-severity counts, plus a deterministic `coverage` object. Its per-tool rows count input reports, source findings attributed to that tool, resulting clusters, clusters reported only by that tool, and clusters shared with another tool. Pair rows record the shared cluster count, the union count, and Jaccard overlap (`shared / union`). Pairwise rows are omitted when more than 20 distinct tools are present to bound quadratic output; complete per-tool counts remain available. These values describe attribution and overlap, not scanner accuracy, false-positive rate, or majority truth.
 
-Scanner versions come from producer-specific fields such as SARIF `tool.driver.semanticVersion`, Trivy `Trivy.Version`, and CycloneDX `metadata.tools`. Report schema versions such as Trivy `SchemaVersion` and CycloneDX `specVersion` remain metadata and are not presented as scanner versions.
+Scanner versions come from producer-specific fields: SARIF `tool.driver.semanticVersion` with `version` as its fallback, Grype `descriptor.version`, Trivy `Trivy.Version` when present, the first supported CycloneDX `metadata.tools` producer, and CSV `tool_version`/`scanner_version`. Report schema versions such as SARIF's top-level `version`, Trivy `SchemaVersion`, and CycloneDX `specVersion` remain metadata and are not presented as scanner versions. Many legitimate reports omit producer versions; VulnFuse reports that absence and never guesses from a filename, command log, package registry, or current release.
 
 HTML is a self-contained review surface rather than a machine-ingestion format. It embeds no report JSON and loads no remote assets. All report-controlled text and attributes are escaped before rendering; its fixed inline script only filters and expands already-rendered findings. The file supports search and severity, baseline-state, asset, scanner, one-tool/multi-tool, and three-state disposition filters while retaining match evidence, blockers, source result kinds, suppression justifications, and safe HTTP(S) references.
 

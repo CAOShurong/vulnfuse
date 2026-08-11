@@ -9,6 +9,7 @@ import {
   type FindingCluster,
   type MatchExplanation,
   type ScanSetChange,
+  type ScanSetToolVersionEvidence,
   type Severity,
 } from "./model.js";
 import { assetKey, componentKey, normalizePath } from "./utils.js";
@@ -105,7 +106,7 @@ export function compareCorrelations(
 
 export function describeScanSetChange(change: ScanSetChange): string {
   if (!change.detected) {
-    return "Scan set did not change by tool names or per-tool report counts.";
+    return "Scan set did not change by tool names, per-tool report counts, or embedded tool versions.";
   }
   const details: string[] = [];
   if (change.addedTools.length > 0) {
@@ -118,6 +119,16 @@ export function describeScanSetChange(change: ScanSetChange): string {
     details.push(
       `report counts ${change.changedReportCounts
         .map((item) => `${toolLabel(item.tool)} ${item.baseline} to ${item.current}`)
+        .join(", ")}`,
+    );
+  }
+  if (change.changedToolVersions.length > 0) {
+    details.push(
+      `embedded versions ${change.changedToolVersions
+        .map(
+          (item) =>
+            `${toolLabel(item.tool)} ${versionEvidenceLabel(item.baseline)} to ${versionEvidenceLabel(item.current)}`,
+        )
         .join(", ")}`,
     );
   }
@@ -144,16 +155,68 @@ function compareScanSets(baseline: CorrelationResult, current: CorrelationResult
       baseline: baselineCounts.get(tool) ?? 0,
       current: currentCounts.get(tool) ?? 0,
     }));
+  const baselineVersions = toolVersionEvidence(baseline);
+  const currentVersions = toolVersionEvidence(current);
+  const changedToolVersions = baselineTools
+    .filter((tool) => currentCounts.has(tool))
+    .map((tool) => ({
+      tool,
+      baseline: baselineVersions.get(tool) ?? emptyVersionEvidence(),
+      current: currentVersions.get(tool) ?? emptyVersionEvidence(),
+    }))
+    .filter((item) => {
+      if (JSON.stringify(item.baseline.versions) !== JSON.stringify(item.current.versions)) {
+        return true;
+      }
+      return (
+        baselineCounts.get(item.tool) === currentCounts.get(item.tool) &&
+        item.baseline.unversionedReports !== item.current.unversionedReports
+      );
+    });
   return {
-    detected: addedTools.length > 0 || removedTools.length > 0 || changedReportCounts.length > 0,
+    detected:
+      addedTools.length > 0 ||
+      removedTools.length > 0 ||
+      changedReportCounts.length > 0 ||
+      changedToolVersions.length > 0,
     addedTools,
     removedTools,
     changedReportCounts,
+    changedToolVersions,
   };
 }
 
 function reportCounts(result: CorrelationResult): Map<string, number> {
   return new Map(result.summary.coverage.tools.map((tool) => [tool.tool, tool.reports]));
+}
+
+function emptyVersionEvidence(): ScanSetToolVersionEvidence {
+  return { versions: [], unversionedReports: 0 };
+}
+
+function toolVersionEvidence(result: CorrelationResult): Map<string, ScanSetToolVersionEvidence> {
+  const evidence = new Map<string, { versions: Set<string>; unversionedReports: number }>();
+  for (const report of result.reports) {
+    for (const tool of report.tools) {
+      const current = evidence.get(tool) ?? { versions: new Set<string>(), unversionedReports: 0 };
+      const versions = report.toolVersions[tool] ?? [];
+      if (versions.length === 0) current.unversionedReports += 1;
+      else for (const version of versions) current.versions.add(version);
+      evidence.set(tool, current);
+    }
+  }
+  return new Map(
+    [...evidence.entries()].map(([tool, item]) => [
+      tool,
+      { versions: [...item.versions].sort(), unversionedReports: item.unversionedReports },
+    ]),
+  );
+}
+
+function versionEvidenceLabel(evidence: ScanSetToolVersionEvidence): string {
+  const versions = JSON.stringify(evidence.versions);
+  if (evidence.unversionedReports === 0) return versions;
+  return `${versions} plus ${evidence.unversionedReports} unversioned report${evidence.unversionedReports === 1 ? "" : "s"}`;
 }
 
 function matchCandidates(

@@ -122,7 +122,7 @@ export async function run(): Promise<void> {
     }
     if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
       core.setFailed(
-        `The scanner tools or per-tool report counts changed from the baseline. The comparison was still written to ${output}.`,
+        `The scanner set or embedded tool-version evidence changed from the baseline. The comparison was still written to ${output}.`,
       );
     }
     if (incompleteReports > 0 && failOnIncomplete) {

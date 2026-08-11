@@ -85,6 +85,31 @@ jobs:
           if ($cycloneXml[0].format -ne "cyclonedx" -or $cycloneXml[0].findings -ne 1 -or $cycloneXml[0].active -ne 1) {
             throw "Unexpected CycloneDX XML inspection summary"
           }
+          $versionCurrent = "${{ runner.temp }}/vulnfuse-version-current.sarif"
+          $versionDocument = Get-Content -Raw packages/core/test/fixtures/sarif.json | ConvertFrom-Json
+          $versionDocument.runs[0].tool.driver.semanticVersion = "2.26.2"
+          $versionDocument | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $versionCurrent
+          $versionOutput = "${{ runner.temp }}/vulnfuse-version-drift.json"
+          $versionProcess = Start-Process -FilePath node -ArgumentList @(
+            "packages/cli/dist/index.js",
+            "diff",
+            "--baseline",
+            "packages/core/test/fixtures/sarif.json",
+            $versionCurrent,
+            "--format",
+            "json",
+            "--output",
+            $versionOutput,
+            "--fail-on-scan-set-change"
+          ) -Wait -PassThru -WindowStyle Hidden
+          if ($versionProcess.ExitCode -ne 1 -or -not (Test-Path $versionOutput)) {
+            throw "Embedded scanner-version gate did not preserve output and exit 1"
+          }
+          $versionDiff = Get-Content -Raw $versionOutput | ConvertFrom-Json
+          $versionChange = $versionDiff.scanSetChange.changedToolVersions[0]
+          if ($versionDiff.scanSetChange.changedToolVersions.Count -ne 1 -or $versionChange.tool -ne "CodeQL" -or $versionChange.baseline.versions[0] -ne "2.20.0" -or $versionChange.current.versions[0] -ne "2.26.2") {
+            throw "Unexpected embedded scanner-version drift evidence"
+          }
 
   action-smoke:
     name: Bundled GitHub Action smoke test
@@ -193,6 +218,33 @@ jobs:
           test "$FINDINGS" = "1"
           test "$ACTIVE" = "1"
           test "$(node -p "require('$REPORT').clusters[0].primary.component.purl")" = "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.9.4"
+      - name: Prepare embedded scanner-version drift fixture
+        env:
+          CURRENT_REPORT: ${{ runner.temp }}/vulnfuse-version-current.sarif
+        run: |
+          node -e "const fs=require('fs');const document=JSON.parse(fs.readFileSync('packages/core/test/fixtures/sarif.json','utf8'));document.runs[0].tool.driver.semanticVersion='2.26.2';fs.writeFileSync(process.env.CURRENT_REPORT,JSON.stringify(document));"
+      - id: version-drift
+        name: Gate embedded scanner-version drift after preserving the comparison
+        continue-on-error: true
+        uses: ./
+        with:
+          reports: ${{ runner.temp }}/vulnfuse-version-current.sarif
+          baseline-reports: packages/core/test/fixtures/sarif.json
+          format: json
+          output: ${{ runner.temp }}/vulnfuse-version-drift.json
+          fail-on-scan-set-change: "true"
+      - name: Validate embedded scanner-version Action evidence
+        env:
+          OUTCOME: ${{ steps.version-drift.outcome }}
+          SCAN_SET_CHANGED: ${{ steps.version-drift.outputs.scan-set-changed }}
+          REPORT: ${{ steps.version-drift.outputs.report }}
+        run: |
+          test "$OUTCOME" = "failure"
+          test "$SCAN_SET_CHANGED" = "true"
+          test -s "$REPORT"
+          test "$(node -p "require('$REPORT').scanSetChange.changedToolVersions[0].tool")" = "CodeQL"
+          test "$(node -p "require('$REPORT').scanSetChange.changedToolVersions[0].baseline.versions[0]")" = "2.20.0"
+          test "$(node -p "require('$REPORT').scanSetChange.changedToolVersions[0].current.versions[0]")" = "2.26.2"
 
   package-smoke:
     name: Clean package install
@@ -237,6 +289,14 @@ jobs:
           npx vulnfuse merge ../packages/core/test/fixtures/sarif-uri-bases.json --format json --output uri-base.json
           test "$(node -p "require('./uri-base.json').summary.clusters")" = "1"
           test "$(node -p "require('./uri-base.json').clusters[0].primary.location.uri")" = "src/lib/memory.c"
+          node -e "const fs=require('fs');const document=JSON.parse(fs.readFileSync('../packages/core/test/fixtures/sarif.json','utf8'));document.runs[0].tool.driver.semanticVersion='2.26.2';fs.writeFileSync('sarif-version-current.json',JSON.stringify(document));"
+          if npx vulnfuse diff --baseline ../packages/core/test/fixtures/sarif.json sarif-version-current.json --format json --output version-drift.json --fail-on-scan-set-change; then
+            echo "Expected embedded scanner-version gate to exit 1" >&2
+            exit 1
+          fi
+          test -s version-drift.json
+          test "$(node -p "require('./version-drift.json').scanSetChange.changedToolVersions[0].tool")" = "CodeQL"
+          test "$(node -p "require('./version-drift.json').scanSetChange.changedToolVersions[0].current.versions[0]")" = "2.26.2"
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md
           npx vulnfuse diff --baseline ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format html --output portable.html

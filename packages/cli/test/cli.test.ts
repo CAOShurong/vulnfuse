@@ -498,6 +498,47 @@ describe("CLI", () => {
     });
   });
 
+  it("writes the diff before failing on embedded scanner-version drift", async () => {
+    const baseline = join(testDirectory, "baseline.sarif");
+    const current = join(testDirectory, "current.sarif");
+    const output = join(testDirectory, "version-drift.json");
+    const document = {
+      version: "2.1.0",
+      runs: [{ tool: { driver: { name: "CodeQL", semanticVersion: "2.20.0" } }, results: [] }],
+    };
+    await writeFile(baseline, JSON.stringify(document), "utf8");
+    document.runs[0]!.tool.driver.semanticVersion = "2.26.2";
+    await writeFile(current, JSON.stringify(document), "utf8");
+
+    const failure = await executeFailure([
+      cli,
+      "diff",
+      "--baseline",
+      baseline,
+      current,
+      "--format",
+      "json",
+      "--output",
+      output,
+      "--fail-on-scan-set-change",
+    ]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain('embedded versions "CodeQL" ["2.20.0"] to ["2.26.2"]');
+    expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({
+      scanSetChange: {
+        detected: true,
+        changedToolVersions: [
+          {
+            tool: "CodeQL",
+            baseline: { versions: ["2.20.0"], unversionedReports: 0 },
+            current: { versions: ["2.26.2"], unversionedReports: 0 },
+          },
+        ],
+      },
+    });
+  });
+
   it("writes a portable HTML report from the same CLI workflow", async () => {
     const output = join(testDirectory, "portable.html");
     await execute(process.execPath, [

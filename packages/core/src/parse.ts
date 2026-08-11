@@ -35,9 +35,9 @@ export function parseReport(input: ReportInput, options: ParseOptions = {}): Par
   }
   const content = input.content.startsWith("\uFEFF") ? input.content.slice(1) : input.content;
   const format = options.format ?? detectFormat(content, input.name);
-  if (format === "csv") return parseCsv(content, input.name);
+  if (format === "csv") return finalizeReport(parseCsv(content, input.name));
   if (format === "cyclonedx" && content.trimStart().startsWith("<")) {
-    return parseCycloneDxXml(content, input.name);
+    return finalizeReport(parseCycloneDxXml(content, input.name));
   }
   if (format === "unknown") {
     throw new Error(
@@ -57,24 +57,34 @@ export function parseReport(input: ReportInput, options: ParseOptions = {}): Par
   const root = asRecord(Array.isArray(parsed) ? parsed[0] : parsed);
   if (!root) throw new Error(`${input.name} must contain a JSON object.`);
 
+  let report: ParsedReport;
   switch (format) {
     case "sarif":
-      return parseSarif(root, input.name);
+      report = parseSarif(root, input.name);
+      break;
     case "trivy":
-      return parseTrivy(root, input.name);
+      report = parseTrivy(root, input.name);
+      break;
     case "grype":
-      return parseGrype(root, input.name);
+      report = parseGrype(root, input.name);
+      break;
     case "snyk":
-      return parseSnyk(root, input.name);
+      report = parseSnyk(root, input.name);
+      break;
     case "cyclonedx":
-      return parseCycloneDx(root, input.name);
+      report = parseCycloneDx(root, input.name);
+      break;
     case "openvex":
-      return parseOpenVex(root, input.name);
+      report = parseOpenVex(root, input.name);
+      break;
     case "osv-scanner":
-      return parseOsv(root, input.name);
+      report = parseOsv(root, input.name);
+      break;
     case "vulnfuse":
-      return parseVulnFuse(root, input.name);
+      report = parseVulnFuse(root, input.name);
+      break;
   }
+  return finalizeReport(report);
 }
 
 export function parseReports(inputs: ReportInput[], options: ParseOptions = {}): ParsedReport[] {
@@ -86,6 +96,29 @@ function parseVulnFuse(root: Record<string, unknown>, reportName: string): Parse
   if (!shell.success) throw new Error(`${reportName} is not a valid VulnFuse 1.0 document.`);
   const warnings: ParsedReport["warnings"] = [];
   const findings: CanonicalFinding[] = [];
+  const reportTools: string[] = [];
+  const reportToolVersions = new Map<string, Set<string>>();
+  for (const reportValue of asArray(root["reports"])) {
+    const report = asRecord(reportValue);
+    const declaredTools = [
+      ...asArray(report?.["tools"])
+        .map(asString)
+        .filter((tool): tool is string => Boolean(tool)),
+      asString(report?.["tool"]),
+    ].filter((tool): tool is string => Boolean(tool));
+    for (const tool of declaredTools) {
+      if (!reportTools.includes(tool)) reportTools.push(tool);
+    }
+    const toolVersions = asRecord(report?.["toolVersions"]);
+    for (const [tool, versionValues] of Object.entries(toolVersions ?? {})) {
+      for (const version of asArray(versionValues).map(asString)) {
+        if (!version) continue;
+        const values = reportToolVersions.get(tool) ?? new Set<string>();
+        values.add(version);
+        reportToolVersions.set(tool, values);
+      }
+    }
+  }
   for (const [clusterIndex, clusterValue] of asArray(root["clusters"]).entries()) {
     const cluster = asRecord(clusterValue);
     for (const [memberIndex, member] of asArray(cluster?.["members"]).entries()) {
@@ -109,6 +142,7 @@ function parseVulnFuse(root: Record<string, unknown>, reportName: string): Parse
       ...asArray(summary?.["sourceTools"])
         .map(asString)
         .filter((tool): tool is string => Boolean(tool)),
+      ...reportTools,
       ...findings.map((finding) => finding.source.tool),
     ]),
   ].sort();
@@ -117,8 +151,37 @@ function parseVulnFuse(root: Record<string, unknown>, reportName: string): Parse
     sourceName: reportName,
     tool: tools[0] ?? "VulnFuse",
     tools: tools.length > 0 ? tools : ["VulnFuse"],
+    toolVersions: Object.fromEntries(
+      [...reportToolVersions.entries()].map(([tool, values]) => [tool, [...values]] as const),
+    ),
     findings,
     warnings,
     metadata,
+  };
+}
+
+function finalizeReport(report: ParsedReport): ParsedReport {
+  const versions = new Map<string, Set<string>>();
+  const add = (tool: string, version: string) => {
+    const normalizedTool = tool.trim();
+    const normalizedVersion = version.trim();
+    if (!normalizedTool || !normalizedVersion) return;
+    const values = versions.get(normalizedTool) ?? new Set<string>();
+    values.add(normalizedVersion);
+    versions.set(normalizedTool, values);
+  };
+  for (const [tool, values] of Object.entries(report.toolVersions ?? {})) {
+    for (const version of values) add(tool, version);
+  }
+  for (const finding of report.findings) {
+    if (finding.source.version) add(finding.source.tool, finding.source.version);
+  }
+  return {
+    ...report,
+    toolVersions: Object.fromEntries(
+      [...versions.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([tool, values]) => [tool, [...values].sort()] as const),
+    ),
   };
 }

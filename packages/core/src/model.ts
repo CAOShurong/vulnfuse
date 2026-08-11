@@ -101,6 +101,7 @@ export interface ParsedReport {
   sourceName: string;
   tool: string;
   tools?: string[];
+  toolVersions?: Record<string, string[]>;
   findings: CanonicalFinding[];
   warnings: ParseWarning[];
   metadata: Record<string, JsonValue>;
@@ -222,6 +223,7 @@ export interface CorrelationResult {
     format: ReportFormat;
     tool: string;
     tools: string[];
+    toolVersions: Record<string, string[]>;
     findings: number;
     warnings: ParseWarning[];
     metadata: Record<string, JsonValue>;
@@ -258,11 +260,23 @@ export interface ScanSetReportCountChange {
   current: number;
 }
 
+export interface ScanSetToolVersionEvidence {
+  versions: string[];
+  unversionedReports: number;
+}
+
+export interface ScanSetToolVersionChange {
+  tool: string;
+  baseline: ScanSetToolVersionEvidence;
+  current: ScanSetToolVersionEvidence;
+}
+
 export interface ScanSetChange {
   detected: boolean;
   addedTools: string[];
   removedTools: string[];
   changedReportCounts: ScanSetReportCountChange[];
+  changedToolVersions: ScanSetToolVersionChange[];
 }
 
 export interface BaselineDiffResult {

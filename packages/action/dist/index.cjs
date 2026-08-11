@@ -26146,7 +26146,7 @@ function compareCorrelations(baseline, current) {
 }
 function describeScanSetChange(change) {
   if (!change.detected) {
-    return "Scan set did not change by tool names or per-tool report counts.";
+    return "Scan set did not change by tool names, per-tool report counts, or embedded tool versions.";
   }
   const details = [];
   if (change.addedTools.length > 0) {
@@ -26157,6 +26157,9 @@ function describeScanSetChange(change) {
   }
   if (change.changedReportCounts.length > 0) {
     details.push(`report counts ${change.changedReportCounts.map((item) => `${toolLabel(item.tool)} ${item.baseline} to ${item.current}`).join(", ")}`);
+  }
+  if (change.changedToolVersions.length > 0) {
+    details.push(`embedded versions ${change.changedToolVersions.map((item) => `${toolLabel(item.tool)} ${versionEvidenceLabel(item.baseline)} to ${versionEvidenceLabel(item.current)}`).join(", ")}`);
   }
   return `Scan set changed: ${details.join("; ")}. New and absent states may reflect coverage change rather than a code or remediation change.`;
 }
@@ -26175,15 +26178,56 @@ function compareScanSets(baseline, current) {
     baseline: baselineCounts.get(tool) ?? 0,
     current: currentCounts.get(tool) ?? 0
   }));
+  const baselineVersions = toolVersionEvidence(baseline);
+  const currentVersions = toolVersionEvidence(current);
+  const changedToolVersions = baselineTools.filter((tool) => currentCounts.has(tool)).map((tool) => ({
+    tool,
+    baseline: baselineVersions.get(tool) ?? emptyVersionEvidence(),
+    current: currentVersions.get(tool) ?? emptyVersionEvidence()
+  })).filter((item) => {
+    if (JSON.stringify(item.baseline.versions) !== JSON.stringify(item.current.versions)) {
+      return true;
+    }
+    return baselineCounts.get(item.tool) === currentCounts.get(item.tool) && item.baseline.unversionedReports !== item.current.unversionedReports;
+  });
   return {
-    detected: addedTools.length > 0 || removedTools.length > 0 || changedReportCounts.length > 0,
+    detected: addedTools.length > 0 || removedTools.length > 0 || changedReportCounts.length > 0 || changedToolVersions.length > 0,
     addedTools,
     removedTools,
-    changedReportCounts
+    changedReportCounts,
+    changedToolVersions
   };
 }
 function reportCounts(result) {
   return new Map(result.summary.coverage.tools.map((tool) => [tool.tool, tool.reports]));
+}
+function emptyVersionEvidence() {
+  return { versions: [], unversionedReports: 0 };
+}
+function toolVersionEvidence(result) {
+  const evidence = /* @__PURE__ */ new Map();
+  for (const report of result.reports) {
+    for (const tool of report.tools) {
+      const current = evidence.get(tool) ?? { versions: /* @__PURE__ */ new Set(), unversionedReports: 0 };
+      const versions = report.toolVersions[tool] ?? [];
+      if (versions.length === 0)
+        current.unversionedReports += 1;
+      else
+        for (const version2 of versions)
+          current.versions.add(version2);
+      evidence.set(tool, current);
+    }
+  }
+  return new Map([...evidence.entries()].map(([tool, item]) => [
+    tool,
+    { versions: [...item.versions].sort(), unversionedReports: item.unversionedReports }
+  ]));
+}
+function versionEvidenceLabel(evidence) {
+  const versions = JSON.stringify(evidence.versions);
+  if (evidence.unversionedReports === 0)
+    return versions;
+  return `${versions} plus ${evidence.unversionedReports} unversioned report${evidence.unversionedReports === 1 ? "" : "s"}`;
 }
 function matchCandidates(baseline, current, options) {
   const pairs = candidatePairs(baseline, current, options);
@@ -26662,6 +26706,7 @@ function correlateReports(reports, options = {}) {
       sourceToolFindings[finding.source.tool] = (sourceToolFindings[finding.source.tool] ?? 0) + 1;
     }
     const tools = Object.keys(sourceToolFindings).sort();
+    const toolVersions = normalizedToolVersions(report);
     coverageInputs.push({
       tool: report.tool,
       findings: report.findings.length,
@@ -26672,6 +26717,7 @@ function correlateReports(reports, options = {}) {
       format: report.format,
       tool: report.tool,
       tools,
+      toolVersions,
       findings: report.findings.length,
       warnings: report.warnings,
       metadata: report.metadata
@@ -26701,6 +26747,27 @@ function correlateReports(reports, options = {}) {
       coverage
     }
   };
+}
+function normalizedToolVersions(report) {
+  const versions = /* @__PURE__ */ new Map();
+  const add = (tool, version2) => {
+    const normalizedTool = tool.trim();
+    const normalizedVersion = version2.trim();
+    if (!normalizedTool || !normalizedVersion)
+      return;
+    const values = versions.get(normalizedTool) ?? /* @__PURE__ */ new Set();
+    values.add(normalizedVersion);
+    versions.set(normalizedTool, values);
+  };
+  for (const [tool, values] of Object.entries(report.toolVersions ?? {})) {
+    for (const version2 of values)
+      add(tool, version2);
+  }
+  for (const finding of report.findings) {
+    if (finding.source.version)
+      add(finding.source.tool, finding.source.version);
+  }
+  return Object.fromEntries([...versions.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tool, values]) => [tool, [...values].sort()]));
 }
 function compareIndexedMatches(left, right) {
   return right.edge.explanation.score - left.edge.explanation.score || confidenceRank2(right.edge.explanation.confidence) - confidenceRank2(left.edge.explanation.confidence) || edgePairKey(left.edge.leftId, left.edge.rightId).localeCompare(edgePairKey(right.edge.leftId, right.edge.rightId));
@@ -26896,7 +26963,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.15">
+  <meta name="generator" content="VulnFuse 0.4.16">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -27400,7 +27467,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.15",
+            semanticVersion: "0.4.16",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -27589,7 +27656,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.15",
+            semanticVersion: "0.4.16",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor2(cluster))
           }
@@ -42601,6 +42668,7 @@ function parseCycloneDx(root, reportName) {
     sourceName: reportName,
     tool: toolName,
     tools: [toolName],
+    toolVersions: tool?.version ? { [toolName]: [tool.version] } : {},
     findings,
     warnings: findings.length === 0 ? [
       {
@@ -42848,7 +42916,8 @@ function osvShape(root) {
 function parseGrype(root, reportName) {
   const findings = [];
   const descriptor = asRecord(root["descriptor"]);
-  const version2 = asString(descriptor?.["version"]);
+  const rawVersion = asString(descriptor?.["version"]);
+  const version2 = rawVersion === "[not provided]" ? void 0 : rawVersion;
   const sourceDescription = asRecord(root["source"]);
   const target = asString(sourceDescription?.["target"] ?? sourceDescription?.["name"] ?? sourceDescription?.["path"]);
   const sourceType = asString(sourceDescription?.["type"])?.toLowerCase();
@@ -42923,6 +42992,7 @@ function parseGrype(root, reportName) {
     sourceName: reportName,
     tool: "Grype",
     tools: ["Grype"],
+    toolVersions: version2 ? { Grype: [version2] } : {},
     findings,
     warnings: findings.length === 0 ? [{ code: "grype.no-findings", message: "No Grype matches were found." }] : [],
     metadata: {
@@ -43304,6 +43374,7 @@ function parseSarif(root, reportName) {
   const findings = [];
   const warnings = [];
   const reportTools = [];
+  const reportToolVersions = /* @__PURE__ */ new Map();
   const runHealth = [];
   for (const [runIndex, runValue] of asArray(root["runs"]).entries()) {
     const run2 = asRecord(runValue);
@@ -43313,6 +43384,11 @@ function parseSarif(root, reportName) {
     if (!reportTools.includes(toolName))
       reportTools.push(toolName);
     const toolVersion = asString(driver?.["semanticVersion"]) ?? asString(driver?.["version"]);
+    if (toolVersion) {
+      const versions = reportToolVersions.get(toolName) ?? /* @__PURE__ */ new Set();
+      versions.add(toolVersion);
+      reportToolVersions.set(toolName, versions);
+    }
     const health = inspectRunHealth(run2, runIndex, toolName, warnings);
     const healthValue = asJsonValue(health);
     if (healthValue !== void 0)
@@ -43420,6 +43496,7 @@ function parseSarif(root, reportName) {
     sourceName: reportName,
     tool: reportTools[0] ?? "SARIF",
     tools: reportTools.length > 0 ? [...reportTools].sort() : ["SARIF"],
+    toolVersions: Object.fromEntries([...reportToolVersions.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tool, versions]) => [tool, [...versions].sort()])),
     findings,
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown", runHealth }
@@ -43994,6 +44071,7 @@ function parseTrivy(root, reportName) {
     sourceName: reportName,
     tool: "Trivy",
     tools: ["Trivy"],
+    toolVersions: version2 ? { Trivy: [version2] } : {},
     findings,
     warnings: findings.length === 0 ? [{ code: "trivy.no-findings", message: "No supported Trivy findings were found." }] : [],
     metadata: {
@@ -44016,9 +44094,9 @@ function parseReport(input, options = {}) {
   const content = input.content.startsWith("\uFEFF") ? input.content.slice(1) : input.content;
   const format = options.format ?? detectFormat(content, input.name);
   if (format === "csv")
-    return parseCsv(content, input.name);
+    return finalizeReport(parseCsv(content, input.name));
   if (format === "cyclonedx" && content.trimStart().startsWith("<")) {
-    return parseCycloneDxXml(content, input.name);
+    return finalizeReport(parseCycloneDxXml(content, input.name));
   }
   if (format === "unknown") {
     throw new Error(`Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OpenVEX, OSV-Scanner, CSV, and VulnFuse JSON.`);
@@ -44032,24 +44110,34 @@ function parseReport(input, options = {}) {
   const root = asRecord(Array.isArray(parsed) ? parsed[0] : parsed);
   if (!root)
     throw new Error(`${input.name} must contain a JSON object.`);
+  let report;
   switch (format) {
     case "sarif":
-      return parseSarif(root, input.name);
+      report = parseSarif(root, input.name);
+      break;
     case "trivy":
-      return parseTrivy(root, input.name);
+      report = parseTrivy(root, input.name);
+      break;
     case "grype":
-      return parseGrype(root, input.name);
+      report = parseGrype(root, input.name);
+      break;
     case "snyk":
-      return parseSnyk(root, input.name);
+      report = parseSnyk(root, input.name);
+      break;
     case "cyclonedx":
-      return parseCycloneDx(root, input.name);
+      report = parseCycloneDx(root, input.name);
+      break;
     case "openvex":
-      return parseOpenVex(root, input.name);
+      report = parseOpenVex(root, input.name);
+      break;
     case "osv-scanner":
-      return parseOsv(root, input.name);
+      report = parseOsv(root, input.name);
+      break;
     case "vulnfuse":
-      return parseVulnFuse(root, input.name);
+      report = parseVulnFuse(root, input.name);
+      break;
   }
+  return finalizeReport(report);
 }
 function parseVulnFuse(root, reportName) {
   const shell = vulnfuseDocumentSchema.safeParse(root);
@@ -44057,6 +44145,29 @@ function parseVulnFuse(root, reportName) {
     throw new Error(`${reportName} is not a valid VulnFuse 1.0 document.`);
   const warnings = [];
   const findings = [];
+  const reportTools = [];
+  const reportToolVersions = /* @__PURE__ */ new Map();
+  for (const reportValue of asArray(root["reports"])) {
+    const report = asRecord(reportValue);
+    const declaredTools = [
+      ...asArray(report?.["tools"]).map(asString).filter((tool) => Boolean(tool)),
+      asString(report?.["tool"])
+    ].filter((tool) => Boolean(tool));
+    for (const tool of declaredTools) {
+      if (!reportTools.includes(tool))
+        reportTools.push(tool);
+    }
+    const toolVersions = asRecord(report?.["toolVersions"]);
+    for (const [tool, versionValues] of Object.entries(toolVersions ?? {})) {
+      for (const version2 of asArray(versionValues).map(asString)) {
+        if (!version2)
+          continue;
+        const values = reportToolVersions.get(tool) ?? /* @__PURE__ */ new Set();
+        values.add(version2);
+        reportToolVersions.set(tool, values);
+      }
+    }
+  }
   for (const [clusterIndex, clusterValue] of asArray(root["clusters"]).entries()) {
     const cluster = asRecord(clusterValue);
     for (const [memberIndex, member] of asArray(cluster?.["members"]).entries()) {
@@ -44079,6 +44190,7 @@ function parseVulnFuse(root, reportName) {
   const tools = [
     .../* @__PURE__ */ new Set([
       ...asArray(summary2?.["sourceTools"]).map(asString).filter((tool) => Boolean(tool)),
+      ...reportTools,
       ...findings.map((finding) => finding.source.tool)
     ])
   ].sort();
@@ -44087,9 +44199,34 @@ function parseVulnFuse(root, reportName) {
     sourceName: reportName,
     tool: tools[0] ?? "VulnFuse",
     tools: tools.length > 0 ? tools : ["VulnFuse"],
+    toolVersions: Object.fromEntries([...reportToolVersions.entries()].map(([tool, values]) => [tool, [...values]])),
     findings,
     warnings,
     metadata
+  };
+}
+function finalizeReport(report) {
+  const versions = /* @__PURE__ */ new Map();
+  const add = (tool, version2) => {
+    const normalizedTool = tool.trim();
+    const normalizedVersion = version2.trim();
+    if (!normalizedTool || !normalizedVersion)
+      return;
+    const values = versions.get(normalizedTool) ?? /* @__PURE__ */ new Set();
+    values.add(normalizedVersion);
+    versions.set(normalizedTool, values);
+  };
+  for (const [tool, values] of Object.entries(report.toolVersions ?? {})) {
+    for (const version2 of values)
+      add(tool, version2);
+  }
+  for (const finding of report.findings) {
+    if (finding.source.version)
+      add(finding.source.tool, finding.source.version);
+  }
+  return {
+    ...report,
+    toolVersions: Object.fromEntries([...versions.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tool, values]) => [tool, [...values].sort()]))
   };
 }
 
@@ -44235,7 +44372,7 @@ async function run() {
     }
     if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
       setFailed(
-        `The scanner tools or per-tool report counts changed from the baseline. The comparison was still written to ${output}.`
+        `The scanner set or embedded tool-version evidence changed from the baseline. The comparison was still written to ${output}.`
       );
     }
     if (incompleteReports > 0 && failOnIncomplete) {
