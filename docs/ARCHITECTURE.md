@@ -49,15 +49,15 @@ The separate `@vulnfuse/core/node` entry point uses only Node.js built-ins and p
 
 ### `vulnfuse` CLI
 
-The CLI adds exact-path-first, shell-independent report globbing, filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, and new-only baseline gates. It does not contain a second implementation of parsing, matching, Node file limits, or atomic report replacement. Glob expansion is CLI-only; the Action keeps its runner-native `@actions/glob` adapter.
+The CLI adds exact-path-first, shell-independent report globbing, filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, new-only baseline gates, and an opt-in scan-set-drift gate. It does not contain a second implementation of parsing, matching, drift analysis, Node file limits, or atomic report replacement. Glob expansion is CLI-only; the Action keeps its runner-native `@actions/glob` adapter.
 
 ### `@vulnfuse/action`
 
-The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action resolves bounded current and optional baseline glob input without following symbolic links, uses the same preflight, incremental-read, and temporary-sibling output helpers as the CLI, invokes the core, exposes counts, and creates a GitHub job summary. The bundled `dist/index.cjs` is committed because JavaScript Actions execute repository content directly.
+The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action resolves bounded current and optional baseline glob input without following symbolic links, uses the same preflight, incremental-read, and temporary-sibling output helpers as the CLI, invokes the core, exposes counts and scan-set drift, and creates a GitHub job summary. The bundled `dist/index.cjs` is committed because JavaScript Actions execute repository content directly.
 
 ### `@vulnfuse/web`
 
-The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, scanner coverage, pairwise overlap, baseline states, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
+The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, scanner coverage, pairwise overlap, baseline states, scan-set drift, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
 
 ## Trust boundaries
 

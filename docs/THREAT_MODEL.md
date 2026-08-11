@@ -15,7 +15,7 @@ VulnFuse processes potentially sensitive and attacker-controlled scanner reports
 
 ### Hosted browser workbench
 
-The static GitHub Pages application has no report-processing backend. File content is read with the browser `File` API, kept in React memory, passed to the shared core, and exported through a temporary `Blob` URL. Report content is not written to local storage or sent by application code.
+The static GitHub Pages application has no report-processing backend. File content is read with the browser `File` API, kept in React memory, passed to the shared core, and exported through a temporary `Blob` URL. Report content is not written to local storage or sent by application code. Its strict CSP does not allow dynamic code generation; Zod's optional JIT is disabled so validation does not probe blocked `eval` behavior.
 
 The page still originates from GitHub Pages, so normal hosting infrastructure can observe ordinary page requests. Do not confuse “no report upload” with anonymous browsing.
 
@@ -36,6 +36,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 | Quadratic matching denial of service     | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
 | Quadratic scanner-pair output            | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
 | Output destroys an input                 | CLI and Action reject identical resolved input/output paths                                       |
+| Baseline coverage drift is misread       | Structured scanner/report-count drift warning; optional post-write CLI/Action failure             |
 | Failed output write exposes partial data | Unique exclusive temporary sibling, flush, rename, and cleanup on reported failure                |
 | Symlink escape in Action globbing        | Symbolic-link following is disabled                                                               |
 | Script or HTML injection in workbench    | React text rendering; no `dangerouslySetInnerHTML`                                                |
@@ -59,6 +60,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 9. **Coverage statistics can be misread.** A tool may appear exclusive because it scanned a different asset, package inventory, configuration, database snapshot, or advisory namespace. Pairwise overlap is not an accuracy score.
 10. **Atomic replacement is filesystem-dependent.** A caught write or rename error preserves the old destination and cleans its temporary sibling, but a hard termination can leave a `.vulnfuse-*.tmp` file. The implementation does not claim directory-fsync power-loss durability or atomic replacement on every network or unusual filesystem.
 11. **Glob traversal happens before the report-count limit.** A quoted CLI pattern does not follow symbolic-link directories and cannot make VulnFuse process more than 1,000 reports, but a broad pattern can still traverse a large directory tree and allocate its match list before that count is checked. Treat workflow-provided patterns as filesystem-read authority and scope them to a known report directory.
+12. **A stable scan set is not proven comparable.** VulnFuse warns when tool names or per-tool report counts change. Equal names and counts still cannot establish identical assets, scanner configuration/version, rules, advisory database, or successful scan completion; retain scanner logs and provenance for consequential baseline decisions.
 
 ## Non-goals
 

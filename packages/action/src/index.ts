@@ -5,6 +5,7 @@ import * as glob from "@actions/glob";
 import {
   compareCorrelations,
   correlateReports,
+  describeScanSetChange,
   exportBaselineDiff,
   exportCorrelation,
   parseReport,
@@ -37,12 +38,16 @@ export async function run(): Promise<void> {
     const scope = inputChoice("scope", "instance", allowedScopes);
     const failOn = inputChoice("fail-on", "none", allowedFailOn);
     const failOnNew = inputChoice("fail-on-new", "none", allowedFailOn);
+    const failOnScanSetChange = inputBoolean("fail-on-scan-set-change", false);
     const threshold = inputNumber("threshold", 70, 0, 100);
     const maxBytes = inputNumber("max-bytes", 100 * 1024 * 1024, 1, 1024 ** 3, true);
     if (!baselinePatterns && failOnNew !== "none") {
       throw new Error(
         "fail-on-new requires baseline-reports so existing findings are not treated as new.",
       );
+    }
+    if (!baselinePatterns && failOnScanSetChange) {
+      throw new Error("fail-on-scan-set-change requires baseline-reports.");
     }
 
     const reports = await readMatchedReports(patterns, "current", maxBytes, output);
@@ -73,6 +78,7 @@ export async function run(): Promise<void> {
     core.setOutput("updated", baselineDiff?.summary.updated ?? 0);
     core.setOutput("absent", baselineDiff?.summary.absent ?? 0);
     core.setOutput("unchanged", baselineDiff?.summary.unchanged ?? 0);
+    core.setOutput("scan-set-changed", baselineDiff?.scanSetChange.detected ?? false);
     core.setOutput("report", output);
     await writeSummary(result, output, baselineDiff);
     core.info(
@@ -85,6 +91,9 @@ export async function run(): Promise<void> {
       core.info(
         `Baseline comparison: ${baselineDiff.summary.new} new, ${baselineDiff.summary.updated} updated, ${baselineDiff.summary.absent} absent, and ${baselineDiff.summary.unchanged} unchanged.`,
       );
+      if (baselineDiff.scanSetChange.detected) {
+        core.warning(describeScanSetChange(baselineDiff.scanSetChange));
+      }
     }
 
     if (failOn !== "none" && hasSeverityAtLeast(result.summary.bySeverity, failOn)) {
@@ -99,6 +108,11 @@ export async function run(): Promise<void> {
     ) {
       core.setFailed(
         `At least one new vulnerability cluster met the '${failOnNew}' severity threshold. The baseline comparison was still written to ${output}.`,
+      );
+    }
+    if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
+      core.setFailed(
+        `The scanner tools or per-tool report counts changed from the baseline. The comparison was still written to ${output}.`,
       );
     }
   } catch (error) {
@@ -199,6 +213,12 @@ async function writeSummary(
         : "",
       Boolean(baselineDiff),
     )
+    .addRaw(
+      baselineDiff?.scanSetChange.detected
+        ? `**Scan set changed.** ${escapeSummary(describeScanSetChange(baselineDiff.scanSetChange).replace(/^Scan set changed:\s*/, ""))}`
+        : "",
+      Boolean(baselineDiff?.scanSetChange.detected),
+    )
     .addDetails(
       baselineDiff ? "Highest-severity new clusters" : "Highest-severity clusters",
       (baselineDiff
@@ -241,6 +261,14 @@ function inputNumber(
     );
   }
   return value;
+}
+
+function inputBoolean(name: string, fallback: boolean): boolean {
+  const value = core.getInput(name).trim().toLowerCase();
+  if (!value) return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`${name} must be true or false.`);
 }
 
 function hasSeverityAtLeast(counts: Record<Severity, number>, threshold: Severity): boolean {

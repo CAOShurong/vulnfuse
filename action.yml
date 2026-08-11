@@ -35,6 +35,10 @@ inputs:
     description: "With baseline-reports, fail only when a new cluster meets this severity."
     required: false
     default: none
+  fail-on-scan-set-change:
+    description: "With baseline-reports, fail after writing when scanner tools or per-tool report counts changed."
+    required: false
+    default: "false"
   max-bytes:
     description: Maximum bytes accepted for each input report.
     required: false
@@ -58,6 +62,8 @@ outputs:
     description: Number of baseline clusters absent from the current reports.
   unchanged:
     description: Number of clusters unchanged from the baseline.
+  scan-set-changed:
+    description: Whether scanner tools or per-tool report counts changed from the baseline.
   report:
     description: Path to the generated report.
 runs:

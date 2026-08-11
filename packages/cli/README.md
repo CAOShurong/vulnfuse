@@ -6,4 +6,6 @@ Node.js command-line interface for [VulnFuse](https://github.com/CAOShurong/vuln
 
 Report arguments can be exact paths or quoted glob patterns. Use forward slashes for cross-platform patterns, for example `vulnfuse inspect "reports/**/*.json"`. Exact existing paths win over glob syntax; matches are file-only, do not follow symbolic-link directories, are deduplicated, and count toward the 1,000-report limit after expansion.
 
+Baseline diffs record and warn about added/removed scanner tools and per-tool report-count changes. Add `--fail-on-scan-set-change` to make that warning fail CI after the complete comparison has been written. Equal names and counts do not prove that scan targets, settings, versions, rules, or vulnerability databases were identical.
+
 The public package is not yet published to npm. Build and run it from the repository as documented in the root [README](../../README.md).

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   compareCorrelations,
   correlateReports,
+  describeScanSetChange,
   detectFormat,
   exportBaselineDiff,
   exportCorrelation,
@@ -19,7 +20,7 @@ import { Command, InvalidArgumentError, Option } from "commander";
 import { glob, isDynamicPattern } from "tinyglobby";
 import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.7";
+const version = "0.4.8";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -36,6 +37,7 @@ interface MergeOptions {
 interface DiffOptions extends Omit<MergeOptions, "failOn"> {
   baseline: string[];
   failOnNew: Severity | "none";
+  failOnScanSetChange?: boolean;
 }
 
 export function createProgram(): Command {
@@ -145,6 +147,10 @@ export function createProgram(): Command {
         .choices(["none", "info", "low", "medium", "high", "critical"])
         .default("none"),
     )
+    .option(
+      "--fail-on-scan-set-change",
+      "Exit 1 after writing when scanner tools or per-tool report counts changed",
+    )
     .action(async (reportPaths: string[], options: DiffOptions) => {
       reportPaths = await expandReportPaths(reportPaths, "Current report pattern");
       options.baseline = await expandReportPaths(options.baseline, "Baseline report pattern");
@@ -181,12 +187,16 @@ export function createProgram(): Command {
       const output = exportBaselineDiff(result, options.format);
       if (options.output) await writeFileAtomic(options.output, output);
       else process.stdout.write(output);
+      if (result.scanSetChange.detected) {
+        process.stderr.write(`vulnfuse: warning: ${describeScanSetChange(result.scanSetChange)}\n`);
+      }
       if (
         options.failOnNew !== "none" &&
         hasSeverityAtLeast(result.summary.newBySeverity, options.failOnNew)
       ) {
         process.exitCode = 1;
       }
+      if (options.failOnScanSetChange && result.scanSetChange.detected) process.exitCode = 1;
     });
 
   program

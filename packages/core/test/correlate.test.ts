@@ -7,6 +7,7 @@ import {
   analyzeCoverage,
   compareCorrelations,
   correlateReports,
+  describeScanSetChange,
   explainMatch,
   exportBaselineDiff,
   exportCorrelation,
@@ -336,6 +337,15 @@ describe("baseline comparison", () => {
       correlateReports([report("trivy.json"), report("grype.json")]),
     );
     expect(unchanged.summary).toMatchObject({ new: 0, updated: 0, absent: 0, unchanged: 3 });
+    expect(unchanged.scanSetChange).toEqual({
+      detected: false,
+      addedTools: [],
+      removedTools: [],
+      changedReportCounts: [],
+    });
+    expect(describeScanSetChange(unchanged.scanSetChange)).toBe(
+      "Scan set did not change by tool names or per-tool report counts.",
+    );
 
     const current = correlateReports([
       report("trivy.json"),
@@ -345,6 +355,23 @@ describe("baseline comparison", () => {
     const diff = compareCorrelations(baseline, current);
     expect(diff.summary.new).toBeGreaterThan(0);
     expect(diff.items.filter((item) => item.state === "new")).not.toHaveLength(0);
+    expect(diff.scanSetChange).toMatchObject({
+      detected: true,
+      addedTools: ["Legacy Scanner"],
+      removedTools: [],
+    });
+  });
+
+  it("detects per-tool report-count drift even when the scanner names match", () => {
+    const baseline = correlateReports([report("trivy.json")]);
+    const current = correlateReports([report("trivy.json"), report("trivy.json")]);
+
+    expect(compareCorrelations(baseline, current).scanSetChange).toEqual({
+      detected: true,
+      addedTools: [],
+      removedTools: [],
+      changedReportCounts: [{ tool: "Trivy", baseline: 1, current: 2 }],
+    });
   });
 
   it("distinguishes updated evidence from findings absent in the current run", () => {
@@ -352,6 +379,11 @@ describe("baseline comparison", () => {
     const current = correlateReports([report("trivy.json")]);
     const diff = compareCorrelations(baseline, current);
     expect(diff.summary).toMatchObject({ new: 0, updated: 1, absent: 1, unchanged: 1 });
+    expect(diff.scanSetChange).toMatchObject({
+      detected: true,
+      addedTools: [],
+      removedTools: ["Grype"],
+    });
     expect(diff.items.find((item) => item.state === "updated")?.changedFields).toEqual(
       expect.arrayContaining(["source-tools", "source-records"]),
     );
@@ -362,17 +394,23 @@ describe("baseline comparison", () => {
     const current = correlateReports([report("trivy.json"), report("generic.csv")]);
     const diff = compareCorrelations(baseline, current);
     const sarif = JSON.parse(exportBaselineDiff(diff, "sarif")) as {
-      runs: Array<{ results: Array<{ baselineState?: string; partialFingerprints?: unknown }> }>;
+      runs: Array<{
+        invocations: Array<{ properties?: { scanSetChange?: { detected?: boolean } } }>;
+        results: Array<{ baselineState?: string; partialFingerprints?: unknown }>;
+      }>;
     };
     expect(sarif.runs[0]?.results.every((result) => result.baselineState)).toBe(true);
     expect(sarif.runs[0]?.results.every((result) => result.partialFingerprints)).toBe(true);
+    expect(sarif.runs[0]?.invocations[0]?.properties?.scanSetChange?.detected).toBe(true);
     const markdown = exportBaselineDiff(diff, "markdown");
     expect(markdown).toContain("VulnFuse baseline comparison");
+    expect(markdown).toContain("Scan set changed");
     expect(markdown).toContain("## Current-run scanner coverage");
-    expect(exportBaselineDiff(diff, "csv")).toContain("baseline_state");
+    expect(exportBaselineDiff(diff, "csv")).toContain("scan_set_changed");
     const html = exportBaselineDiff(diff, "html");
     expect(html).toContain('id="state-filter"');
     expect(html).toContain('data-state="new"');
+    expect(html).toContain("Scan set changed");
     expect(html).toContain("absent means a cluster was not observed");
     expect(html).toContain("Coverage below describes current-run clusters");
   });

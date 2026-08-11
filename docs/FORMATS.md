@@ -103,7 +103,7 @@ Canonical VulnFuse JSON can be supplied again as input. Valid cluster members ar
 
 ## Output contracts
 
-A plain correlation exports the complete `CorrelationResult`. A baseline comparison exports a `BaselineDiffResult` containing baseline/current summaries and one item per `new`, `updated`, `unchanged`, or `absent` cluster. JSON preserves full evidence; CSV adds `baseline_state` and changed fields; Markdown focuses on changes; SARIF writes `baselineState` on every result and a stable `primaryLocationLineHash` partial fingerprint.
+A plain correlation exports the complete `CorrelationResult`. A baseline comparison exports a `BaselineDiffResult` containing baseline/current summaries, a structured `scanSetChange`, and one item per `new`, `updated`, `unchanged`, or `absent` cluster. JSON preserves full evidence; each emitted CSV finding row repeats the scan-set warning plus `baseline_state` and changed fields, while an empty CSV has only its header; Markdown focuses on changes; SARIF writes `baselineState` on every result, a stable `primaryLocationLineHash` partial fingerprint, and the scan-set structure in invocation properties.
 
 Every report summary has a primary `tool` plus a sorted `tools` list. The list records every producer represented by a mixed CSV file or multi-run SARIF document, including declared SARIF runs with zero findings.
 

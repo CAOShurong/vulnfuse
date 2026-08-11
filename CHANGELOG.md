@@ -4,6 +4,23 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-08-11
+
+### Added
+
+- Record added/removed scanner tools and changed per-tool report counts in every baseline comparison.
+- Surface scan-set drift in JSON, row-bearing CSV, Markdown, SARIF invocation properties, portable HTML, the browser workbench, CLI stderr, and the GitHub Action summary/log.
+- Add opt-in CLI `--fail-on-scan-set-change` and Action `fail-on-scan-set-change` gates that preserve the complete comparison before returning failure.
+- Expose the Action `scan-set-changed` output for downstream workflow decisions.
+
+### Fixed
+
+- Disable Zod's optional JIT schema compilation so the hosted workbench does not trigger a blocked `eval` probe under its strict content security policy.
+
+### Limitations
+
+- Matching tool names and report counts do not prove identical assets, scan configuration, scanner versions, rule sets, or vulnerability databases. The drift signal is a comparability warning, not a scientific validity claim.
+
 ## [0.4.7] - 2026-08-11
 
 ### Added

@@ -6,6 +6,7 @@ import type {
   FindingCluster,
   OutputFormat,
 } from "../model.js";
+import { describeScanSetChange } from "../compare.js";
 import { exportBaselineHtml } from "./html.js";
 import { coverageMarkdownLines } from "./markdown.js";
 
@@ -25,7 +26,12 @@ export function exportBaselineDiff(result: BaselineDiffResult, format: OutputFor
 }
 
 function exportDiffCsv(result: BaselineDiffResult): string {
+  const scanSetMessage = result.scanSetChange.detected
+    ? describeScanSetChange(result.scanSetChange)
+    : "";
   const rows = result.items.map((item) => ({
+    scan_set_changed: result.scanSetChange.detected,
+    scan_set_change: scanSetMessage,
     baseline_state: item.state,
     changed_fields: item.changedFields.join(";"),
     cluster_id: item.cluster.id,
@@ -48,6 +54,9 @@ function exportDiffMarkdown(result: BaselineDiffResult): string {
     "",
     `> Compared ${result.summary.currentClusters} current clusters with ${result.summary.baselineClusters} baseline clusters: **${result.summary.new} new**, **${result.summary.updated} updated**, **${result.summary.absent} absent**, and ${result.summary.unchanged} unchanged.`,
     "",
+    ...(result.scanSetChange.detected
+      ? [`> **Warning:** ${escapeMarkdown(describeScanSetChange(result.scanSetChange))}`, ""]
+      : []),
     "| State | Clusters |",
     "| --- | ---: |",
     `| New | ${result.summary.new} |`,
@@ -111,7 +120,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.7",
+            semanticVersion: "0.4.8",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor),
           },
@@ -121,6 +130,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
             executionSuccessful: true,
             properties: {
               baselineComparison: result.summary,
+              scanSetChange: result.scanSetChange,
               correlationOptions: result.options,
             },
           },
