@@ -3,6 +3,7 @@ export * from "./correlate.js";
 export * from "./coverage.js";
 export * from "./exporters/index.js";
 export * from "./identifiers.js";
+export * from "./health.js";
 export * from "./match.js";
 export * from "./model.js";
 export * from "./parse.js";

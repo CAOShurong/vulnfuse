@@ -13,6 +13,7 @@ import {
   type FindingCluster,
   type MatchScope,
   type OutputFormat,
+  type ParsedReport,
   type ReportInput,
   type Severity,
 } from "@vulnfuse/core";
@@ -345,7 +346,7 @@ export function App() {
                       <strong>{input.name}</strong>
                       <small>
                         {report
-                          ? `${report.tool} · ${report.findings.length} findings`
+                          ? `${report.tool} · ${report.findings.length} findings${report.warnings.length > 0 ? ` · ${report.warnings.length} warnings` : ""}`
                           : "Waiting to parse"}
                       </small>
                     </span>
@@ -365,6 +366,7 @@ export function App() {
               })}
             </div>
           )}
+          <ReportWarnings reports={analysis.reports} label="Input report warnings" />
           <div className={`baseline-loader ${baselineInputs.length > 0 ? "active" : ""}`}>
             <div>
               <strong>Optional baseline</strong>
@@ -395,7 +397,7 @@ export function App() {
                       <strong>{input.name}</strong>
                       <small>
                         {report
-                          ? `${report.tool} · ${report.findings.length} baseline findings`
+                          ? `${report.tool} · ${report.findings.length} baseline findings${report.warnings.length > 0 ? ` · ${report.warnings.length} warnings` : ""}`
                           : "Waiting to parse"}
                       </small>
                     </span>
@@ -415,6 +417,7 @@ export function App() {
               })}
             </div>
           )}
+          <ReportWarnings reports={analysis.baselineReports} label="Baseline report warnings" />
         </section>
 
         {analysis.result && analysis.result.summary.inputFindings > 0 && (
@@ -1000,6 +1003,43 @@ function ExportMenu({ onExport }: { onExport: (format: OutputFormat) => void }) 
         </button>
       ))}
     </div>
+  );
+}
+
+function ReportWarnings({ reports, label }: { reports: ParsedReport[]; label: string }) {
+  const warnedReports = reports.filter((report) => report.warnings.length > 0);
+  if (warnedReports.length === 0) return null;
+
+  const totalWarnings = warnedReports.reduce((total, report) => total + report.warnings.length, 0);
+  return (
+    <section className="report-warnings" aria-label={label}>
+      <div className="report-warnings-head">
+        <strong>{label}</strong>
+        <span>
+          {totalWarnings} warning{totalWarnings === 1 ? "" : "s"} across {warnedReports.length}{" "}
+          report{warnedReports.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      {warnedReports.map((report) => (
+        <details key={`${label}-${report.sourceName}`}>
+          <summary>
+            <span>{report.sourceName}</span>
+            <small>
+              {report.warnings.length} warning{report.warnings.length === 1 ? "" : "s"}
+            </small>
+          </summary>
+          <ul>
+            {report.warnings.map((warning, index) => (
+              <li key={`${warning.code}-${warning.path ?? "report"}-${index}`}>
+                <code>{warning.code}</code>
+                <span>{warning.message}</span>
+                {warning.path && <small>{warning.path}</small>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </section>
   );
 }
 

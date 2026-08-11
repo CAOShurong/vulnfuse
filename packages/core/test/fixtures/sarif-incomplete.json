@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Partial Scanner",
+          "semanticVersion": "1.2.3",
+          "rules": [
+            {
+              "id": "CVE-2024-32002",
+              "shortDescription": { "text": "Synthetic partial-run finding" },
+              "properties": { "tags": ["security", "dependency"] }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": false,
+          "exitCode": 2,
+          "toolExecutionNotifications": [
+            {
+              "descriptor": { "id": "OOM" },
+              "level": "error",
+              "message": { "text": "Synthetic out-of-memory notification." }
+            },
+            {
+              "level": "warning",
+              "message": { "text": "A warning does not by itself mark the run incomplete." }
+            }
+          ],
+          "toolConfigurationNotifications": [
+            {
+              "descriptor": { "id": "RULE-PACK" },
+              "level": "error",
+              "message": { "text": "Synthetic rule-pack failure." }
+            }
+          ]
+        },
+        "not-an-invocation",
+        { "executionSuccessful": "yes" }
+      ],
+      "results": [
+        {
+          "ruleId": "CVE-2024-32002",
+          "level": "error",
+          "message": { "text": "Partial evidence must be retained." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/partial.ts" },
+                "region": { "startLine": 7 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

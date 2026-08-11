@@ -35,6 +35,7 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
   const findings: CanonicalFinding[] = [];
   const warnings: ParsedReport["warnings"] = [];
   const reportTools: string[] = [];
+  const runHealth: JsonValue[] = [];
 
   for (const [runIndex, runValue] of asArray(root["runs"]).entries()) {
     const run = asRecord(runValue);
@@ -43,6 +44,9 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
     const toolName = asString(driver?.["name"]) ?? "SARIF tool";
     if (!reportTools.includes(toolName)) reportTools.push(toolName);
     const toolVersion = asString(driver?.["semanticVersion"]) ?? asString(driver?.["version"]);
+    const health = inspectRunHealth(run, runIndex, toolName, warnings);
+    const healthValue = asJsonValue(health);
+    if (healthValue !== undefined) runHealth.push(healthValue);
     const rules = new Map<string, Record<string, unknown>>();
     for (const ruleValue of asArray(driver?.["rules"])) {
       const rule = asRecord(ruleValue);
@@ -162,8 +166,139 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
     tools: reportTools.length > 0 ? [...reportTools].sort() : ["SARIF"],
     findings,
     warnings,
-    metadata: { version: asString(root["version"]) ?? "unknown" },
+    metadata: { version: asString(root["version"]) ?? "unknown", runHealth },
   };
+}
+
+function inspectRunHealth(
+  run: Record<string, unknown> | undefined,
+  runIndex: number,
+  toolName: string,
+  warnings: ParsedReport["warnings"],
+): Record<string, JsonValue> {
+  const rawResults = run?.["results"];
+  const externalReferences = asRecord(run?.["externalPropertyFileReferences"]);
+  const externalResults = asArray(externalReferences?.["results"]);
+  let resultsState: "inline" | "unavailable" | "external" | "invalid" = "inline";
+  let resultCount = 0;
+  if (Array.isArray(rawResults)) {
+    resultCount = rawResults.length;
+  } else if (rawResults === null || rawResults === undefined) {
+    if (externalResults.length > 0) {
+      resultsState = "external";
+      warnings.push({
+        code: "sarif.external-results-unsupported",
+        message:
+          "This SARIF run references external results that VulnFuse does not fetch or resolve, so its visible findings may be incomplete.",
+        path: `runs[${runIndex}].externalPropertyFileReferences.results`,
+      });
+    } else {
+      resultsState = "unavailable";
+      warnings.push({
+        code: "sarif.results-unavailable",
+        message:
+          "This SARIF run has null or absent results, which the SARIF specification treats as a tool that failed to start or begin analysis.",
+        path: `runs[${runIndex}].results`,
+      });
+    }
+  } else {
+    resultsState = "invalid";
+    warnings.push({
+      code: "sarif.invalid-results",
+      message:
+        "This SARIF run has a non-array results value, so VulnFuse cannot treat its visible findings as complete.",
+      path: `runs[${runIndex}].results`,
+    });
+  }
+
+  const invocations = asArray(run?.["invocations"]);
+  let failedInvocations = 0;
+  let unknownInvocations = 0;
+  let errorNotifications = 0;
+  for (const [invocationIndex, invocationValue] of invocations.entries()) {
+    const invocation = asRecord(invocationValue);
+    if (!invocation) {
+      unknownInvocations += 1;
+      warnings.push({
+        code: "sarif.invalid-invocation",
+        message:
+          "A SARIF invocation was not an object, so its execution status and result completeness are unknown.",
+        path: `runs[${runIndex}].invocations[${invocationIndex}]`,
+      });
+      continue;
+    }
+    const executionSuccessful = invocation["executionSuccessful"];
+    if (executionSuccessful === false) {
+      failedInvocations += 1;
+      warnings.push({
+        code: "sarif.execution-failed",
+        message:
+          "The SARIF producer declared this analysis invocation unsuccessful; retained findings may be partial.",
+        path: `runs[${runIndex}].invocations[${invocationIndex}].executionSuccessful`,
+      });
+    } else if (typeof executionSuccessful !== "boolean") {
+      unknownInvocations += 1;
+      warnings.push({
+        code: "sarif.execution-status-unknown",
+        message:
+          "A SARIF invocation omitted a valid boolean executionSuccessful value, so result completeness is unknown.",
+        path: `runs[${runIndex}].invocations[${invocationIndex}].executionSuccessful`,
+      });
+    }
+    errorNotifications += inspectNotificationErrors(
+      invocation["toolExecutionNotifications"],
+      "tool-execution",
+      runIndex,
+      invocationIndex,
+      warnings,
+    );
+    errorNotifications += inspectNotificationErrors(
+      invocation["toolConfigurationNotifications"],
+      "tool-configuration",
+      runIndex,
+      invocationIndex,
+      warnings,
+    );
+  }
+
+  return {
+    run: runIndex + 1,
+    tool: toolName,
+    resultsState,
+    resultCount,
+    invocationCount: invocations.length,
+    failedInvocations,
+    unknownInvocations,
+    errorNotifications,
+  };
+}
+
+function inspectNotificationErrors(
+  value: unknown,
+  kind: "tool-execution" | "tool-configuration",
+  runIndex: number,
+  invocationIndex: number,
+  warnings: ParsedReport["warnings"],
+): number {
+  let errors = 0;
+  const property =
+    kind === "tool-execution" ? "toolExecutionNotifications" : "toolConfigurationNotifications";
+  for (const [notificationIndex, notificationValue] of asArray(value).entries()) {
+    const notification = asRecord(notificationValue);
+    if (asString(notification?.["level"]) !== "error") continue;
+    errors += 1;
+    const descriptor = asString(asRecord(notification?.["descriptor"])?.["id"]);
+    const messageRecord = asRecord(notification?.["message"]);
+    const message = asString(messageRecord?.["text"]) ?? asString(messageRecord?.["markdown"]);
+    const detail = [descriptor, message].filter(Boolean).join(": ").slice(0, 500);
+    warnings.push({
+      code:
+        kind === "tool-execution" ? "sarif.tool-execution-error" : "sarif.tool-configuration-error",
+      message: `The SARIF producer reported an error-level ${kind.replace("-", " ")} notification${detail ? `: ${detail}` : ". Retained findings may be incomplete."}`,
+      path: `runs[${runIndex}].invocations[${invocationIndex}].${property}[${notificationIndex}]`,
+    });
+  }
+  return errors;
 }
 
 const sarifResultKinds = new Set([

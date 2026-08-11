@@ -268,6 +268,7 @@ export function correlateReports(
       tools,
       findings: report.findings.length,
       warnings: report.warnings,
+      metadata: report.metadata,
     };
   });
   const coverage = analyzeCoverage(coverageInputs, clusters);

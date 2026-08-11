@@ -1,6 +1,6 @@
 {
   "name": "vulnfuse-workspace",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "private": true,
   "description": "Local-first, explainable cross-scanner vulnerability correlation",
   "type": "module",

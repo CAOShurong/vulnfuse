@@ -15,6 +15,7 @@ const csv = resolve(repository, "packages/core/test/fixtures/generic.csv");
 const openVex = resolve(repository, "packages/core/test/fixtures/openvex.json");
 const suppressedSarif = resolve(repository, "packages/core/test/fixtures/sarif-suppressed.json");
 const resultKindsSarif = resolve(repository, "packages/core/test/fixtures/sarif-result-kinds.json");
+const incompleteSarif = resolve(repository, "packages/core/test/fixtures/sarif-incomplete.json");
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -26,6 +27,42 @@ afterEach(async () => {
 });
 
 describe("GitHub Action bundle", () => {
+  it("writes partial SARIF evidence and outputs before failing the incomplete-run gate", async () => {
+    const outputReport = join(testDirectory, "partial.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: incompleteSarif,
+          INPUT_OUTPUT: outputReport,
+          INPUT_FORMAT: "json",
+          "INPUT_FAIL-ON-INCOMPLETE": "true",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+
+    const result = JSON.parse(await readFile(outputReport, "utf8")) as {
+      summary: { inputFindings: number };
+      reports: Array<{ warnings: Array<{ code: string }> }>;
+    };
+    expect(result.summary.inputFindings).toBe(1);
+    expect(result.reports[0]?.warnings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "sarif.execution-failed" })]),
+    );
+    expect(await readFile(githubOutput, "utf8")).toContain("incomplete-reports");
+    expect(await readFile(stepSummary, "utf8")).toContain("Incomplete input reports");
+  });
+
   it("correlates OpenVEX evidence without applying producer status as a gate verdict", async () => {
     const scanner = join(testDirectory, "scanner.csv");
     const outputReport = join(testDirectory, "openvex-report.json");

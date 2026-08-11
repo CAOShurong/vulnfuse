@@ -54,6 +54,15 @@ jobs:
           if ($openvex[0].format -ne "openvex" -or $openvex[0].findings -ne 3 -or $openvex[0].active -ne 3) {
             throw "Unexpected OpenVEX inspection summary"
           }
+          $partialOutput = "${{ runner.temp }}/vulnfuse-partial.json"
+          & node packages/cli/dist/index.js merge packages/core/test/fixtures/sarif-incomplete.json --format json --output $partialOutput --fail-on-incomplete
+          if ($LASTEXITCODE -ne 1 -or -not (Test-Path $partialOutput)) {
+            throw "Incomplete SARIF gate did not preserve output and exit 1"
+          }
+          $partial = Get-Content -Raw $partialOutput | ConvertFrom-Json
+          if ($partial.summary.inputFindings -ne 1 -or $partial.reports[0].warnings.Count -ne 5) {
+            throw "Unexpected incomplete SARIF evidence"
+          }
 
   action-smoke:
     name: Bundled GitHub Action smoke test
@@ -108,6 +117,26 @@ jobs:
           test "$ACTIVE" = "3"
           test "$SUPPRESSED" = "0"
           test -s "$REPORT"
+      - id: incomplete
+        name: Gate incomplete SARIF after preserving partial evidence
+        continue-on-error: true
+        uses: ./
+        with:
+          reports: packages/core/test/fixtures/sarif-incomplete.json
+          format: json
+          output: ${{ runner.temp }}/vulnfuse-partial.json
+          fail-on-incomplete: "true"
+      - name: Validate incomplete SARIF Action outputs
+        env:
+          OUTCOME: ${{ steps.incomplete.outcome }}
+          INCOMPLETE: ${{ steps.incomplete.outputs.incomplete-reports }}
+          FINDINGS: ${{ steps.incomplete.outputs.findings }}
+          REPORT: ${{ steps.incomplete.outputs.report }}
+        run: |
+          test "$OUTCOME" = "failure"
+          test "$INCOMPLETE" = "1"
+          test "$FINDINGS" = "1"
+          test -s "$REPORT"
 
   package-smoke:
     name: Clean package install
@@ -138,6 +167,12 @@ jobs:
           npx vulnfuse inspect ../packages/core/test/fixtures/openvex.json --json > openvex-inspection.json
           test "$(node -p "require('./openvex-inspection.json')[0].format")" = "openvex"
           test "$(node -p "require('./openvex-inspection.json')[0].findings")" = "3"
+          if npx vulnfuse merge ../packages/core/test/fixtures/sarif-incomplete.json --format json --output partial.json --fail-on-incomplete; then
+            echo "Expected incomplete SARIF gate to exit 1" >&2
+            exit 1
+          fi
+          test -s partial.json
+          test "$(node -p "require('./partial.json').reports[0].warnings.length")" = "5"
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md
           npx vulnfuse diff --baseline ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format html --output portable.html

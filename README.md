@@ -41,10 +41,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.12 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.13 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.12/vulnfuse-core-0.4.12.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.12/vulnfuse-0.4.12.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.13/vulnfuse-core-0.4.13.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.13/vulnfuse-0.4.13.tgz
 vulnfuse --version
 ```
 
@@ -92,6 +92,8 @@ Run `node packages/cli/dist/index.js merge --help` for all policy and safety opt
 
 For SARIF, `--fail-on` and `--fail-on-new` apply only to active clusters. A valid `pass`, `informational`, or `notApplicable` result with `level: none` or no explicit level is non-finding evidence; missing `kind` defaults to `fail`. A cluster is non-finding only when every member is non-finding. Separately, a non-empty suppression list containing only `accepted` or omitted statuses is effectively suppressed; any `underReview`, `rejected`, malformed metadata, or active corroborating record keeps the cluster active. Unknown, non-string, or contradictory result kinds also warn and remain active. These decisions trust producer metadata; VulnFuse does not rerun a rule, prove a check passed, validate applicability, or prove a finding safe or false.
 
+VulnFuse also warns when SARIF run metadata says the producer failed, emitted an error-level tool/configuration notification, or did not provide inline results. Available partial findings remain visible. Add `--fail-on-incomplete` to `inspect`, `merge`, or `diff` when CI must return exit code 1 for that uncertainty; `merge` and `diff` still finish and atomically write the requested report first. This is an opt-in gate because partial results can still be useful. A report without run-health metadata is not proof that the scan was complete, and VulnFuse does not fetch external SARIF property files.
+
 Report-input and runtime failures print one concise diagnostic to stderr and return exit code 1. Add the global `--debug` option before the command when a stack trace is needed, for example `vulnfuse --debug inspect report.json`. Debug output can include local filesystem paths, so review it before sharing logs publicly.
 
 The CLI and Action reject a file whose known size exceeds `--max-bytes` before reading its contents, then enforce the same limit while reading to cover file growth and unusual file types. Accepted report text, parsed findings, correlation state, and exports still consume additional memory; the byte limit is per report and is not a total-process memory or processing-time guarantee.
@@ -132,7 +134,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.12
+  uses: CAOShurong/vulnfuse@v0.4.13
   with:
     reports: |
       reports/trivy.json
@@ -142,6 +144,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
     format: sarif
     scope: instance
     fail-on: high
+    fail-on-incomplete: "true"
 
 - name: Upload correlated SARIF
   if: always()
@@ -158,20 +161,20 @@ fail-on-new: high
 fail-on-scan-set-change: "true"
 ```
 
-When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action warns when the scanner set changes and can fail after preserving the report. It writes a job summary and exposes `findings`, `clusters`, `active`, `suppressed`, `non-finding`, `duplicates-collapsed`, `single-tool`, `multi-tool`, `new`, `updated`, `absent`, `unchanged`, `scan-set-changed`, and `report` outputs.
+When a baseline is supplied, the selected output format contains the comparison instead of a plain correlation report. The Action warns when the scanner set changes or SARIF declares incomplete execution, and can fail after preserving the report. It writes a job summary and exposes `findings`, `clusters`, `active`, `suppressed`, `non-finding`, `duplicates-collapsed`, `single-tool`, `multi-tool`, `new`, `updated`, `absent`, `unchanged`, `scan-set-changed`, `incomplete-reports`, and `report` outputs.
 
 ## Supported input
 
-| Format           | Parsed evidence                                                                 | Important boundary                                                             |
-| ---------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| SARIF 2.1        | runs, tools, rules, levels, result kinds, fingerprints, locations, suppressions | Security severity and producer-declared disposition are preserved              |
-| Trivy JSON       | vulnerabilities, misconfigurations, secrets, packages, image targets, fixes     | Table and template output are not report inputs                                |
-| Grype JSON       | matches, artifacts, PURLs, locations, advisories, fixes                         | The JSON schema has changed over time; fixtures cover the current common shape |
-| Snyk JSON        | legacy `vulnerabilities`, identifiers, dependency paths, fixes                  | Snyk Code SARIF should be supplied as SARIF                                    |
-| CycloneDX JSON   | components, vulnerabilities, ratings, affects, analysis/VEX context             | XML BOMs are not parsed yet                                                    |
-| OpenVEX JSON-LD  | products, subcomponents, vulnerability aliases, status, justification, actions  | Status is retained as evidence, never trusted as a suppression verdict         |
-| OSV-Scanner JSON | sources, packages, aliases, affected ranges, fixed events                       | Scanner output is accepted; arbitrary OSV records need the result wrapper      |
-| CSV              | common ID, severity, component, PURL, asset, location, rule, and fix columns    | Header aliases are documented in [FORMATS.md](docs/FORMATS.md)                 |
+| Format           | Parsed evidence                                                                | Important boundary                                                             |
+| ---------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| SARIF 2.1        | runs, tools, invocation health, rules, kinds, locations, suppressions          | Partial findings stay visible; failed-run metadata warns and can gate CI       |
+| Trivy JSON       | vulnerabilities, misconfigurations, secrets, packages, image targets, fixes    | Table and template output are not report inputs                                |
+| Grype JSON       | matches, artifacts, PURLs, locations, advisories, fixes                        | The JSON schema has changed over time; fixtures cover the current common shape |
+| Snyk JSON        | legacy `vulnerabilities`, identifiers, dependency paths, fixes                 | Snyk Code SARIF should be supplied as SARIF                                    |
+| CycloneDX JSON   | components, vulnerabilities, ratings, affects, analysis/VEX context            | XML BOMs are not parsed yet                                                    |
+| OpenVEX JSON-LD  | products, subcomponents, vulnerability aliases, status, justification, actions | Status is retained as evidence, never trusted as a suppression verdict         |
+| OSV-Scanner JSON | sources, packages, aliases, affected ranges, fixed events                      | Scanner output is accepted; arbitrary OSV records need the result wrapper      |
+| CSV              | common ID, severity, component, PURL, asset, location, rule, and fix columns   | Header aliases are documented in [FORMATS.md](docs/FORMATS.md)                 |
 
 ## Matching at a glance
 
@@ -217,7 +220,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.4.12` is a public alpha with explainable, cluster-safe cross-scanner correlation, standalone OpenVEX and CycloneDX VEX input, three-state SARIF disposition, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. OpenVEX and CycloneDX support validates available PURLs and preserves producer context, but does not fetch external evidence, verify attestations or authors, or turn VEX status into a suppression verdict. Three-state disposition separates active findings, effectively suppressed findings, and producer-declared SARIF non-finding outcomes without deleting source evidence. It does not independently validate a suppression, rerun a check, establish applicability, or change hosted alert state. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures, pinned public OpenVEX, CycloneDX, and Microsoft BinSkim samples, and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.13` is a public alpha with explainable, cluster-safe cross-scanner correlation, standalone OpenVEX and CycloneDX VEX input, three-state SARIF disposition, SARIF incomplete-run warnings and an opt-in post-write gate, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. OpenVEX and CycloneDX support validates available PURLs and preserves producer context, but does not fetch external evidence, verify attestations or authors, or turn VEX status into a suppression verdict. SARIF run health preserves partial results and producer failure metadata, but does not prove which targets or rules ran, fetch external properties, or establish that a report without health metadata was complete. Three-state disposition separates active findings, effectively suppressed findings, and producer-declared SARIF non-finding outcomes without deleting source evidence. It does not independently validate a suppression, rerun a check, establish applicability, or change hosted alert state. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures, pinned public OpenVEX, SARIF, CycloneDX, and Microsoft BinSkim samples, and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

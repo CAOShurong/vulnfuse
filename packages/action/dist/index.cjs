@@ -24805,6 +24805,8 @@ function compareCorrelations(baseline, current) {
     options: current.options,
     baselineSummary: baseline.summary,
     currentSummary: current.summary,
+    baselineReports: baseline.reports,
+    currentReports: current.reports,
     scanSetChange,
     items,
     summary: {
@@ -25348,7 +25350,8 @@ function correlateReports(reports, options = {}) {
       tool: report.tool,
       tools,
       findings: report.findings.length,
-      warnings: report.warnings
+      warnings: report.warnings,
+      metadata: report.metadata
     };
   });
   const coverage = analyzeCoverage(coverageInputs, clusters);
@@ -25570,7 +25573,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.12">
+  <meta name="generator" content="VulnFuse 0.4.13">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -26074,7 +26077,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.12",
+            semanticVersion: "0.4.13",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -26085,7 +26088,9 @@ function exportDiffSarif(result) {
             properties: {
               baselineComparison: result.summary,
               scanSetChange: result.scanSetChange,
-              correlationOptions: result.options
+              correlationOptions: result.options,
+              baselineReports: result.baselineReports,
+              currentReports: result.currentReports
             }
           }
         ],
@@ -26261,7 +26266,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.12",
+            semanticVersion: "0.4.13",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor2(cluster))
           }
@@ -26269,7 +26274,11 @@ function exportSarif(result) {
         invocations: [
           {
             executionSuccessful: true,
-            properties: { summary: result.summary, correlationOptions: result.options }
+            properties: {
+              summary: result.summary,
+              correlationOptions: result.options,
+              sourceReports: result.reports
+            }
           }
         ],
         results: emittedClusters.map((cluster) => resultFor(cluster)),
@@ -26388,6 +26397,24 @@ function exportCorrelation(result, format) {
     case "html":
       return exportHtml(result);
   }
+}
+
+// ../core/dist/health.js
+var incompleteReportWarningCodes = /* @__PURE__ */ new Set([
+  "sarif.execution-failed",
+  "sarif.execution-status-unknown",
+  "sarif.external-results-unsupported",
+  "sarif.invalid-invocation",
+  "sarif.invalid-results",
+  "sarif.results-unavailable",
+  "sarif.tool-configuration-error",
+  "sarif.tool-execution-error"
+]);
+function isIncompleteReportWarning(warning2) {
+  return incompleteReportWarningCodes.has(warning2.code);
+}
+function countIncompleteReports(reports) {
+  return reports.filter((report) => report.warnings.some(isIncompleteReportWarning)).length;
 }
 
 // ../../node_modules/zod/v4/classic/external.js
@@ -41821,6 +41848,7 @@ function parseSarif(root, reportName) {
   const findings = [];
   const warnings = [];
   const reportTools = [];
+  const runHealth = [];
   for (const [runIndex, runValue] of asArray(root["runs"]).entries()) {
     const run2 = asRecord(runValue);
     const tool = asRecord(run2?.["tool"]);
@@ -41829,6 +41857,10 @@ function parseSarif(root, reportName) {
     if (!reportTools.includes(toolName))
       reportTools.push(toolName);
     const toolVersion = asString(driver?.["semanticVersion"]) ?? asString(driver?.["version"]);
+    const health = inspectRunHealth(run2, runIndex, toolName, warnings);
+    const healthValue = asJsonValue(health);
+    if (healthValue !== void 0)
+      runHealth.push(healthValue);
     const rules = /* @__PURE__ */ new Map();
     for (const ruleValue of asArray(driver?.["rules"])) {
       const rule = asRecord(ruleValue);
@@ -41922,8 +41954,105 @@ function parseSarif(root, reportName) {
     tools: reportTools.length > 0 ? [...reportTools].sort() : ["SARIF"],
     findings,
     warnings,
-    metadata: { version: asString(root["version"]) ?? "unknown" }
+    metadata: { version: asString(root["version"]) ?? "unknown", runHealth }
   };
+}
+function inspectRunHealth(run2, runIndex, toolName, warnings) {
+  const rawResults = run2?.["results"];
+  const externalReferences = asRecord(run2?.["externalPropertyFileReferences"]);
+  const externalResults = asArray(externalReferences?.["results"]);
+  let resultsState = "inline";
+  let resultCount = 0;
+  if (Array.isArray(rawResults)) {
+    resultCount = rawResults.length;
+  } else if (rawResults === null || rawResults === void 0) {
+    if (externalResults.length > 0) {
+      resultsState = "external";
+      warnings.push({
+        code: "sarif.external-results-unsupported",
+        message: "This SARIF run references external results that VulnFuse does not fetch or resolve, so its visible findings may be incomplete.",
+        path: `runs[${runIndex}].externalPropertyFileReferences.results`
+      });
+    } else {
+      resultsState = "unavailable";
+      warnings.push({
+        code: "sarif.results-unavailable",
+        message: "This SARIF run has null or absent results, which the SARIF specification treats as a tool that failed to start or begin analysis.",
+        path: `runs[${runIndex}].results`
+      });
+    }
+  } else {
+    resultsState = "invalid";
+    warnings.push({
+      code: "sarif.invalid-results",
+      message: "This SARIF run has a non-array results value, so VulnFuse cannot treat its visible findings as complete.",
+      path: `runs[${runIndex}].results`
+    });
+  }
+  const invocations = asArray(run2?.["invocations"]);
+  let failedInvocations = 0;
+  let unknownInvocations = 0;
+  let errorNotifications = 0;
+  for (const [invocationIndex, invocationValue] of invocations.entries()) {
+    const invocation = asRecord(invocationValue);
+    if (!invocation) {
+      unknownInvocations += 1;
+      warnings.push({
+        code: "sarif.invalid-invocation",
+        message: "A SARIF invocation was not an object, so its execution status and result completeness are unknown.",
+        path: `runs[${runIndex}].invocations[${invocationIndex}]`
+      });
+      continue;
+    }
+    const executionSuccessful = invocation["executionSuccessful"];
+    if (executionSuccessful === false) {
+      failedInvocations += 1;
+      warnings.push({
+        code: "sarif.execution-failed",
+        message: "The SARIF producer declared this analysis invocation unsuccessful; retained findings may be partial.",
+        path: `runs[${runIndex}].invocations[${invocationIndex}].executionSuccessful`
+      });
+    } else if (typeof executionSuccessful !== "boolean") {
+      unknownInvocations += 1;
+      warnings.push({
+        code: "sarif.execution-status-unknown",
+        message: "A SARIF invocation omitted a valid boolean executionSuccessful value, so result completeness is unknown.",
+        path: `runs[${runIndex}].invocations[${invocationIndex}].executionSuccessful`
+      });
+    }
+    errorNotifications += inspectNotificationErrors(invocation["toolExecutionNotifications"], "tool-execution", runIndex, invocationIndex, warnings);
+    errorNotifications += inspectNotificationErrors(invocation["toolConfigurationNotifications"], "tool-configuration", runIndex, invocationIndex, warnings);
+  }
+  return {
+    run: runIndex + 1,
+    tool: toolName,
+    resultsState,
+    resultCount,
+    invocationCount: invocations.length,
+    failedInvocations,
+    unknownInvocations,
+    errorNotifications
+  };
+}
+function inspectNotificationErrors(value2, kind, runIndex, invocationIndex, warnings) {
+  let errors = 0;
+  const property = kind === "tool-execution" ? "toolExecutionNotifications" : "toolConfigurationNotifications";
+  for (const [notificationIndex, notificationValue] of asArray(value2).entries()) {
+    const notification = asRecord(notificationValue);
+    if (asString(notification?.["level"]) !== "error")
+      continue;
+    errors += 1;
+    const descriptor = asString(asRecord(notification?.["descriptor"])?.["id"]);
+    const messageRecord = asRecord(notification?.["message"]);
+    const message = asString(messageRecord?.["text"]) ?? asString(messageRecord?.["markdown"]);
+    const detail = [descriptor, message].filter(Boolean).join(": ").slice(0, 500);
+    warnings.push({
+      code: kind === "tool-execution" ? "sarif.tool-execution-error" : "sarif.tool-configuration-error",
+      message: `The SARIF producer reported an error-level ${kind.replace("-", " ")} notification${detail ? `: ${detail}` : ". Retained findings may be incomplete."}`,
+      path: `runs[${runIndex}].invocations[${invocationIndex}].${property}[${notificationIndex}]`
+    });
+  }
+  return errors;
 }
 var sarifResultKinds = /* @__PURE__ */ new Set([
   "pass",
@@ -42424,6 +42553,7 @@ async function run() {
     const failOn = inputChoice("fail-on", "none", allowedFailOn);
     const failOnNew = inputChoice("fail-on-new", "none", allowedFailOn);
     const failOnScanSetChange = inputBoolean("fail-on-scan-set-change", false);
+    const failOnIncomplete = inputBoolean("fail-on-incomplete", false);
     const threshold = inputNumber("threshold", 70, 0, 100);
     const maxBytes = inputNumber("max-bytes", 100 * 1024 * 1024, 1, 1024 ** 3, true);
     if (!baselinePatterns && failOnNew !== "none") {
@@ -42448,6 +42578,10 @@ async function run() {
       const baseline = correlateReports(baselineReports, { threshold, scope });
       baselineDiff = compareCorrelations(baseline, result);
     }
+    const incompleteReports = countIncompleteReports([
+      ...baselineDiff?.baselineReports ?? [],
+      ...result.reports
+    ]);
     await writeFileAtomic(
       output,
       baselineDiff ? exportBaselineDiff(baselineDiff, format) : exportCorrelation(result, format)
@@ -42465,8 +42599,9 @@ async function run() {
     setOutput("absent", baselineDiff?.summary.absent ?? 0);
     setOutput("unchanged", baselineDiff?.summary.unchanged ?? 0);
     setOutput("scan-set-changed", baselineDiff?.scanSetChange.detected ?? false);
+    setOutput("incomplete-reports", incompleteReports);
     setOutput("report", output);
-    await writeSummary(result, output, baselineDiff);
+    await writeSummary(result, output, baselineDiff, incompleteReports);
     info(
       `${result.summary.inputFindings} source records became ${result.summary.clusters} clusters (${result.summary.activeClusters} active, ${result.summary.suppressedClusters} suppressed, and ${result.summary.nonFindingClusters} non-finding); ${result.summary.duplicatesCollapsed} duplicates collapsed.`
     );
@@ -42494,6 +42629,11 @@ async function run() {
     if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
       setFailed(
         `The scanner tools or per-tool report counts changed from the baseline. The comparison was still written to ${output}.`
+      );
+    }
+    if (incompleteReports > 0 && failOnIncomplete) {
+      setFailed(
+        `${incompleteReports} input report${incompleteReports === 1 ? "" : "s"} contained SARIF run-completeness warnings. Partial evidence and outputs were retained at ${output}.`
       );
     }
   } catch (error52) {
@@ -42530,7 +42670,7 @@ async function readMatchedReports(patterns, label, maxBytes, output, maximumRepo
   }
   return reports;
 }
-async function writeSummary(result, output, baselineDiff) {
+async function writeSummary(result, output, baselineDiff, incompleteReports = 0) {
   const table = [
     [
       { data: "Severity", header: true },
@@ -42569,7 +42709,10 @@ async function writeSummary(result, output, baselineDiff) {
   await summary.addHeading("VulnFuse correlation", 2).addRaw(
     `${result.summary.inputFindings} source records became **${result.summary.clusters} clusters** (**${result.summary.activeClusters} active**, **${result.summary.suppressedClusters} suppressed**, **${result.summary.nonFindingClusters} non-finding**); **${result.summary.duplicatesCollapsed} duplicate records** were collapsed.`,
     true
-  ).addTable(table).addHeading("Scanner coverage", 3).addRaw(
+  ).addTable(table).addRaw(
+    `Incomplete input reports: **${incompleteReports}**. SARIF producer run-health metadata is evidence; a zero count does not prove scan completeness.`,
+    true
+  ).addHeading("Scanner coverage", 3).addRaw(
     `**${result.summary.coverage.singleToolClusters} one-tool clusters** and **${result.summary.coverage.multiToolClusters} multi-tool clusters**. Agreement is evidence coverage, not a correctness vote.`,
     true
   ).addTable(coverageTable).addDetails("Pairwise scanner overlap", pairwiseCoverage).addRaw(

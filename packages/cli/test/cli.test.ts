@@ -20,6 +20,10 @@ const resultKindsSarif = resolve(
   import.meta.dirname,
   "../../core/test/fixtures/sarif-result-kinds.json",
 );
+const incompleteSarif = resolve(
+  import.meta.dirname,
+  "../../core/test/fixtures/sarif-incomplete.json",
+);
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -31,6 +35,51 @@ afterEach(async () => {
 });
 
 describe("CLI", () => {
+  it("writes partial SARIF evidence before applying the incomplete-run gate", async () => {
+    const inspection = await execute(process.execPath, [cli, "inspect", incompleteSarif, "--json"]);
+    const inspected = JSON.parse(inspection.stdout)[0] as {
+      findings: number;
+      warnings: Array<{ code: string }>;
+    };
+    expect(inspected.findings).toBe(1);
+    expect(inspected.warnings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "sarif.execution-failed" })]),
+    );
+    expect(inspection.stderr).toContain("sarif.tool-execution-error");
+
+    await expect(
+      execute(process.execPath, [
+        cli,
+        "inspect",
+        incompleteSarif,
+        "--json",
+        "--fail-on-incomplete",
+      ]),
+    ).rejects.toMatchObject({ code: 1 });
+
+    const output = join(testDirectory, "partial-result.json");
+    await expect(
+      execute(process.execPath, [
+        cli,
+        "merge",
+        incompleteSarif,
+        "--format",
+        "json",
+        "--output",
+        output,
+        "--fail-on-incomplete",
+      ]),
+    ).rejects.toMatchObject({ code: 1 });
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      summary: { inputFindings: number };
+      reports: Array<{ warnings: Array<{ code: string }> }>;
+    };
+    expect(result.summary.inputFindings).toBe(1);
+    expect(result.reports[0]?.warnings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "sarif.execution-failed" })]),
+    );
+  });
+
   it("inspects OpenVEX and correlates its component evidence in a separate process", async () => {
     const inspection = await execute(process.execPath, [cli, "inspect", openVex, "--json"]);
     expect(JSON.parse(inspection.stdout)[0]).toMatchObject({

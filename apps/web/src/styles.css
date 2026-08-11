@@ -421,6 +421,71 @@ main {
 .file-chip button:hover {
   color: #ff9cad;
 }
+.report-warnings {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 200, 107, 0.34);
+  border-radius: 8px;
+  background: rgba(255, 200, 107, 0.055);
+}
+.report-warnings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 13px;
+  color: var(--medium);
+  font-size: 10px;
+}
+.report-warnings-head > span {
+  color: #9aab9f;
+  font-size: 9px;
+}
+.report-warnings details {
+  border-top: 1px solid rgba(255, 200, 107, 0.18);
+}
+.report-warnings summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 13px;
+  color: #d7e2dc;
+  cursor: pointer;
+  font-size: 10px;
+}
+.report-warnings summary small {
+  flex: none;
+  color: var(--medium);
+  font-size: 9px;
+}
+.report-warnings ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 13px 13px 34px;
+}
+.report-warnings li {
+  min-width: 0;
+  color: #b5c4bd;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.report-warnings li code,
+.report-warnings li span,
+.report-warnings li small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.report-warnings li code {
+  margin-bottom: 2px;
+  color: #ffd28a;
+}
+.report-warnings li small {
+  margin-top: 2px;
+  color: #71877d;
+  font-family: ui-monospace, Consolas, monospace;
+}
 .baseline-loader {
   display: flex;
   align-items: center;
@@ -1515,6 +1580,12 @@ footer span:last-child {
   .baseline-loader {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .report-warnings-head,
+  .report-warnings summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
   .coverage-summary-head {
     flex-direction: column;

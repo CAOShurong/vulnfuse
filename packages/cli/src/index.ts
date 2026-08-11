@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import {
   compareCorrelations,
+  countIncompleteReports,
   correlateReports,
   describeScanSetChange,
   detectFormat,
@@ -20,7 +21,7 @@ import { Command, InvalidArgumentError, Option } from "commander";
 import { glob, isDynamicPattern } from "tinyglobby";
 import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.12";
+const version = "0.4.13";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -32,6 +33,7 @@ interface MergeOptions {
   titleWeight: number;
   maxBytes: number;
   failOn: Severity | "none";
+  failOnIncomplete?: boolean;
 }
 
 interface DiffOptions extends Omit<MergeOptions, "failOn"> {
@@ -84,6 +86,10 @@ export function createProgram(): Command {
         .choices(["none", "info", "low", "medium", "high", "critical"])
         .default("none"),
     )
+    .option(
+      "--fail-on-incomplete",
+      "Exit 1 after writing when SARIF metadata says an input run may be incomplete",
+    )
     .action(async (reportPaths: string[], options: MergeOptions) => {
       reportPaths = await expandReportPaths(reportPaths);
       assertReportArguments(reportPaths);
@@ -106,6 +112,7 @@ export function createProgram(): Command {
       ) {
         process.exitCode = 1;
       }
+      applyIncompleteGate(reports, options.failOnIncomplete, options.output);
     });
 
   program
@@ -151,6 +158,10 @@ export function createProgram(): Command {
     .option(
       "--fail-on-scan-set-change",
       "Exit 1 after writing when scanner tools or per-tool report counts changed",
+    )
+    .option(
+      "--fail-on-incomplete",
+      "Exit 1 after writing when current or baseline SARIF may be incomplete",
     )
     .action(async (reportPaths: string[], options: DiffOptions) => {
       reportPaths = await expandReportPaths(reportPaths, "Current report pattern");
@@ -200,6 +211,11 @@ export function createProgram(): Command {
         process.exitCode = 1;
       }
       if (options.failOnScanSetChange && result.scanSetChange.detected) process.exitCode = 1;
+      applyIncompleteGate(
+        [...baselineReports, ...currentReports],
+        options.failOnIncomplete,
+        options.output,
+      );
     });
 
   program
@@ -213,15 +229,26 @@ export function createProgram(): Command {
       100 * 1024 * 1024,
     )
     .option("--json", "Emit machine-readable JSON")
-    .action(async (reportPaths: string[], options: { maxBytes: number; json?: boolean }) => {
-      reportPaths = await expandReportPaths(reportPaths);
-      assertReportArguments(reportPaths);
-      const inputs = await readInputs(reportPaths, options.maxBytes);
-      const reports = inputs.map((input) => parseReport(input, { maxBytes: options.maxBytes }));
-      if (options.json)
-        process.stdout.write(`${JSON.stringify(reports.map(reportSummary), null, 2)}\n`);
-      else process.stdout.write(inspectTable(reports));
-    });
+    .option(
+      "--fail-on-incomplete",
+      "Exit 1 when SARIF metadata says an inspected run may be incomplete",
+    )
+    .action(
+      async (
+        reportPaths: string[],
+        options: { maxBytes: number; json?: boolean; failOnIncomplete?: boolean },
+      ) => {
+        reportPaths = await expandReportPaths(reportPaths);
+        assertReportArguments(reportPaths);
+        const inputs = await readInputs(reportPaths, options.maxBytes);
+        const reports = inputs.map((input) => parseReport(input, { maxBytes: options.maxBytes }));
+        printReportWarnings(reports);
+        if (options.json)
+          process.stdout.write(`${JSON.stringify(reports.map(reportSummary), null, 2)}\n`);
+        else process.stdout.write(inspectTable(reports));
+        applyIncompleteGate(reports, options.failOnIncomplete);
+      },
+    );
 
   program
     .command("detect")
@@ -359,6 +386,21 @@ function printReportWarnings(reports: ParsedReport[]): void {
       );
     }
   }
+}
+
+function applyIncompleteGate(
+  reports: ParsedReport[],
+  enabled: boolean | undefined,
+  output?: string,
+): void {
+  if (!enabled) return;
+  const count = countIncompleteReports(reports);
+  if (count === 0) return;
+  const outputNote = output ? ` The requested output was still written to ${output}.` : "";
+  process.stderr.write(
+    `vulnfuse: incomplete: ${count} input report${count === 1 ? "" : "s"} contained SARIF run-completeness warnings.${outputNote}\n`,
+  );
+  process.exitCode = 1;
 }
 
 function inspectTable(reports: ParsedReport[]): string {

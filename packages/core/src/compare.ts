@@ -86,6 +86,8 @@ export function compareCorrelations(
     options: current.options,
     baselineSummary: baseline.summary,
     currentSummary: current.summary,
+    baselineReports: baseline.reports,
+    currentReports: current.reports,
     scanSetChange,
     items,
     summary: {
