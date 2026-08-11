@@ -517,8 +517,8 @@ The active MIT `softprops/action-gh-release` 3.0.2 uploads releases on Linux,
 Windows, and macOS, but does not itself authenticate a checksum manifest or
 generate build provenance. GitHub's Release Asset API now exposes a SHA-256
 digest, but consuming it requires an API/client and does not create an offline
-manifest. GitHub CLI verification is the right online consumer when an
-attestation exists, but requires a recent CLI and network access.
+manifest. `gh attestation verify` is the right online consumer for an
+`actions/attest` statement, but requires a recent CLI and network access.
 
 VulnFuse therefore keeps the existing GitHub-hosted release path without adding
 a paid service or shipped runtime dependency. It adds a dependency-free Node
@@ -533,6 +533,26 @@ rejects an empty artifact directory, and excludes the manifest itself on rerun.
 Linux CI checks real packed npm artifacts; Windows CI checks real SARIF and
 OpenVEX fixtures; the tag workflow checks and attests the exact CLI/core
 packages, Action archive, and CycloneDX SBOMs that it then publishes.
+
+Public v0.4.18 acceptance exposed an important command boundary after those
+controls shipped. The flat manifest passed 5/5, all six local files matched the
+GitHub Release Asset API digests, and strict `gh attestation verify` succeeded
+when constrained to this repository, `.github/workflows/release.yml`,
+`refs/tags/v0.4.18`, and GitHub-hosted runners. However, `gh release verify` and
+`gh release verify-asset` both exited 1 with "no attestations for tag." The
+repository API reported immutable releases disabled and the release itself as
+`immutable: false`. GitHub documents those commands specifically for immutable
+release attestations; they are not aliases for an ordinary `actions/attest`
+statement. See GitHub's
+[immutable-release verification documentation](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/verify-release-integrity)
+and [issue #57](https://github.com/CAOShurong/vulnfuse/issues/57).
+
+VulnFuse therefore documents the narrower command that was actually observed:
+`gh attestation verify` with signer-workflow, source-ref, and hosted-runner
+constraints. The repository does not enable immutable releases as part of this
+change. That setting would alter repository policy and future release mutation
+rules; it is not necessary to verify the SLSA statement already attached to the
+assets and is not silently presented as enabled.
 
 ## Design conclusions from the research
 
