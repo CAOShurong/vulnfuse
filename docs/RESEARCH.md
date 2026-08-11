@@ -466,6 +466,74 @@ within the existing per-report byte limit. Users who need lossless conversion
 or formal schema validation should keep the official CycloneDX tooling in that
 part of the pipeline.
 
+## Release bytes that consumers can actually verify
+
+The public v0.4.17 release exposed a failure in its own download acceptance.
+Its five artifacts and `SHA256SUMS.txt` downloaded correctly, and the digests
+were accurate, but every manifest entry named `release/<asset>`. GitHub Release
+assets are downloaded under their individual basenames, so running the standard
+`sha256sum -c SHA256SUMS.txt` beside all six downloads failed 5/5 with "No such
+file or directory." Removing the workflow-only directory prefix made the same
+digests pass. The reproduction and acceptance criteria are public in
+[issue #55](https://github.com/CAOShurong/vulnfuse/issues/55).
+
+This is an ordinary distribution contract, not a VulnFuse-specific checksum
+interpretation. GNU Coreutils checks the filenames recorded in a checksum file.
+Bitcoin Core's maintained release process explicitly removes build-output
+subdirectories so downloads can be verified without reconstructing directory
+structure. HashiCorp's Terraform verification guide likewise expects the
+downloaded archive name to match a flat `SHA256SUMS` entry; it also demonstrates
+the confusing missing-file output when only one of many listed archives is
+present. Users have independently reported needing to strip server paths from
+published checksum names before verification. See the
+[GNU Coreutils manual](https://www.gnu.org/software/coreutils/manual/coreutils.html),
+[Bitcoin Core release process](https://github.com/bitcoin/bitcoin/blob/master/doc/release-process.md#after-6-or-more-people-have-guix-built-and-their-results-match),
+[Terraform verification guide](https://developer.hashicorp.com/terraform/tutorials/cli/verify-archive),
+and the practitioner report about
+[release paths embedded in `sha256sum.txt`](https://www.reddit.com/r/voidlinux/comments/ltqi3b/issues_verifying_the_new_20210218_current_release/).
+
+The second failure was more important than path convenience. Both
+`gh release verify v0.4.17` and `gh release verify-asset` exited 1 because the
+tag workflow created no attestation. An unauthenticated checksum detects changed
+bytes only if the consumer already trusts the manifest. GitHub's current
+artifact-attestation design binds artifact names and digests to a signed
+in-toto/SLSA provenance statement, stores the statement through the repository
+attestations API, and verifies it with GitHub CLI. Public repositories can use
+the service on current GitHub plans. This establishes workflow provenance; it
+does not establish that the source, runner, dependencies, or executable are
+safe. See GitHub's primary documentation for
+[generating attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations),
+[release verification](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/verify-release-integrity),
+and the MIT-licensed
+[`actions/attest` implementation](https://github.com/actions/attest).
+
+Maintained alternatives were checked on 2026-08-12. GoReleaser 2.17.1 is an
+active MIT release system that emits flat checksums, Sigstore bundles, SBOMs,
+and attestations. Its Linux packages were roughly 24-28 MB and adopting it would
+replace a working Node/npm-specific pack-and-SBOM workflow with another release
+configuration and toolchain. It is a sound choice for broader multi-platform
+binary release automation, but disproportionate for correcting six filenames.
+The active MIT `softprops/action-gh-release` 3.0.2 uploads releases on Linux,
+Windows, and macOS, but does not itself authenticate a checksum manifest or
+generate build provenance. GitHub's Release Asset API now exposes a SHA-256
+digest, but consuming it requires an API/client and does not create an offline
+manifest. GitHub CLI verification is the right online consumer when an
+attestation exists, but requires a recent CLI and network access.
+
+VulnFuse therefore keeps the existing GitHub-hosted release path without adding
+a paid service or shipped runtime dependency. It adds a dependency-free Node
+checksum writer already supported by the repository's Linux and Windows
+runtimes, then composes it with the official `actions/attest` 4.2.2 action
+pinned to its verified release commit. The attestation adds one network/OIDC
+step and makes GitHub's attestation service another release-time failure
+surface; offline checksum use remains available. Pinning reduces action-version
+drift but is not evidence that the action or runner is vulnerability-free. The
+writer sorts controlled portable asset basenames, streams SHA-256 calculation,
+rejects an empty artifact directory, and excludes the manifest itself on rerun.
+Linux CI checks real packed npm artifacts; Windows CI checks real SARIF and
+OpenVEX fixtures; the tag workflow checks and attests the exact CLI/core
+packages, Action archive, and CycloneDX SBOMs that it then publishes.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.

@@ -4,6 +4,28 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.18] - 2026-08-12
+
+### Fixed
+
+- Generate `SHA256SUMS.txt` with deterministic asset basenames so a directory
+  of files downloaded from GitHub Releases can be checked directly without
+  reconstructing the workflow's `release/` directory.
+
+### Added
+
+- Generate GitHub/Sigstore build-provenance attestations for every published
+  package, bundled Action archive, CycloneDX SBOM, and checksum manifest.
+- Exercise checksum generation with Node 22 and 24 on Linux, real packed npm
+  artifacts on Linux, and real SARIF/OpenVEX fixtures on Windows.
+
+### Limitations
+
+- A checksum match detects changed bytes only when the manifest itself is
+  trusted. GitHub provenance binds release bytes to the tag workflow, but it
+  does not prove the source, runner, dependencies, or resulting program are
+  vulnerability-free or otherwise safe.
+
 ## [0.4.17] - 2026-08-12
 
 ### Added
