@@ -19,6 +19,7 @@ Each source record can supply:
 - fixed version and recommendation;
 - safe HTTP(S) references;
 - producer-declared suppression kind, status, and justification;
+- producer-declared SARIF result kind and non-finding disposition;
 - format-specific JSON properties.
 
 Missing evidence is not fabricated. For example, a CVSS score is not inferred when a report contains only a severity word.
@@ -28,14 +29,18 @@ Missing evidence is not fabricated. For example, a CVSS score is not inferred wh
 VulnFuse reads:
 
 - `runs[].tool.driver` name, version, rules, descriptions, tags, and `security-severity`;
-- `results[]` rule ID, level, message, properties, fingerprints, partial fingerprints, and references;
+- `results[]` rule ID, kind, level, message, properties, fingerprints, partial fingerprints, and references;
 - first physical and logical location, including URI, region, and fully qualified symbol.
 
 SARIF results default to `sast`; rule tags can classify SCA, container, IaC, secret, DAST, or license findings. A rule's numeric `security-severity` takes precedence over SARIF's diagnostic `level`.
 
+SARIF `result.kind` defaults to `fail` when omitted. Valid `pass`, `informational`, and `notApplicable` values become non-finding evidence when `level` is `none` or omitted. `fail`, `open`, and `review` remain active. An unknown or non-string kind emits `sarif.invalid-result-kind`; a non-fail kind paired with an explicit level other than `none` emits `sarif.inconsistent-result-kind`. Both conservative failure cases preserve the raw value under `properties["sarif.resultKind"]` and remain gate-eligible.
+
 VulnFuse also reads `results[].suppressions`. An absent, `null`, or empty list is active. A non-empty valid list is effectively suppressed when every entry has status `accepted` or omits status. If any entry is `underReview` or `rejected`, the result remains active. An unrecognized container, object, kind, or status emits `sarif.invalid-suppression` and keeps the result active rather than granting a quiet gate bypass. Kinds are limited to SARIF's `inSource` and `external` values.
 
-Correlation keeps the source records and all valid suppression evidence. A cluster is effectively suppressed only when every member is effectively suppressed; one active corroborating record keeps the whole cluster active. This state appears in JSON, SARIF, CSV, Markdown, portable HTML, the browser, CLI gates, and Action outputs. For a fully suppressed cluster, SARIF export emits `result.suppressions`; mixed active clusters retain per-source evidence under VulnFuse result properties without incorrectly suppressing the synthesized SARIF result.
+Correlation keeps every source record and computes one of three cluster dispositions. A cluster is non-finding only when every member is non-finding. Otherwise, it is effectively suppressed only when every actual-finding member is effectively suppressed. Any active actual-finding member keeps the whole cluster active. Primary-record selection follows the same precedence: active, then effectively suppressed, then non-finding evidence.
+
+Disposition appears in JSON, CSV, Markdown, portable HTML, the browser, CLI gates, and Action outputs. A fully suppressed cluster gets `result.suppressions` in SARIF export; mixed active clusters retain per-source suppression evidence under VulnFuse result properties. GitHub code scanning does not document `result.kind` in its supported SARIF subset and treats uploaded results as alerts, so VulnFuse deliberately omits non-finding clusters from exported `results[]` and preserves them under `run.properties.nonFindingClusters` (or `nonFindingItems` for a baseline export). This avoids creating hosted alerts for producer-declared pass/not-applicable outcomes while retaining their audit data in the file.
 
 ## Trivy JSON
 
@@ -116,7 +121,7 @@ Every correlation summary includes total, active, and effectively suppressed clu
 
 Scanner versions come from producer-specific fields such as SARIF `tool.driver.semanticVersion`, Trivy `Trivy.Version`, and CycloneDX `metadata.tools`. Report schema versions such as Trivy `SchemaVersion` and CycloneDX `specVersion` remain metadata and are not presented as scanner versions.
 
-HTML is a self-contained review surface rather than a machine-ingestion format. It embeds no report JSON and loads no remote assets. All report-controlled text and attributes are escaped before rendering; its fixed inline script only filters and expands already-rendered findings. The file supports search and severity, baseline-state, asset, scanner, one-tool/multi-tool, and suppression filters while retaining match evidence, blockers, source suppression justifications, and safe HTTP(S) references.
+HTML is a self-contained review surface rather than a machine-ingestion format. It embeds no report JSON and loads no remote assets. All report-controlled text and attributes are escaped before rendering; its fixed inline script only filters and expands already-rendered findings. The file supports search and severity, baseline-state, asset, scanner, one-tool/multi-tool, and three-state disposition filters while retaining match evidence, blockers, source result kinds, suppression justifications, and safe HTTP(S) references.
 
 Baseline comparison output is an audit artifact, not a raw scanner input. Supply the previous raw reports or a plain VulnFuse correlation JSON when constructing the next baseline.
 

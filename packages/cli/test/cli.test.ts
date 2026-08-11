@@ -15,6 +15,10 @@ const suppressedSarif = resolve(
   import.meta.dirname,
   "../../core/test/fixtures/sarif-suppressed.json",
 );
+const resultKindsSarif = resolve(
+  import.meta.dirname,
+  "../../core/test/fixtures/sarif-result-kinds.json",
+);
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -99,6 +103,79 @@ describe("CLI", () => {
     };
     expect(result.summary).toMatchObject({ activeClusters: 0, suppressedClusters: 2 });
     expect(result.clusters.every((cluster) => cluster.suppressed)).toBe(true);
+  });
+
+  it("retains pass, informational, and not-applicable SARIF evidence without failing the gate", async () => {
+    const document = JSON.parse(await readFile(resultKindsSarif, "utf8")) as {
+      runs: Array<{ results: Array<Record<string, unknown>> }>;
+    };
+    if (!document.runs[0]) return;
+    document.runs[0].results = document.runs[0].results.slice(0, 3);
+    const input = join(testDirectory, "non-finding-only.sarif");
+    const output = join(testDirectory, "non-finding-only.json");
+    await writeFile(input, JSON.stringify(document), "utf8");
+
+    const inspection = await execute(process.execPath, [cli, "inspect", input, "--json"]);
+    expect(JSON.parse(inspection.stdout)[0]).toMatchObject({
+      findings: 3,
+      active: 0,
+      suppressed: 0,
+      nonFinding: 3,
+    });
+
+    await execute(process.execPath, [
+      cli,
+      "merge",
+      input,
+      "--format",
+      "json",
+      "--output",
+      output,
+      "--fail-on",
+      "info",
+    ]);
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      summary: {
+        activeClusters: number;
+        suppressedClusters: number;
+        nonFindingClusters: number;
+      };
+    };
+    expect(result.summary).toMatchObject({
+      activeClusters: 0,
+      suppressedClusters: 0,
+      nonFindingClusters: 3,
+    });
+  });
+
+  it("warns and keeps contradictory SARIF result kinds active", async () => {
+    const document = JSON.parse(await readFile(resultKindsSarif, "utf8")) as {
+      runs: Array<{ results: Array<Record<string, unknown>> }>;
+    };
+    if (!document.runs[0]) return;
+    document.runs[0].results = document.runs[0].results.slice(9, 10);
+    const input = join(testDirectory, "contradictory-kind.sarif");
+    const output = join(testDirectory, "contradictory-kind.json");
+    await writeFile(input, JSON.stringify(document), "utf8");
+
+    const failure = await executeFailure([
+      cli,
+      "merge",
+      input,
+      "--format",
+      "json",
+      "--output",
+      output,
+      "--fail-on",
+      "medium",
+    ]);
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain("sarif.inconsistent-result-kind");
+    expect(failure.stderr).toContain("remains active");
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      summary: { activeClusters: number; nonFindingClusters: number };
+    };
+    expect(result.summary).toMatchObject({ activeClusters: 1, nonFindingClusters: 0 });
   });
 
   it("warns and keeps malformed SARIF suppression active", async () => {

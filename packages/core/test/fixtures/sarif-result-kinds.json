@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Result Kind Fixture",
+          "semanticVersion": "1.0.0"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "PASS001",
+          "kind": "pass",
+          "level": "none",
+          "message": { "text": "The hardening check passed" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/pass.c" },
+                "region": { "startLine": 1 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "INFO001",
+          "kind": "informational",
+          "level": "none",
+          "message": { "text": "Compiler version recorded" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/info.c" },
+                "region": { "startLine": 2 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "NA001",
+          "kind": "notApplicable",
+          "level": "none",
+          "message": { "text": "The rule does not apply to this target" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/na.c" },
+                "region": { "startLine": 3 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "OPEN001",
+          "kind": "open",
+          "level": "none",
+          "message": { "text": "More evidence is required" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/open.c" },
+                "region": { "startLine": 4 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "REVIEW001",
+          "kind": "review",
+          "level": "none",
+          "message": { "text": "A human review is required" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/review.c" },
+                "region": { "startLine": 5 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "FAIL001",
+          "kind": "fail",
+          "level": "error",
+          "message": { "text": "A problem was found" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/fail.c" },
+                "region": { "startLine": 6 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "DEFAULT001",
+          "level": "error",
+          "message": { "text": "Missing kind defaults to fail" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/default.c" },
+                "region": { "startLine": 7 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "UNKNOWN001",
+          "kind": "invented",
+          "level": "none",
+          "message": { "text": "An unknown kind must not bypass the gate" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/unknown.c" },
+                "region": { "startLine": 8 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "TYPE001",
+          "kind": 42,
+          "level": "none",
+          "message": { "text": "A non-string kind must not bypass the gate" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/type.c" },
+                "region": { "startLine": 9 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CONTRADICT001",
+          "kind": "pass",
+          "level": "warning",
+          "message": { "text": "A pass result cannot carry warning severity" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/contradict.c" },
+                "region": { "startLine": 10 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

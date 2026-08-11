@@ -79,12 +79,12 @@ Every accepted matched edge within a cluster remains in the result so a reviewer
 
 The primary record is selected deterministically by:
 
-1. active status before effectively suppressed status;
+1. active status before effectively suppressed status before non-finding status;
 2. highest severity;
 3. most identifiers and populated descriptive/component fields;
 4. lexicographically smallest stable finding ID.
 
-Suppression does not change whether records correlate. It changes the cluster disposition after correlation: the cluster is effectively suppressed only when every member is effectively suppressed. This prevents a suppressed duplicate from hiding active evidence reported by another scanner.
+SARIF result kind and suppression do not change whether records correlate. They change the cluster disposition after correlation. A cluster is non-finding only when every member is non-finding; otherwise it is effectively suppressed only when every actual-finding member is suppressed. This prevents pass evidence or a suppressed duplicate from hiding active evidence reported by another scanner.
 
 Cluster IDs hash the sorted member IDs and identifiers. They remain stable when input order changes, but can change when source evidence changes.
 
@@ -96,7 +96,7 @@ Every cluster receives one state:
 
 - `new`: no baseline cluster matched the current cluster;
 - `unchanged`: a baseline cluster matched and its significant evidence is unchanged;
-- `updated`: a baseline cluster matched, but severity, suppression, title, kind, identifiers, components, assets, locations, remediation, source tools, or source-record count changed;
+- `updated`: a baseline cluster matched, but severity, disposition, title, kind, identifiers, components, assets, locations, remediation, source tools, or source-record count changed;
 - `absent`: a baseline cluster did not match any current cluster.
 
 `absent` means only that the evidence is missing from the supplied current reports. It does not prove remediation; a scanner might have failed, changed scope, or stopped reporting the affected asset.
@@ -105,7 +105,7 @@ Every comparison also records a `scanSetChange` object. It lists scanner tools p
 
 Baseline candidate indexing uses stable IDs, vulnerability identifiers, components, scanner fingerprints, and—when the threshold allows weaker evidence—asset, path, and rule context. A comparison is capped at 1,000,000 cluster pairs and 2,000,000 underlying source-record pairs, and fails visibly rather than returning a partial diff.
 
-`newBySeverity` counts every new cluster for audit reporting. `newActiveBySeverity` excludes only fully suppressed new clusters and is the input to `--fail-on-new` and the corresponding Action gate.
+`newBySeverity` counts every new cluster for audit reporting. `newActiveBySeverity` excludes fully suppressed and fully non-finding new clusters and is the input to `--fail-on-new` and the corresponding Action gate.
 
 ## Example
 

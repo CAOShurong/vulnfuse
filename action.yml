@@ -52,6 +52,8 @@ outputs:
     description: Number of clusters with at least one active source record.
   suppressed:
     description: Number of clusters whose source records are all effectively suppressed.
+  non-finding:
+    description: Number of clusters containing only SARIF pass, informational, or notApplicable evidence.
   duplicates-collapsed:
     description: Number of duplicate source records collapsed.
   single-tool:

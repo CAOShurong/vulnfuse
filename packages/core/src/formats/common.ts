@@ -28,6 +28,7 @@ export interface FindingSeed {
   fingerprints?: Record<string, string> | undefined;
   remediation?: FindingRemediation | undefined;
   suppressed?: boolean | undefined;
+  nonFinding?: boolean | undefined;
   suppressions?: FindingSuppression[] | undefined;
   references?: string[] | undefined;
   properties?: Record<string, JsonValue> | undefined;
@@ -69,6 +70,7 @@ export function makeFinding(seed: FindingSeed): CanonicalFinding {
       ? { remediation: seed.remediation }
       : {}),
     ...(seed.suppressed !== undefined ? { suppressed: seed.suppressed } : {}),
+    ...(seed.nonFinding !== undefined ? { nonFinding: seed.nonFinding } : {}),
     ...(seed.suppressions ? { suppressions: seed.suppressions } : {}),
     references,
     properties: seed.properties ?? {},

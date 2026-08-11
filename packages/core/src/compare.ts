@@ -75,7 +75,9 @@ export function compareCorrelations(
   for (const item of items) {
     if (item.state === "new") {
       newBySeverity[item.cluster.severity] += 1;
-      if (!item.cluster.suppressed) newActiveBySeverity[item.cluster.severity] += 1;
+      if (!item.cluster.suppressed && !item.cluster.nonFinding) {
+        newActiveBySeverity[item.cluster.severity] += 1;
+      }
     }
   }
 
@@ -318,6 +320,7 @@ function significantChanges(baseline: FindingCluster, current: FindingCluster): 
     ["source-tools", baseline.sourceTools, current.sourceTools],
     ["source-records", baseline.members.length, current.members.length],
     ["suppression", baseline.suppressed, current.suppressed],
+    ["non-finding", baseline.nonFinding, current.nonFinding],
   ];
   return fields
     .filter(([, before, after]) => JSON.stringify(before) !== JSON.stringify(after))

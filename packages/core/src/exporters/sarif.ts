@@ -1,6 +1,8 @@
 import type { CorrelationResult, FindingCluster } from "../model.js";
 
 export function exportSarif(result: CorrelationResult): string {
+  const emittedClusters = result.clusters.filter((cluster) => !cluster.nonFinding);
+  const nonFindingClusters = result.clusters.filter((cluster) => cluster.nonFinding);
   const document = {
     $schema: "https://json.schemastore.org/sarif-2.1.0.json",
     version: "2.1.0",
@@ -9,9 +11,9 @@ export function exportSarif(result: CorrelationResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.9",
+            semanticVersion: "0.4.10",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
-            rules: result.clusters.map((cluster) => ruleFor(cluster)),
+            rules: emittedClusters.map((cluster) => ruleFor(cluster)),
           },
         },
         invocations: [
@@ -20,7 +22,12 @@ export function exportSarif(result: CorrelationResult): string {
             properties: { summary: result.summary, correlationOptions: result.options },
           },
         ],
-        results: result.clusters.map((cluster) => resultFor(cluster)),
+        results: emittedClusters.map((cluster) => resultFor(cluster)),
+        properties: {
+          nonFindingClusters,
+          nonFindingExportNote:
+            "Retained here instead of results[] because GitHub code scanning does not document result.kind in its supported SARIF subset.",
+        },
       },
     ],
   };
@@ -83,6 +90,7 @@ function resultFor(cluster: FindingCluster): Record<string, unknown> {
       sourceTools: cluster.sourceTools,
       sourceFindingIds: cluster.members.map((member) => member.id),
       suppressed: cluster.suppressed,
+      nonFinding: cluster.nonFinding,
       suppressionEvidence: suppressionEvidence(cluster),
       matchConfidence: cluster.confidence,
       identifiers: cluster.identifiers,

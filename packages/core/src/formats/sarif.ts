@@ -110,10 +110,10 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
         ...asArray(resultProperties["references"]).map(safeHttpReference),
       ].filter((value): value is string => Boolean(value));
       const rawSuppressions = asJsonValue(result["suppressions"]);
-      const resultKind = asString(result["kind"]) ?? "fail";
+      const resultKind = parseResultKind(result, runIndex, resultIndex, warnings);
       const properties = asJsonValue({
         ...resultProperties,
-        "sarif.resultKind": resultKind,
+        "sarif.resultKind": resultKind.value,
         ...(rawSuppressions !== undefined ? { "sarif.suppressions": rawSuppressions } : {}),
       });
 
@@ -140,6 +140,7 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
           ...(ruleId ? { ruleId } : {}),
           fingerprints,
           suppressed: suppression.suppressed,
+          nonFinding: resultKind.nonFinding,
           suppressions: suppression.suppressions,
           references,
           ...(properties && !Array.isArray(properties) && typeof properties === "object"
@@ -162,6 +163,52 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
     findings,
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown" },
+  };
+}
+
+const sarifResultKinds = new Set([
+  "pass",
+  "open",
+  "informational",
+  "notApplicable",
+  "review",
+  "fail",
+]);
+
+function parseResultKind(
+  result: Record<string, unknown>,
+  runIndex: number,
+  resultIndex: number,
+  warnings: ParsedReport["warnings"],
+): { value: JsonValue; nonFinding: boolean } {
+  if (!Object.prototype.hasOwnProperty.call(result, "kind")) {
+    return { value: "fail", nonFinding: false };
+  }
+
+  const raw = result["kind"];
+  const value = asJsonValue(raw) ?? null;
+  if (typeof raw !== "string" || !sarifResultKinds.has(raw)) {
+    warnings.push({
+      code: "sarif.invalid-result-kind",
+      message: "A SARIF result kind was invalid, so the result remains active.",
+      path: `runs[${runIndex}].results[${resultIndex}].kind`,
+    });
+    return { value, nonFinding: false };
+  }
+
+  if (raw !== "fail" && result["level"] !== undefined && result["level"] !== "none") {
+    warnings.push({
+      code: "sarif.inconsistent-result-kind",
+      message:
+        "A non-fail SARIF result kind had a non-none level, so the contradictory result remains active.",
+      path: `runs[${runIndex}].results[${resultIndex}].kind`,
+    });
+    return { value: raw, nonFinding: false };
+  }
+
+  return {
+    value: raw,
+    nonFinding: raw === "pass" || raw === "informational" || raw === "notApplicable",
   };
 }
 

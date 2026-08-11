@@ -38,6 +38,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 | Output destroys an input                 | CLI and Action reject identical resolved input/output paths                                       |
 | Baseline coverage drift is misread       | Structured scanner/report-count drift warning; optional post-write CLI/Action failure             |
 | Malformed suppression bypasses a gate    | Unknown containers, kinds, or statuses warn and remain active; mixed clusters remain active       |
+| Malformed result kind bypasses a gate    | Unknown, non-string, or contradictory kinds warn and remain active; active corroboration wins     |
 | Failed output write exposes partial data | Unique exclusive temporary sibling, flush, rename, and cleanup on reported failure                |
 | Symlink escape in Action globbing        | Symbolic-link following is disabled                                                               |
 | Script or HTML injection in workbench    | React text rendering; no `dangerouslySetInnerHTML`                                                |
@@ -63,6 +64,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 11. **Glob traversal happens before the report-count limit.** A quoted CLI pattern does not follow symbolic-link directories and cannot make VulnFuse process more than 1,000 reports, but a broad pattern can still traverse a large directory tree and allocate its match list before that count is checked. Treat workflow-provided patterns as filesystem-read authority and scope them to a known report directory.
 12. **A stable scan set is not proven comparable.** VulnFuse warns when tool names or per-tool report counts change. Equal names and counts still cannot establish identical assets, scanner configuration/version, rules, advisory database, or successful scan completion; retain scanner logs and provenance for consequential baseline decisions.
 13. **Suppression is an assertion, not independent validation.** A scanner or postprocessor can mark a SARIF result suppressed and provide a misleading justification. VulnFuse preserves that evidence and applies current SARIF disposition semantics, but it does not authenticate the producer, prove risk acceptance, or synchronize dismissal state with GitHub or another vulnerability-management system. Protect gate inputs and review consequential suppressions.
+14. **A non-finding result kind is also an assertion.** A compromised, buggy, or misconfigured producer can label a result `pass`, `informational`, or `notApplicable`. VulnFuse rejects malformed or contradictory combinations and lets active corroborating evidence win, but it does not rerun the rule, verify the target, or prove applicability. Protect gate inputs and retain scanner execution logs for consequential decisions.
 
 ## Non-goals
 

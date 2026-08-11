@@ -4,6 +4,28 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-08-11
+
+### Added
+
+- Preserve SARIF `result.kind` and distinguish valid `pass`, `informational`, and `notApplicable` records as non-finding evidence instead of active vulnerabilities.
+- Report non-finding cluster counts and disposition across JSON, CSV, Markdown, portable HTML, the browser workbench, CLI inspection, and GitHub Action outputs.
+- Retain non-finding clusters in VulnFuse SARIF `run.properties` while omitting them from `results[]`, because GitHub code scanning does not document `result.kind` in its supported SARIF subset.
+
+### Changed
+
+- Apply `--fail-on`, `--fail-on-new`, and their Action equivalents only to active clusters. Fully non-finding clusters remain reviewable but do not fail severity gates.
+- Prefer active evidence, then effectively suppressed evidence, then non-finding evidence when selecting a cluster's primary record. An active corroborating record always keeps the cluster active.
+- Treat result disposition changes as significant baseline updates.
+
+### Safety
+
+- Keep unknown, non-string, or contradictory `result.kind` and `level` combinations active and emit a targeted warning instead of allowing ambiguous metadata to bypass a gate.
+
+### Limitations
+
+- `result.kind` is producer-declared metadata. VulnFuse does not rerun the rule, prove that a check passed, or establish that a rule was applicable to the target.
+
 ## [0.4.9] - 2026-08-11
 
 ### Added

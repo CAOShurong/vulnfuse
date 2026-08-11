@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   compareCorrelations,
+  clusterDisposition,
   correlateReports,
   describeScanSetChange,
   exportBaselineDiff,
@@ -22,7 +23,7 @@ const maxFileBytes = 100 * 1024 * 1024;
 const accepted = ".json,.sarif,.csv,application/json,text/csv";
 const severityFilters = ["all", "critical", "high", "medium", "low", "info", "unknown"] as const;
 type CoverageFilter = "all" | "multi" | "single";
-type SuppressionFilter = "all" | "active" | "suppressed";
+type DispositionFilter = "all" | "active" | "suppressed" | "non-finding";
 
 export function App() {
   const [inputs, setInputs] = useState<ReportInput[]>([]);
@@ -34,7 +35,7 @@ export function App() {
   const [severityFilter, setSeverityFilter] = useState<(typeof severityFilters)[number]>("all");
   const [toolFilter, setToolFilter] = useState("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
-  const [suppressionFilter, setSuppressionFilter] = useState<SuppressionFilter>("all");
+  const [dispositionFilter, setDispositionFilter] = useState<DispositionFilter>("all");
   const [dropActive, setDropActive] = useState(false);
   const [fileError, setFileError] = useState<string>();
   const picker = useRef<HTMLInputElement>(null);
@@ -82,10 +83,7 @@ export function App() {
         (cluster.sourceTools.length > 1 ? "multi" : "single") !== coverageFilter
       )
         return false;
-      if (
-        suppressionFilter !== "all" &&
-        (cluster.suppressed ? "suppressed" : "active") !== suppressionFilter
-      )
+      if (dispositionFilter !== "all" && clusterDisposition(cluster) !== dispositionFilter)
         return false;
       if (!normalizedQuery) return true;
       return [
@@ -95,20 +93,21 @@ export function App() {
         cluster.primary.component?.purl,
         ...cluster.sourceTools,
         ...cluster.assets.map((asset) => asset.name),
-        ...cluster.members.flatMap((member) =>
-          (member.suppressions ?? []).flatMap((suppression) => [
+        ...cluster.members.flatMap((member) => [
+          String(member.properties["sarif.resultKind"] ?? ""),
+          ...(member.suppressions ?? []).flatMap((suppression) => [
             suppression.kind,
             suppression.status,
             suppression.justification,
           ]),
-        ),
+        ]),
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(normalizedQuery);
     });
-  }, [analysis.result, coverageFilter, query, severityFilter, suppressionFilter, toolFilter]);
+  }, [analysis.result, coverageFilter, dispositionFilter, query, severityFilter, toolFilter]);
 
   useEffect(() => {
     if (!analysis.result) {
@@ -517,15 +516,16 @@ export function App() {
                     <option value="single">One scanner only</option>
                   </select>
                   <select
-                    aria-label="Filter by suppression state"
-                    value={suppressionFilter}
+                    aria-label="Filter by disposition"
+                    value={dispositionFilter}
                     onChange={(event) =>
-                      setSuppressionFilter(event.target.value as SuppressionFilter)
+                      setDispositionFilter(event.target.value as DispositionFilter)
                     }
                   >
                     <option value="all">All dispositions</option>
                     <option value="active">Active</option>
                     <option value="suppressed">Effectively suppressed</option>
+                    <option value="non-finding">Non-finding evidence</option>
                   </select>
                 </div>
                 <div className="cluster-count">
@@ -553,10 +553,12 @@ export function App() {
                               {baselineItemsByClusterId.get(cluster.id)?.state ?? "new"}
                             </b>
                           )}
-                          <b
-                            className={`suppression-state ${cluster.suppressed ? "suppressed" : "active"}`}
-                          >
-                            {cluster.suppressed ? "suppressed" : "active"}
+                          <b className={`suppression-state ${clusterDisposition(cluster)}`}>
+                            {cluster.nonFinding
+                              ? "non-finding"
+                              : cluster.suppressed
+                                ? "suppressed"
+                                : "active"}
                           </b>
                         </small>
                       </span>
@@ -641,7 +643,8 @@ function SummaryCards({ result }: { result: NonNullable<ReturnType<typeof correl
         <span>Correlated clusters</span>
         <strong>{result.summary.clusters}</strong>
         <small>
-          {result.summary.activeClusters} active · {result.summary.suppressedClusters} suppressed
+          {result.summary.activeClusters} active · {result.summary.suppressedClusters} suppressed ·{" "}
+          {result.summary.nonFindingClusters} non-finding
         </small>
       </article>
       <article>
@@ -826,8 +829,12 @@ function ClusterDetail({
       <div className="detail-head">
         <div className="detail-badges">
           <span className={`severity-pill ${cluster.severity}`}>{cluster.severity}</span>
-          <span className={`suppression-pill ${cluster.suppressed ? "suppressed" : "active"}`}>
-            {cluster.suppressed ? "effectively suppressed" : "active"}
+          <span className={`suppression-pill ${clusterDisposition(cluster)}`}>
+            {cluster.nonFinding
+              ? "non-finding evidence"
+              : cluster.suppressed
+                ? "effectively suppressed"
+                : "active"}
           </span>
         </div>
         <code>{cluster.id}</code>
@@ -868,6 +875,16 @@ function ClusterDetail({
         <div>
           <dt>Assets</dt>
           <dd>{cluster.assets.map((item) => item.name).join(", ") || "—"}</dd>
+        </div>
+        <div>
+          <dt>Disposition</dt>
+          <dd>
+            {cluster.nonFinding
+              ? "Non-finding evidence"
+              : cluster.suppressed
+                ? "Effectively suppressed"
+                : "Active"}
+          </dd>
         </div>
         <div>
           <dt>Fix</dt>
@@ -934,6 +951,12 @@ function ClusterDetail({
                 <small>{member.source.report}</small>
               </div>
               <span className={`mini-severity ${member.severity}`}>{member.severity}</span>
+              {member.properties["sarif.resultKind"] !== undefined && (
+                <div className="member-suppressions result-kind-evidence">
+                  <strong>SARIF result: {String(member.properties["sarif.resultKind"])}</strong>
+                  {member.nonFinding && <p>Retained as non-finding evidence.</p>}
+                </div>
+              )}
               {(member.suppressions?.length ?? 0) > 0 && (
                 <div className="member-suppressions">
                   <strong>

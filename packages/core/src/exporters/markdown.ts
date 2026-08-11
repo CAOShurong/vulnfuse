@@ -1,10 +1,15 @@
-import type { CorrelationResult, CoverageSummary, FindingCluster } from "../model.js";
+import {
+  clusterDisposition,
+  type CorrelationResult,
+  type CoverageSummary,
+  type FindingCluster,
+} from "../model.js";
 
 export function exportMarkdown(result: CorrelationResult): string {
   const lines = [
     "# VulnFuse correlation report",
     "",
-    `> ${result.summary.inputFindings} source findings became ${result.summary.clusters} explainable clusters: ${result.summary.activeClusters} active, ${result.summary.suppressedClusters} effectively suppressed; ${result.summary.duplicatesCollapsed} duplicate records were collapsed.`,
+    `> ${result.summary.inputFindings} source records became ${result.summary.clusters} explainable clusters: ${result.summary.activeClusters} active, ${result.summary.suppressedClusters} effectively suppressed, ${result.summary.nonFindingClusters} non-finding; ${result.summary.duplicatesCollapsed} duplicate records were collapsed.`,
     "",
     "| Severity | Clusters |",
     "| --- | ---: |",
@@ -85,7 +90,7 @@ function clusterMarkdown(cluster: FindingCluster): string[] {
     "",
     `- **Cluster:** \`${cluster.id}\``,
     `- **Severity:** ${cluster.severity}`,
-    `- **Suppression:** ${cluster.suppressed ? "effectively suppressed" : "active"}`,
+    `- **Disposition:** ${dispositionLabel(cluster)}`,
     `- **Identifiers:** ${escapeMarkdown(identifiers)}`,
     `- **Component:** ${inlineCode(component)}`,
     `- **Assets:** ${escapeMarkdown(assets)}`,
@@ -98,6 +103,13 @@ function clusterMarkdown(cluster: FindingCluster): string[] {
     ...suppressionMarkdown(cluster),
     "",
   ];
+}
+
+function dispositionLabel(cluster: FindingCluster): string {
+  const disposition = clusterDisposition(cluster);
+  if (disposition === "non-finding") return "non-finding evidence";
+  if (disposition === "suppressed") return "effectively suppressed";
+  return "active";
 }
 
 function suppressionMarkdown(cluster: FindingCluster): string[] {

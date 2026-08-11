@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 
-import type { CorrelationResult } from "../model.js";
+import { clusterDisposition, type CorrelationResult } from "../model.js";
 
 export function exportCsv(result: CorrelationResult): string {
   const rows = result.clusters.map((cluster) => ({
@@ -16,7 +16,9 @@ export function exportCsv(result: CorrelationResult): string {
     source_tools: cluster.sourceTools.join(";"),
     source_records: cluster.members.length,
     duplicates_collapsed: Math.max(0, cluster.members.length - 1),
+    disposition: clusterDisposition(cluster),
     suppressed: cluster.suppressed,
+    non_finding: cluster.nonFinding,
     confidence: cluster.confidence,
     fixed_version: cluster.primary.remediation?.fixedVersion ?? "",
     references: cluster.primary.references.join(";"),

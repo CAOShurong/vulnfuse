@@ -89,8 +89,8 @@ function confidenceRank(confidence: MatchExplanation["confidence"]): number {
 
 function choosePrimary(findings: CanonicalFinding[]): CanonicalFinding {
   return [...findings].sort((left, right) => {
-    const suppressionDelta = Number(Boolean(left.suppressed)) - Number(Boolean(right.suppressed));
-    if (suppressionDelta !== 0) return suppressionDelta;
+    const dispositionDelta = findingDispositionRank(left) - findingDispositionRank(right);
+    if (dispositionDelta !== 0) return dispositionDelta;
     const severityDelta =
       severityOrder.indexOf(right.severity) - severityOrder.indexOf(left.severity);
     if (severityDelta !== 0) return severityDelta;
@@ -103,7 +103,15 @@ function choosePrimary(findings: CanonicalFinding[]): CanonicalFinding {
   })[0] as CanonicalFinding;
 }
 
+function findingDispositionRank(finding: CanonicalFinding): number {
+  if (finding.nonFinding) return 2;
+  if (finding.suppressed) return 1;
+  return 0;
+}
+
 function makeCluster(members: CanonicalFinding[], edges: ClusterEdge[]): FindingCluster {
+  const findingMembers = members.filter((member) => !member.nonFinding);
+  const nonFinding = findingMembers.length === 0;
   const identifiers: FindingIdentifier[] = uniqueIdentifiers(
     members.flatMap((member) => member.identifiers),
   );
@@ -133,7 +141,8 @@ function makeCluster(members: CanonicalFinding[], edges: ClusterEdge[]): Finding
     primary: choosePrimary(members),
     members: [...members].sort((left, right) => left.source.tool.localeCompare(right.source.tool)),
     severity: maxSeverity(members.map((member) => member.severity)),
-    suppressed: members.every((member) => member.suppressed === true),
+    suppressed: !nonFinding && findingMembers.every((member) => member.suppressed === true),
+    nonFinding,
     sourceTools: [...new Set(members.map((member) => member.source.tool))].sort(),
     identifiers,
     assets,
@@ -223,10 +232,12 @@ export function correlateReports(
   const bySeverity = zeroSeverityCounts();
   const activeBySeverity = zeroSeverityCounts();
   const suppressedBySeverity = zeroSeverityCounts();
+  const nonFindingBySeverity = zeroSeverityCounts();
   const byKind = zeroKindCounts();
   for (const cluster of clusters) {
     bySeverity[cluster.severity] += 1;
-    if (cluster.suppressed) suppressedBySeverity[cluster.severity] += 1;
+    if (cluster.nonFinding) nonFindingBySeverity[cluster.severity] += 1;
+    else if (cluster.suppressed) suppressedBySeverity[cluster.severity] += 1;
     else activeBySeverity[cluster.severity] += 1;
     byKind[cluster.primary.kind] += 1;
   }
@@ -277,13 +288,16 @@ export function correlateReports(
       inputReports: reports.length,
       inputFindings: findings.length,
       clusters: clusters.length,
-      activeClusters: clusters.filter((cluster) => !cluster.suppressed).length,
+      activeClusters: clusters.filter((cluster) => !cluster.suppressed && !cluster.nonFinding)
+        .length,
       suppressedClusters: clusters.filter((cluster) => cluster.suppressed).length,
+      nonFindingClusters: clusters.filter((cluster) => cluster.nonFinding).length,
       duplicatesCollapsed: findings.length - clusters.length,
       sourceTools: coverage.tools.map((tool) => tool.tool),
       bySeverity,
       activeBySeverity,
       suppressedBySeverity,
+      nonFindingBySeverity,
       byKind,
       coverage,
     },
