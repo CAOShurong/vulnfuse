@@ -8,4 +8,6 @@ Report arguments can be exact paths or quoted glob patterns. Use forward slashes
 
 Baseline diffs record and warn about added/removed scanner tools and per-tool report-count changes. Add `--fail-on-scan-set-change` to make that warning fail CI after the complete comparison has been written. Equal names and counts do not prove that scan targets, settings, versions, rules, or vulnerability databases were identical.
 
+SARIF suppression kinds, statuses, and justifications are retained. `--fail-on` and `--fail-on-new` ignore only clusters whose every source record is effectively suppressed; malformed, under-review, rejected, or actively corroborated records remain gate-eligible. This trusts producer metadata and is not an independent false-positive verdict.
+
 The public package is not yet published to npm. Build and run it from the repository as documented in the root [README](../../README.md).

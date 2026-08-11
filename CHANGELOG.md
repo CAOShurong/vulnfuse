@@ -4,6 +4,27 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-08-11
+
+### Added
+
+- Preserve SARIF `result.suppressions` kind, status, and justification in the canonical model and every review/export surface.
+- Report total, active, and effectively suppressed cluster counts, including separate per-severity summaries and GitHub Action outputs.
+- Add suppression filters and source justification details to the browser workbench and self-contained HTML report.
+
+### Changed
+
+- Apply `--fail-on`, `--fail-on-new`, and their Action equivalents to active clusters only. A cluster remains active when any source record is active, contested, or malformed.
+- Record active-to-suppressed baseline transitions as updated evidence and preserve suppression state in CSV, Markdown, SARIF, and HTML diffs.
+
+### Safety
+
+- Treat unknown suppression containers, objects, kinds, or statuses as active and emit `sarif.invalid-suppression` instead of allowing an ambiguous gate bypass.
+
+### Limitations
+
+- Suppression is producer-declared metadata. VulnFuse does not authenticate the producer, validate a risk-acceptance decision, prove a finding false, or mutate hosted alert state.
+
 ## [0.4.8] - 2026-08-11
 
 ### Added

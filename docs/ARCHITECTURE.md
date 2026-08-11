@@ -39,6 +39,7 @@ The default core entry point has no Node-only dependency. It contains:
 - canonical schemas and TypeScript types;
 - match scoring and blockers;
 - candidate indexing, strongest-edge ordering, and cluster-level hard-blocker checks before union-find clustering;
+- conservative SARIF suppression parsing and cluster disposition without evidence deletion;
 - deterministic per-tool attribution and bounded pairwise overlap analytics;
 - deterministic one-to-one comparison of baseline and current clusters;
 - JSON, SARIF, CSV, Markdown, and self-contained HTML exporters.
@@ -49,7 +50,7 @@ The separate `@vulnfuse/core/node` entry point uses only Node.js built-ins and p
 
 ### `vulnfuse` CLI
 
-The CLI adds exact-path-first, shell-independent report globbing, filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, new-only baseline gates, and an opt-in scan-set-drift gate. It does not contain a second implementation of parsing, matching, drift analysis, Node file limits, or atomic report replacement. Glob expansion is CLI-only; the Action keeps its runner-native `@actions/glob` adapter.
+The CLI adds exact-path-first, shell-independent report globbing, filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, active-cluster severity gates, new-active-only baseline gates, and an opt-in scan-set-drift gate. It does not contain a second implementation of parsing, matching, drift analysis, Node file limits, or atomic report replacement. Glob expansion is CLI-only; the Action keeps its runner-native `@actions/glob` adapter.
 
 ### `@vulnfuse/action`
 
@@ -57,7 +58,7 @@ The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action r
 
 ### `@vulnfuse/web`
 
-The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, scanner coverage, pairwise overlap, baseline states, scan-set drift, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
+The React/Vite application reads current and optional baseline `File` objects into memory, calls the core, and renders clusters, active/suppressed disposition and justification, scanner coverage, pairwise overlap, baseline states, scan-set drift, and evidence. Exports, including portable HTML, use browser `Blob` URLs. It has no backend and does not persist report content to local storage.
 
 ## Trust boundaries
 

@@ -44,6 +44,7 @@ function exportDiffCsv(result: BaselineDiffResult): string {
     assets: item.cluster.assets.map((asset) => asset.name).join(";"),
     source_tools: item.cluster.sourceTools.join(";"),
     source_records: item.cluster.members.length,
+    suppressed: item.cluster.suppressed,
   }));
   return `${Papa.unparse(rows, { newline: "\n", escapeFormulae: true })}\n`;
 }
@@ -89,6 +90,7 @@ function diffItemMarkdown(item: BaselineDiffItem): string[] {
     `### [${item.state.toUpperCase()}] ${escapeMarkdown(item.cluster.primary.title)}`,
     "",
     `- **Severity:** ${item.cluster.severity}`,
+    `- **Suppression:** ${item.cluster.suppressed ? "effectively suppressed" : "active"}`,
     `- **Cluster:** ${inlineCode(item.cluster.id)}`,
     ...(item.baselineCluster && item.baselineCluster.id !== item.cluster.id
       ? [`- **Baseline cluster:** ${inlineCode(item.baselineCluster.id)}`]
@@ -120,7 +122,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.8",
+            semanticVersion: "0.4.9",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor),
           },
@@ -166,6 +168,7 @@ function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
   const cluster = item.cluster;
   const location = cluster.primary.location;
   const stableIdentity = item.baselineCluster?.id ?? cluster.id;
+  const suppressions = cluster.suppressed ? sarifSuppressions(cluster) : [];
   return {
     ruleId: cluster.id,
     level: sarifLevel(cluster.severity),
@@ -175,18 +178,46 @@ function diffResultFor(item: BaselineDiffItem): Record<string, unknown> {
     },
     fingerprints: { vulnfuseClusterId: stableIdentity },
     partialFingerprints: { primaryLocationLineHash: stableIdentity },
+    ...(suppressions.length > 0 ? { suppressions } : {}),
     ...(location?.uri ? { locations: [sarifLocation(location)] } : {}),
     properties: {
       baselineState: item.state,
       changedFields: item.changedFields,
       sourceTools: cluster.sourceTools,
       sourceFindingIds: cluster.members.map((member) => member.id),
+      suppressed: cluster.suppressed,
+      suppressionEvidence: suppressionEvidence(cluster),
       matchConfidence: item.explanation?.confidence ?? "none",
       identifiers: cluster.identifiers,
       assets: cluster.assets,
       ...(item.baselineCluster ? { baselineClusterId: item.baselineCluster.id } : {}),
     },
   };
+}
+
+function sarifSuppressions(cluster: FindingCluster): Array<Record<string, string>> {
+  const values = cluster.members.flatMap((member) => member.suppressions ?? []);
+  const unique = new Map<string, Record<string, string>>();
+  for (const suppression of values) {
+    const value = {
+      kind: suppression.kind,
+      ...(suppression.status ? { status: suppression.status } : {}),
+      ...(suppression.justification ? { justification: suppression.justification } : {}),
+    };
+    unique.set(JSON.stringify(value), value);
+  }
+  return [...unique.values()];
+}
+
+function suppressionEvidence(cluster: FindingCluster) {
+  return cluster.members
+    .filter((member) => (member.suppressions?.length ?? 0) > 0)
+    .map((member) => ({
+      sourceFindingId: member.id,
+      sourceTool: member.source.tool,
+      suppressed: member.suppressed === true,
+      suppressions: member.suppressions,
+    }));
 }
 
 function sarifLocation(location: NonNullable<FindingCluster["primary"]["location"]>) {

@@ -7,6 +7,7 @@ import type {
   FindingLocation,
   FindingRemediation,
   FindingSource,
+  FindingSuppression,
   JsonValue,
   Severity,
 } from "../model.js";
@@ -26,6 +27,8 @@ export interface FindingSeed {
   ruleId?: string | undefined;
   fingerprints?: Record<string, string> | undefined;
   remediation?: FindingRemediation | undefined;
+  suppressed?: boolean | undefined;
+  suppressions?: FindingSuppression[] | undefined;
   references?: string[] | undefined;
   properties?: Record<string, JsonValue> | undefined;
   nativeId?: string | undefined;
@@ -65,6 +68,8 @@ export function makeFinding(seed: FindingSeed): CanonicalFinding {
     ...(seed.remediation && (seed.remediation.fixedVersion || seed.remediation.recommendation)
       ? { remediation: seed.remediation }
       : {}),
+    ...(seed.suppressed !== undefined ? { suppressed: seed.suppressed } : {}),
+    ...(seed.suppressions ? { suppressions: seed.suppressions } : {}),
     references,
     properties: seed.properties ?? {},
   };

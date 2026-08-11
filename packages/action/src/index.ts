@@ -71,6 +71,8 @@ export async function run(): Promise<void> {
 
     core.setOutput("findings", result.summary.inputFindings);
     core.setOutput("clusters", result.summary.clusters);
+    core.setOutput("active", result.summary.activeClusters);
+    core.setOutput("suppressed", result.summary.suppressedClusters);
     core.setOutput("duplicates-collapsed", result.summary.duplicatesCollapsed);
     core.setOutput("single-tool", result.summary.coverage.singleToolClusters);
     core.setOutput("multi-tool", result.summary.coverage.multiToolClusters);
@@ -82,7 +84,7 @@ export async function run(): Promise<void> {
     core.setOutput("report", output);
     await writeSummary(result, output, baselineDiff);
     core.info(
-      `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters; ${result.summary.duplicatesCollapsed} duplicates collapsed.`,
+      `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters (${result.summary.activeClusters} active and ${result.summary.suppressedClusters} suppressed); ${result.summary.duplicatesCollapsed} duplicates collapsed.`,
     );
     core.info(
       `Coverage: ${result.summary.coverage.singleToolClusters} one-tool clusters and ${result.summary.coverage.multiToolClusters} multi-tool clusters.`,
@@ -96,18 +98,18 @@ export async function run(): Promise<void> {
       }
     }
 
-    if (failOn !== "none" && hasSeverityAtLeast(result.summary.bySeverity, failOn)) {
+    if (failOn !== "none" && hasSeverityAtLeast(result.summary.activeBySeverity, failOn)) {
       core.setFailed(
-        `At least one vulnerability cluster met the '${failOn}' severity threshold. The report was still written to ${output}.`,
+        `At least one active vulnerability cluster met the '${failOn}' severity threshold. The report was still written to ${output}.`,
       );
     }
     if (
       baselineDiff &&
       failOnNew !== "none" &&
-      hasSeverityAtLeast(baselineDiff.summary.newBySeverity, failOnNew)
+      hasSeverityAtLeast(baselineDiff.summary.newActiveBySeverity, failOnNew)
     ) {
       core.setFailed(
-        `At least one new vulnerability cluster met the '${failOnNew}' severity threshold. The baseline comparison was still written to ${output}.`,
+        `At least one new active vulnerability cluster met the '${failOnNew}' severity threshold. The baseline comparison was still written to ${output}.`,
       );
     }
     if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
@@ -149,6 +151,10 @@ async function readMatchedReports(
     const content = await readFileLimited(file, maxBytes);
     const report = parseReport({ name: file, content }, { maxBytes });
     core.info(`${report.tool}: ${report.findings.length} findings from ${file}`);
+    for (const warning of report.warnings) {
+      const path = warning.path ? ` at ${warning.path}` : "";
+      core.warning(`${file}: ${warning.code}: ${warning.message}${path}`);
+    }
     reports.push(report);
   }
   return reports;
@@ -162,10 +168,14 @@ async function writeSummary(
   const table = [
     [
       { data: "Severity", header: true },
-      { data: "Clusters", header: true },
+      { data: "Active", header: true },
+      { data: "Suppressed", header: true },
+      { data: "Total", header: true },
     ],
     ...(["critical", "high", "medium", "low", "info", "unknown"] as Severity[]).map((severity) => [
       severity,
+      String(result.summary.activeBySeverity[severity]),
+      String(result.summary.suppressedBySeverity[severity]),
       String(result.summary.bySeverity[severity]),
     ]),
   ];
@@ -196,7 +206,7 @@ async function writeSummary(
   await core.summary
     .addHeading("VulnFuse correlation", 2)
     .addRaw(
-      `${result.summary.inputFindings} source findings became **${result.summary.clusters} clusters**; **${result.summary.duplicatesCollapsed} duplicate records** were collapsed.`,
+      `${result.summary.inputFindings} source findings became **${result.summary.clusters} clusters** (**${result.summary.activeClusters} active**, **${result.summary.suppressedClusters} suppressed**); **${result.summary.duplicatesCollapsed} duplicate records** were collapsed.`,
       true,
     )
     .addTable(table)
@@ -228,7 +238,7 @@ async function writeSummary(
         .slice(0, 20)
         .map(
           (cluster) =>
-            `- **${cluster.severity.toUpperCase()}** ${escapeSummary(cluster.primary.title)} — ${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"} from ${cluster.sourceTools.join(", ")}`,
+            `- **${cluster.severity.toUpperCase()}** ${escapeSummary(cluster.primary.title)} (${cluster.suppressed ? "effectively suppressed" : "active"}) — ${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"} from ${cluster.sourceTools.join(", ")}`,
         )
         .join("\n") || "No findings.",
     )

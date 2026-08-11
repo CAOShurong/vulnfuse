@@ -20,7 +20,7 @@ import { Command, InvalidArgumentError, Option } from "commander";
 import { glob, isDynamicPattern } from "tinyglobby";
 import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.8";
+const version = "0.4.9";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -80,7 +80,7 @@ export function createProgram(): Command {
       100 * 1024 * 1024,
     )
     .addOption(
-      new Option("--fail-on <severity>", "Exit 1 when a cluster meets this severity")
+      new Option("--fail-on <severity>", "Exit 1 when an active cluster meets this severity")
         .choices(["none", "info", "low", "medium", "high", "critical"])
         .default("none"),
     )
@@ -90,6 +90,7 @@ export function createProgram(): Command {
       assertOutputIsNotInput(options.output, reportPaths);
       const inputs = await readInputs(reportPaths, options.maxBytes);
       const reports = inputs.map((input) => parseReport(input, { maxBytes: options.maxBytes }));
+      printReportWarnings(reports);
       const result = correlateReports(reports, {
         threshold: options.threshold,
         scope: options.scope,
@@ -101,7 +102,7 @@ export function createProgram(): Command {
       else process.stdout.write(output);
       if (
         options.failOn !== "none" &&
-        hasSeverityAtLeast(result.summary.bySeverity, options.failOn)
+        hasSeverityAtLeast(result.summary.activeBySeverity, options.failOn)
       ) {
         process.exitCode = 1;
       }
@@ -143,7 +144,7 @@ export function createProgram(): Command {
       100 * 1024 * 1024,
     )
     .addOption(
-      new Option("--fail-on-new <severity>", "Exit 1 when a new cluster meets this severity")
+      new Option("--fail-on-new <severity>", "Exit 1 when a new active cluster meets this severity")
         .choices(["none", "info", "low", "medium", "high", "critical"])
         .default("none"),
     )
@@ -175,14 +176,16 @@ export function createProgram(): Command {
         lineWindow: options.lineWindow,
         titleWeight: options.titleWeight,
       };
-      const baseline = correlateReports(
-        baselineInputs.map((input) => parseReport(input, { maxBytes: options.maxBytes })),
-        correlationOptions,
+      const baselineReports = baselineInputs.map((input) =>
+        parseReport(input, { maxBytes: options.maxBytes }),
       );
-      const current = correlateReports(
-        currentInputs.map((input) => parseReport(input, { maxBytes: options.maxBytes })),
-        correlationOptions,
+      const currentReports = currentInputs.map((input) =>
+        parseReport(input, { maxBytes: options.maxBytes }),
       );
+      printReportWarnings(baselineReports);
+      printReportWarnings(currentReports);
+      const baseline = correlateReports(baselineReports, correlationOptions);
+      const current = correlateReports(currentReports, correlationOptions);
       const result = compareCorrelations(baseline, current);
       const output = exportBaselineDiff(result, options.format);
       if (options.output) await writeFileAtomic(options.output, output);
@@ -192,7 +195,7 @@ export function createProgram(): Command {
       }
       if (
         options.failOnNew !== "none" &&
-        hasSeverityAtLeast(result.summary.newBySeverity, options.failOnNew)
+        hasSeverityAtLeast(result.summary.newActiveBySeverity, options.failOnNew)
       ) {
         process.exitCode = 1;
       }
@@ -338,6 +341,17 @@ function reportSummary(report: ParsedReport) {
     findings: report.findings.length,
     warnings: report.warnings,
   };
+}
+
+function printReportWarnings(reports: ParsedReport[]): void {
+  for (const report of reports) {
+    for (const warning of report.warnings) {
+      const path = warning.path ? ` at ${warning.path}` : "";
+      process.stderr.write(
+        `vulnfuse: warning: ${report.sourceName}: ${warning.code}: ${warning.message}${path}\n`,
+      );
+    }
+  }
 }
 
 function inspectTable(reports: ParsedReport[]): string {

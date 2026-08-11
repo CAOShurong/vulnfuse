@@ -59,6 +59,15 @@ export interface FindingRemediation {
   recommendation?: string;
 }
 
+export type FindingSuppressionKind = "inSource" | "external";
+export type FindingSuppressionStatus = "accepted" | "underReview" | "rejected";
+
+export interface FindingSuppression {
+  kind: FindingSuppressionKind;
+  status?: FindingSuppressionStatus;
+  justification?: string;
+}
+
 export interface CanonicalFinding {
   id: string;
   source: FindingSource;
@@ -73,6 +82,8 @@ export interface CanonicalFinding {
   ruleId?: string;
   fingerprints: Record<string, string>;
   remediation?: FindingRemediation;
+  suppressed?: boolean;
+  suppressions?: FindingSuppression[];
   references: string[];
   properties: Record<string, JsonValue>;
 }
@@ -140,6 +151,7 @@ export interface FindingCluster {
   primary: CanonicalFinding;
   members: CanonicalFinding[];
   severity: Severity;
+  suppressed: boolean;
   sourceTools: string[];
   identifiers: FindingIdentifier[];
   assets: FindingAsset[];
@@ -176,9 +188,13 @@ export interface CorrelationSummary {
   inputReports: number;
   inputFindings: number;
   clusters: number;
+  activeClusters: number;
+  suppressedClusters: number;
   duplicatesCollapsed: number;
   sourceTools: string[];
   bySeverity: Record<Severity, number>;
+  activeBySeverity: Record<Severity, number>;
+  suppressedBySeverity: Record<Severity, number>;
   byKind: Record<FindingKind, number>;
   coverage: CoverageSummary;
 }
@@ -217,6 +233,7 @@ export interface BaselineDiffSummary {
   unchanged: number;
   absent: number;
   newBySeverity: Record<Severity, number>;
+  newActiveBySeverity: Record<Severity, number>;
 }
 
 export interface ScanSetReportCountChange {

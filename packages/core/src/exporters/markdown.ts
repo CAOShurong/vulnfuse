@@ -4,7 +4,7 @@ export function exportMarkdown(result: CorrelationResult): string {
   const lines = [
     "# VulnFuse correlation report",
     "",
-    `> ${result.summary.inputFindings} source findings became ${result.summary.clusters} explainable clusters; ${result.summary.duplicatesCollapsed} duplicate records were collapsed.`,
+    `> ${result.summary.inputFindings} source findings became ${result.summary.clusters} explainable clusters: ${result.summary.activeClusters} active, ${result.summary.suppressedClusters} effectively suppressed; ${result.summary.duplicatesCollapsed} duplicate records were collapsed.`,
     "",
     "| Severity | Clusters |",
     "| --- | ---: |",
@@ -85,6 +85,7 @@ function clusterMarkdown(cluster: FindingCluster): string[] {
     "",
     `- **Cluster:** \`${cluster.id}\``,
     `- **Severity:** ${cluster.severity}`,
+    `- **Suppression:** ${cluster.suppressed ? "effectively suppressed" : "active"}`,
     `- **Identifiers:** ${escapeMarkdown(identifiers)}`,
     `- **Component:** ${inlineCode(component)}`,
     `- **Assets:** ${escapeMarkdown(assets)}`,
@@ -94,8 +95,22 @@ function clusterMarkdown(cluster: FindingCluster): string[] {
     ...(cluster.primary.remediation?.fixedVersion
       ? [`- **Fixed version:** ${escapeMarkdown(cluster.primary.remediation.fixedVersion)}`]
       : []),
+    ...suppressionMarkdown(cluster),
     "",
   ];
+}
+
+function suppressionMarkdown(cluster: FindingCluster): string[] {
+  const entries = cluster.members.flatMap((member) =>
+    (member.suppressions ?? []).map((suppression) => {
+      const status = suppression.status ?? "status omitted";
+      const justification = suppression.justification
+        ? `: ${escapeMarkdown(suppression.justification)}`
+        : "";
+      return `  - ${escapeMarkdown(member.source.tool)} / ${escapeMarkdown(member.source.report)}: ${suppression.kind}, ${status}${justification}`;
+    }),
+  );
+  return entries.length > 0 ? ["- **Source suppression evidence:**", ...entries] : [];
 }
 
 function escapeMarkdown(value: string): string {

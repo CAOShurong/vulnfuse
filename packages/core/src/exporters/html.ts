@@ -38,7 +38,7 @@ export function exportHtml(result: CorrelationResult): string {
   return renderPortableReport({
     title: "VulnFuse correlation report",
     eyebrow: "Explainable cross-scanner correlation",
-    summary: `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters; ${result.summary.duplicatesCollapsed} duplicate records were collapsed without discarding their evidence.`,
+    summary: `${result.summary.inputFindings} source findings became ${result.summary.clusters} clusters: ${result.summary.activeClusters} active and ${result.summary.suppressedClusters} effectively suppressed; ${result.summary.duplicatesCollapsed} duplicate records were collapsed without discarding their evidence.`,
     options: result.options,
     items: result.clusters.map((cluster) => ({
       cluster,
@@ -51,7 +51,11 @@ export function exportHtml(result: CorrelationResult): string {
         value: result.summary.inputFindings,
         note: `from ${result.summary.sourceTools.length} tool${result.summary.sourceTools.length === 1 ? "" : "s"}`,
       },
-      { label: "Clusters", value: result.summary.clusters, note: "reviewable groups" },
+      {
+        label: "Clusters",
+        value: result.summary.clusters,
+        note: `${result.summary.activeClusters} active; ${result.summary.suppressedClusters} suppressed`,
+      },
       {
         label: "Collapsed",
         value: result.summary.duplicatesCollapsed,
@@ -100,6 +104,8 @@ export function exportBaselineHtml(result: BaselineDiffResult): string {
 }
 
 function renderPortableReport(report: PortableReport): string {
+  const activeCount = report.items.filter((item) => !item.cluster.suppressed).length;
+  const suppressedCount = report.items.length - activeCount;
   const assetNames = uniqueSorted(
     report.items.flatMap((item) => item.cluster.assets.map((asset) => asset.name)),
   );
@@ -137,7 +143,7 @@ function renderPortableReport(report: PortableReport): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.8">
+  <meta name="generator" content="VulnFuse 0.4.9">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -180,6 +186,7 @@ function renderPortableReport(report: PortableReport): string {
       ${assetFilter}
       ${toolFilter}
       <label>Coverage<select id="coverage-filter"><option value="all">All evidence</option><option value="multi">Multiple scanners</option><option value="single">One scanner only</option></select></label>
+      <label>Suppression<select id="suppression-filter"><option value="all">All dispositions</option><option value="active">Active (${activeCount})</option><option value="suppressed">Effectively suppressed (${suppressedCount})</option></select></label>
       <div class="view-actions"><button id="expand-all" type="button">Expand all</button><button id="collapse-all" type="button">Collapse all</button></div>
     </section>
     <div class="result-line"><strong id="result-count">${report.items.length}</strong> of ${report.items.length} clusters shown</div>
@@ -258,6 +265,11 @@ function renderFinding(
       member.title,
       member.ruleId,
       member.location?.uri,
+      ...(member.suppressions ?? []).flatMap((suppression) => [
+        suppression.kind,
+        suppression.status,
+        suppression.justification,
+      ]),
     ]),
   ]);
   const assetTokens = assets
@@ -273,6 +285,9 @@ function renderFinding(
   const stateBadge = item.state
     ? `<span class="state ${item.state}">${escapeHtml(item.state)}</span>`
     : `<span class="confidence">${escapeHtml(cluster.confidence)} confidence</span>`;
+  const suppressionBadge = cluster.suppressed
+    ? '<span class="suppression suppressed">effectively suppressed</span>'
+    : '<span class="suppression active">active</span>';
   const description = cluster.primary.description
     ? `<p class="description">${escapeHtml(cluster.primary.description)}</p>`
     : "";
@@ -286,11 +301,11 @@ function renderFinding(
         `<a href="${escapeHtml(reference)}" target="_blank" rel="noopener noreferrer">${escapeHtml(reference)}</a>`,
     )
     .join("");
-  return `<details class="finding" data-search="${escapeHtml(searchText)}" data-severity="${cluster.severity}" data-state="${state}" data-assets="${assetTokens}" data-tools="${toolTokens}" data-coverage="${coverage}"${initiallyOpen ? " open" : ""}>
+  return `<details class="finding" data-search="${escapeHtml(searchText)}" data-severity="${cluster.severity}" data-state="${state}" data-assets="${assetTokens}" data-tools="${toolTokens}" data-coverage="${coverage}" data-suppression="${cluster.suppressed ? "suppressed" : "active"}"${initiallyOpen ? " open" : ""}>
   <summary>
     <span class="severity ${cluster.severity}">${cluster.severity}</span>
     <span class="summary-copy"><strong>${escapeHtml(cluster.primary.title)}</strong><small>${escapeHtml(identifiers[0] ?? cluster.id)} · ${escapeHtml(component)} · ${escapeHtml(assets.join(", ") || "unknown asset")}</small></span>
-    ${stateBadge}
+    <span class="badges">${stateBadge}${suppressionBadge}</span>
     <span class="record-count">${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"}</span>
   </summary>
   <div class="finding-body">
@@ -302,6 +317,7 @@ function renderFinding(
       ${fact("Component", component, true)}
       ${fact("Assets", cluster.assets.map((asset) => `${asset.type}: ${asset.name}`).join(", ") || "unknown")}
       ${fact("Sources", `${cluster.sourceTools.join(", ")} (${cluster.members.length} record${cluster.members.length === 1 ? "" : "s"})`)}
+      ${fact("Suppression", cluster.suppressed ? "effectively suppressed" : "active")}
       ${fact("Remediation", remediationLabel(cluster))}
     </dl>
     ${renderReasons(reasons)}
@@ -360,7 +376,16 @@ function renderMembers(cluster: FindingCluster): string {
       const component =
         member.component?.purl ??
         [member.component?.name, member.component?.version].filter(Boolean).join("@");
-      return `<article class="member"><div class="member-head"><span class="tool">${escapeHtml(member.source.tool.slice(0, 2).toUpperCase())}</span><div><strong>${escapeHtml(member.source.tool)}</strong><small>${escapeHtml(member.source.report)}</small></div><span class="mini-severity ${member.severity}">${member.severity}</span></div><dl>${fact("Finding", member.title)}${fact("Identifier", identifiers || "none")}${fact("Component", component || "unknown", true)}${fact("Location", location || "not supplied", true)}</dl></article>`;
+      const suppressionDetails = (member.suppressions ?? [])
+        .map(
+          (suppression) =>
+            `<li><strong>${escapeHtml(suppression.kind)}</strong> · ${escapeHtml(suppression.status ?? "status omitted")}${suppression.justification ? `<p>${escapeHtml(suppression.justification)}</p>` : ""}</li>`,
+        )
+        .join("");
+      const memberSuppression = suppressionDetails
+        ? `<div class="suppression-evidence"><span>${member.suppressed ? "Effectively suppressed" : "Suppression contested"}</span><ul>${suppressionDetails}</ul></div>`
+        : "";
+      return `<article class="member"><div class="member-head"><span class="tool">${escapeHtml(member.source.tool.slice(0, 2).toUpperCase())}</span><div><strong>${escapeHtml(member.source.tool)}</strong><small>${escapeHtml(member.source.report)}</small></div><span class="mini-severity ${member.severity}">${member.severity}</span></div><dl>${fact("Finding", member.title)}${fact("Identifier", identifiers || "none")}${fact("Component", component || "unknown", true)}${fact("Location", location || "not supplied", true)}</dl>${memberSuppression}</article>`;
     })
     .join("")}</div></section>`;
 }
@@ -480,6 +505,7 @@ const portableScript = String.raw`(() => {
   const asset = document.getElementById("asset-filter");
   const tool = document.getElementById("tool-filter");
   const coverage = document.getElementById("coverage-filter");
+  const suppression = document.getElementById("suppression-filter");
   const count = document.getElementById("result-count");
   const findings = Array.from(document.querySelectorAll(".finding"));
 
@@ -490,6 +516,7 @@ const portableScript = String.raw`(() => {
     const selectedAsset = asset?.value || "all";
     const selectedTool = tool?.value || "all";
     const selectedCoverage = coverage?.value || "all";
+    const selectedSuppression = suppression?.value || "all";
     let visible = 0;
     for (const finding of findings) {
       const matchesQuery = !query || (finding.dataset.search || "").includes(query);
@@ -504,20 +531,23 @@ const portableScript = String.raw`(() => {
         (finding.dataset.tools || "").split(" ").includes(selectedTool);
       const matchesCoverage =
         selectedCoverage === "all" || finding.dataset.coverage === selectedCoverage;
+      const matchesSuppression =
+        selectedSuppression === "all" || finding.dataset.suppression === selectedSuppression;
       finding.hidden = !(
         matchesQuery &&
         matchesSeverity &&
         matchesState &&
         matchesAsset &&
         matchesTool &&
-        matchesCoverage
+        matchesCoverage &&
+        matchesSuppression
       );
       if (!finding.hidden) visible += 1;
     }
     count.textContent = String(visible);
   }
 
-  for (const control of [search, severity, state, asset, tool, coverage]) {
+  for (const control of [search, severity, state, asset, tool, coverage, suppression]) {
     control?.addEventListener(control === search ? "input" : "change", applyFilters);
   }
   document.getElementById("expand-all")?.addEventListener("click", () => {
@@ -532,6 +562,10 @@ const coverageStyles = String.raw`
 .coverage-panel{margin-top:12px;padding:18px;border:1px solid var(--line);background:rgba(11,24,21,.9);border-radius:16px}.coverage-head{display:flex;justify-content:space-between;gap:24px}.coverage-head>div:first-child>span{color:var(--mint);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.1em}.coverage-head h2{font-size:20px;margin:3px 0}.coverage-totals{display:grid;grid-template-columns:auto auto;align-items:baseline;gap:1px 8px}.coverage-totals strong{font-size:20px;color:var(--mint);text-align:right}.coverage-totals span,.coverage-note{color:var(--muted);font-size:11px}.coverage-note{margin:8px 0 0}.coverage-tables{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px;margin-top:14px}.coverage-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}.coverage-table-wrap table{width:100%;border-collapse:collapse;font-size:11px}.coverage-table-wrap caption{text-align:left;padding:9px 10px;color:var(--muted);font-weight:750}.coverage-table-wrap th,.coverage-table-wrap td{padding:8px 10px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}.coverage-table-wrap th:first-child,.coverage-table-wrap td:first-child{text-align:left}.coverage-table-wrap th{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.05em}@media(max-width:800px){.coverage-head{display:block}.coverage-totals{justify-content:start;margin-top:10px}.coverage-totals strong{text-align:left}.coverage-tables{grid-template-columns:1fr}}
 `;
 
-const portableStyles = String.raw`
+const portableStyles =
+  String.raw`
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef8f3;background:#07110f;--ink:#eef8f3;--muted:#8da49b;--line:rgba(177,218,198,.16);--panel:#0b1815;--panel2:#10221d;--mint:#8cf6c3;--mint2:#37e39b;--critical:#ff5f78;--high:#ff936b;--medium:#ffc86b;--low:#7bd9ff;--info:#91a8ff;--unknown:#687b74}*{box-sizing:border-box}body{margin:0;min-width:320px;background:radial-gradient(circle at 78% 0,rgba(55,227,155,.09),transparent 34rem),#07110f;line-height:1.5}.hero,main,footer{width:min(1180px,calc(100% - 40px));margin:auto}.hero{padding:34px 0 48px;border-bottom:1px solid var(--line)}.brand{display:flex;gap:11px;align-items:center;font-weight:800}.brand-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid rgba(140,246,195,.55);border-radius:10px;color:var(--mint);font-size:12px;background:rgba(55,227,155,.08)}.version{font-size:12px;color:var(--muted);font-weight:650}.hero-copy{max-width:850px;padding-top:52px}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:12px;color:var(--mint);font-weight:800}.hero h1{font-size:clamp(38px,6vw,72px);line-height:1.02;letter-spacing:-.055em;margin:12px 0 20px}.lede{font-size:clamp(17px,2vw,22px);color:#b9cec5;max-width:800px}.policy{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);margin-top:22px}main{padding:36px 0 60px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stats article,.severity-panel,.controls,.finding,.notice{border:1px solid var(--line);background:rgba(11,24,21,.9);border-radius:16px}.stats article{padding:18px}.stats span,.stats small{display:block;color:var(--muted);font-size:12px}.stats strong{display:block;font-size:32px;color:var(--mint);line-height:1.15;margin:7px 0}.severity-panel{margin-top:12px;padding:18px}.severity-panel>div:first-child{display:flex;justify-content:space-between;gap:16px}.severity-panel span{color:var(--muted)}.severity-bar{height:9px;display:flex;overflow:hidden;border-radius:99px;background:#14221f;margin:14px 0}.severity-bar span{display:block}.critical{background-color:var(--critical)}.high{background-color:var(--high)}.medium{background-color:var(--medium)}.low{background-color:var(--low)}.info{background-color:var(--info)}.unknown{background-color:var(--unknown)}.severity-legend{display:flex;flex-wrap:wrap;gap:12px 20px;font-size:12px}.severity-legend span{display:flex;align-items:center;gap:6px}.severity-legend i{width:8px;height:8px;border-radius:50%}.severity-legend b{color:var(--ink)}.controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-top:24px;padding:14px}.controls label{display:grid;gap:5px;color:var(--muted);font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}.search-label{flex:1 1 280px}.controls input,.controls select,.controls button{min-height:42px;border:1px solid var(--line);border-radius:10px;background:#07110f;color:var(--ink);padding:0 12px;font:inherit}.controls input{width:100%}.view-actions{display:flex;gap:8px;margin-left:auto}.controls button{cursor:pointer;color:var(--mint)}.result-line{text-align:right;color:var(--muted);font-size:12px;padding:12px 2px}.result-line strong{color:var(--ink)}.findings{display:grid;gap:10px}.finding{overflow:hidden}.finding[hidden]{display:none}.finding summary{list-style:none;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:17px 18px;cursor:pointer}.finding summary::-webkit-details-marker{display:none}.finding[open] summary{border-bottom:1px solid var(--line);background:rgba(55,227,155,.035)}.severity{display:inline-grid;place-items:center;min-width:72px;min-height:27px;border-radius:99px;color:#07110f;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.summary-copy{min-width:0}.summary-copy strong,.summary-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.summary-copy strong{font-size:15px}.summary-copy small{color:var(--muted);font:11px ui-monospace,SFMono-Regular,Consolas,monospace;margin-top:4px}.state,.confidence{border:1px solid var(--line);border-radius:99px;padding:5px 9px;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.state.new{color:var(--critical);border-color:rgba(255,95,120,.35)}.state.updated{color:var(--medium);border-color:rgba(255,200,107,.35)}.state.absent{color:var(--low);border-color:rgba(123,217,255,.35)}.state.unchanged{color:var(--mint);border-color:rgba(140,246,195,.3)}.confidence,.record-count{color:var(--muted)}.record-count{font-size:11px;white-space:nowrap}.finding-body{padding:20px}.description{color:#c6d8d0;max-width:900px}.baseline-callout{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-left:3px solid var(--mint);padding:10px 12px;background:var(--panel2);border-radius:8px;font-size:12px}.baseline-callout.new{border-color:var(--critical)}.baseline-callout.updated{border-color:var(--medium)}.baseline-callout.absent{border-color:var(--low)}.baseline-callout span{color:var(--muted)}.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.facts>div,.member dl>div{min-width:0}.facts dt,.member dt{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.facts dd,.member dd{margin:4px 0 0;overflow-wrap:anywhere}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}.evidence{margin-top:22px}.section-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px}.section-head h2{font-size:13px;margin:0}.section-head span{font-size:11px;color:var(--muted)}.reason-list,.blocker-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}.reason-list article,.blocker-list article{display:flex;gap:10px;padding:11px;border:1px solid var(--line);border-radius:10px;background:#081310}.reason-list b{color:var(--mint)}.blocker-list b{color:var(--critical)}.reason-list strong,.blocker-list strong{display:block;font-size:11px;text-transform:uppercase;color:var(--muted)}.reason-list p,.blocker-list p{margin:2px 0;font-size:12px}.reason-list small{color:var(--muted)}.muted{color:var(--muted)}.member-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}.member{border:1px solid var(--line);border-radius:12px;padding:12px;background:#081310}.member-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px}.tool{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:rgba(55,227,155,.1);color:var(--mint);font-size:11px;font-weight:900}.member-head strong,.member-head small{display:block}.member-head small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}.mini-severity{font-size:10px;text-transform:uppercase;color:var(--muted)}.member dl{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0 0}.member dd{font-size:11px}.references{display:grid;gap:7px;margin-top:10px}.references a{color:var(--mint);font-size:12px;overflow-wrap:anywhere}.notice{padding:14px;color:var(--muted);font-size:12px}.empty{text-align:center;color:var(--muted);padding:40px}footer{display:flex;justify-content:space-between;gap:24px;border-top:1px solid var(--line);padding:24px 0 40px;color:var(--muted);font-size:11px}footer strong{color:var(--mint)}footer span{max-width:750px;text-align:right}@media(max-width:800px){.stats{grid-template-columns:repeat(2,1fr)}.facts,.reason-list,.blocker-list,.member-list{grid-template-columns:1fr}.finding summary{grid-template-columns:auto minmax(0,1fr);}.state,.confidence,.record-count{grid-column:2}.hero-copy{padding-top:36px}.view-actions{width:100%;margin-left:0}.view-actions button{flex:1}footer{display:block}footer span{display:block;text-align:left;margin-top:8px}}@media(max-width:480px){.hero,main,footer{width:min(100% - 24px,1180px)}.stats{grid-template-columns:1fr}.finding summary{padding:14px}.severity{min-width:62px}.finding-body{padding:14px}}
+` +
+  String.raw`
+.badges{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex-wrap:wrap}.suppression{border:1px solid var(--line);border-radius:99px;padding:5px 9px;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}.suppression.active{color:var(--mint)}.suppression.suppressed{color:var(--medium);border-color:rgba(255,200,107,.35)}.suppression-evidence{margin-top:10px;padding:9px;border:1px solid rgba(255,200,107,.22);border-radius:8px;background:rgba(255,200,107,.035);font-size:11px}.suppression-evidence>span{color:var(--medium);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.suppression-evidence ul{margin:7px 0 0;padding-left:18px}.suppression-evidence li+li{margin-top:6px}.suppression-evidence p{margin:2px 0 0;color:var(--muted);overflow-wrap:anywhere}@media(max-width:800px){.badges{grid-column:2;justify-content:flex-start}}
 `;

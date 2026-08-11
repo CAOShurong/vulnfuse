@@ -65,6 +65,62 @@ describe("report parsing", () => {
     );
   });
 
+  it("preserves SARIF suppression evidence and evaluates it conservatively", () => {
+    const document = JSON.parse(fixture("sarif-suppressed.json")) as {
+      runs: Array<{ results: Array<Record<string, unknown>> }>;
+    };
+    const template = document.runs[0]?.results[0];
+    expect(template).toBeDefined();
+    if (!template || !document.runs[0]) return;
+    document.runs[0].results = [
+      { ...template, guid: "missing-status" },
+      {
+        ...template,
+        guid: "accepted",
+        suppressions: [{ kind: "external", status: "accepted", justification: "reviewed" }],
+      },
+      {
+        ...template,
+        guid: "under-review",
+        suppressions: [{ kind: "external", status: "underReview" }],
+      },
+      {
+        ...template,
+        guid: "rejected",
+        suppressions: [{ kind: "external", status: "rejected" }],
+      },
+      {
+        ...template,
+        guid: "unknown-status",
+        suppressions: [{ kind: "external", status: "invented", justification: "untrusted" }],
+      },
+    ];
+
+    const parsed = parseReport({
+      name: "suppression-cases.sarif",
+      content: JSON.stringify(document),
+    });
+    expect(parsed.findings.map((finding) => finding.suppressed)).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+    expect(parsed.findings[0]?.suppressions?.[0]).toMatchObject({
+      kind: "inSource",
+      justification: "Reviewed <script>alert('not markup')</script>",
+    });
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "sarif.invalid-suppression",
+          path: "runs[0].results[4].suppressions[0]",
+        }),
+      ]),
+    );
+  });
+
   it("accepts a UTF-8 BOM before JSON input", () => {
     const content = `\uFEFF${fixture("sarif.json")}`;
     expect(detectFormat(content, "stdin")).toBe("sarif");

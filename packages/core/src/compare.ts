@@ -71,8 +71,12 @@ export function compareCorrelations(
 
   items.sort(compareItems);
   const newBySeverity = zeroSeverityCounts();
+  const newActiveBySeverity = zeroSeverityCounts();
   for (const item of items) {
-    if (item.state === "new") newBySeverity[item.cluster.severity] += 1;
+    if (item.state === "new") {
+      newBySeverity[item.cluster.severity] += 1;
+      if (!item.cluster.suppressed) newActiveBySeverity[item.cluster.severity] += 1;
+    }
   }
 
   return {
@@ -90,6 +94,7 @@ export function compareCorrelations(
       unchanged: items.filter((item) => item.state === "unchanged").length,
       absent: items.filter((item) => item.state === "absent").length,
       newBySeverity,
+      newActiveBySeverity,
     },
   };
 }
@@ -312,6 +317,7 @@ function significantChanges(baseline: FindingCluster, current: FindingCluster): 
     ["remediation", remediationSnapshot(baseline), remediationSnapshot(current)],
     ["source-tools", baseline.sourceTools, current.sourceTools],
     ["source-records", baseline.members.length, current.members.length],
+    ["suppression", baseline.suppressed, current.suppressed],
   ];
   return fields
     .filter(([, before, after]) => JSON.stringify(before) !== JSON.stringify(after))
