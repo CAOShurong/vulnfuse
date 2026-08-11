@@ -709,6 +709,54 @@ the causal claim honest: the fallback is a navigation anchor, not evidence that
 the finding originated in that file, and only a real hosted upload can prove
 acceptance.
 
+## Portable source-report identity research (v0.4.23)
+
+The public v0.4.22 README says identical input and policy produce stable finding
+and cluster IDs. The bundled Action nevertheless passed each absolute
+`@actions/glob` match into the parser as the report name; CLI glob expansion did
+the same. That name was exported in `sourceReports` and included in every source
+finding identity. Running byte-identical OpenVEX input under `workspace-a` and
+`workspace-b` produced different output hashes, all three source finding IDs,
+all three cluster IDs, and all SARIF fingerprints. The generated artifact also
+persisted the full Windows drive, scratch, checkout, and workspace path.
+
+This is a documented portability and privacy defect, not a preference. OASIS
+[SARIF 2.1](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
+warns that absolute paths can reveal sensitive information and its deterministic
+log guidance excludes machine-dependent invocation data. GitHub's
+[SARIF alert-limit troubleshooting](https://docs.github.com/code-security/code-scanning/troubleshooting-sarif-uploads/results-exceed-limit)
+identifies temporary directories and environment-dependent paths as causes of
+unstable alert identity and asks tool vendors to fix producer output. The
+[Reproducible Builds build-path guidance](https://reproducible-builds.org/docs/build-path/)
+likewise recommends removing or normalizing filesystem roots embedded in
+artifacts.
+
+Maintained alternatives address adjacent layers but cannot repair the producer
+identity after VulnFuse has hashed it:
+
+- `github/codeql-action/upload-sarif` is maintained and MIT-compatible. Its
+  `checkout_path` input relativizes SARIF artifact locations before upload, but
+  it does not know that VulnFuse's custom `sourceReports[].name` and precomputed
+  fingerprints contain an input report path. It also cannot repair offline JSON,
+  CSV, Markdown, or HTML exports.
+- Microsoft SARIF SDK/Multitool 5.6.0 is maintained and MIT-licensed. It can
+  validate and transform generic SARIF, but generic validation accepts custom
+  absolute strings and does not define VulnFuse's source identity. A .NET binary
+  and post-processing step would add weight and migration work after IDs exist.
+- `sarif-tools` 3.0.5 is a maintained MIT Python suite whose trim options target
+  rendered result locations. It requires a Python runtime and separate workflow
+  and cannot consistently relabel VulnFuse source evidence across every export.
+
+The selected implementation uses only Node path functions already available in
+the CLI and Action. Files below the working tree receive a forward-slash
+relative label. An outside-root file receives only
+`external-report/<basename>`; same-named outside files receive ordinals in
+sorted input order. Actual paths remain available for filesystem access and
+local diagnostics. This deliberately does not modify paths supplied inside a
+scanner report. The compatibility cost is explicit: users whose earlier labels
+were absolute receive one unavoidable ID transition, and adding or removing an
+outside-root duplicate basename can renumber that narrow group.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.

@@ -145,7 +145,7 @@ function exportDiffSarif(result: BaselineDiffResult, options: ExportOptions): st
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.22",
+            semanticVersion: "0.4.23",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map((cluster) =>
               hostedSarifRule(cluster, securityScore(cluster.severity)),

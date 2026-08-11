@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -33,6 +33,92 @@ afterEach(async () => {
 });
 
 describe("GitHub Action bundle", () => {
+  it("keeps SARIF byte-identical across checkout roots for identical relative reports", async () => {
+    const workspaces = [join(testDirectory, "workspace-a"), join(testDirectory, "workspace-b")];
+    const outputs: string[] = [];
+    const input = await readFile(openVex, "utf8");
+
+    for (const [index, workspace] of workspaces.entries()) {
+      const reports = join(workspace, "reports");
+      const outputReport = join(testDirectory, `portable-${index}.sarif`);
+      const githubOutput = join(testDirectory, `portable-${index}-output.txt`);
+      const stepSummary = join(testDirectory, `portable-${index}-summary.md`);
+      await mkdir(reports, { recursive: true });
+      await writeFile(join(reports, "openvex.json"), input, "utf8");
+      await writeFile(githubOutput, "", "utf8");
+      await writeFile(stepSummary, "", "utf8");
+
+      await execute(process.execPath, [action], {
+        cwd: workspace,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: "reports/*.json",
+          INPUT_OUTPUT: outputReport,
+          INPUT_FORMAT: "sarif",
+          "INPUT_SARIF-FALLBACK-LOCATION": "package-lock.json",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: workspace,
+          RUNNER_TEMP: testDirectory,
+        },
+      });
+      outputs.push(await readFile(outputReport, "utf8"));
+    }
+
+    expect(outputs[0]).toBe(outputs[1]);
+    const sarif = JSON.parse(outputs[0] ?? "") as {
+      runs: Array<{
+        invocations: Array<{ properties: { sourceReports: Array<{ name: string }> } }>;
+      }>;
+    };
+    expect(sarif.runs[0]?.invocations[0]?.properties.sourceReports[0]?.name).toBe(
+      "reports/openvex.json",
+    );
+    expect(outputs[0]).not.toContain(workspaces[0] ?? "workspace-a");
+    expect(outputs[1]).not.toContain(workspaces[1] ?? "workspace-b");
+  });
+
+  it("labels outside-workspace reports without exporting parent directories", async () => {
+    const workspace = join(testDirectory, "workspace");
+    const firstDirectory = join(testDirectory, "private-a");
+    const secondDirectory = join(testDirectory, "private-b");
+    const first = join(firstDirectory, "report.json");
+    const second = join(secondDirectory, "report.json");
+    const outputReport = join(testDirectory, "outside-reports.json");
+    const githubOutput = join(testDirectory, "outside-output.txt");
+    const stepSummary = join(testDirectory, "outside-summary.md");
+    await mkdir(workspace, { recursive: true });
+    await mkdir(firstDirectory, { recursive: true });
+    await mkdir(secondDirectory, { recursive: true });
+    await writeFile(first, await readFile(trivy, "utf8"), "utf8");
+    await writeFile(second, await readFile(grype, "utf8"), "utf8");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: workspace,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: `${first}\n${second}`,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "json",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: workspace,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+
+    const output = await readFile(outputReport, "utf8");
+    const result = JSON.parse(output) as { reports: Array<{ name: string }> };
+    expect(result.reports.map((report) => report.name)).toEqual([
+      "external-report/1-report.json",
+      "external-report/2-report.json",
+    ]);
+    expect(output).not.toContain("private-a");
+    expect(output).not.toContain("private-b");
+  });
+
   it("anchors locationless OpenVEX SARIF only with an explicit safe fallback", async () => {
     const outputReport = join(testDirectory, "anchored-openvex.sarif");
     const githubOutput = join(testDirectory, "github-output.txt");

@@ -20,9 +20,9 @@ import {
 } from "@vulnfuse/core";
 import { Command, InvalidArgumentError, Option } from "commander";
 import { glob, isDynamicPattern } from "tinyglobby";
-import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
+import { portableReportNames, readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.22";
+const version = "0.4.23";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -345,13 +345,14 @@ async function readInputs(paths: string[], maxBytes: number): Promise<ReportInpu
   if (stdinCount > 1) throw new Error("Standard input ('-') can only be used once.");
   let stdin: string | undefined;
   const inputs: ReportInput[] = [];
-  for (const path of paths) {
+  const reportNames = portableReportNames(paths);
+  for (const [index, path] of paths.entries()) {
     if (path === "-") {
       stdin ??= await readStdin(maxBytes);
-      inputs.push({ name: "stdin", content: stdin });
+      inputs.push({ name: reportNames[index] ?? "stdin", content: stdin });
     } else {
       const content = await readFileLimited(path, maxBytes);
-      inputs.push({ name: path, content });
+      inputs.push({ name: reportNames[index] ?? "report", content });
     }
   }
   return inputs;

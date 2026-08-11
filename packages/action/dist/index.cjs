@@ -25168,8 +25168,8 @@ var Path = class {
         let remaining = itemPath;
         let dir = dirname2(remaining);
         while (dir !== remaining) {
-          const basename3 = path3.basename(remaining);
-          this.segments.unshift(basename3);
+          const basename4 = path3.basename(remaining);
+          this.segments.unshift(basename4);
           remaining = dir;
           dir = dirname2(remaining);
         }
@@ -27007,7 +27007,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.22">
+  <meta name="generator" content="VulnFuse 0.4.23">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -27602,7 +27602,7 @@ function exportDiffSarif(result, options) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.22",
+            semanticVersion: "0.4.23",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map((cluster) => hostedSarifRule(cluster, securityScore(cluster.severity)))
           }
@@ -27789,7 +27789,7 @@ function exportSarif(result, options = {}) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.22",
+            semanticVersion: "0.4.23",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => hostedSarifRule(cluster, securityScore2(cluster.severity)))
           }
@@ -44433,6 +44433,34 @@ var import_node_crypto = require("node:crypto");
 var import_promises = require("node:fs/promises");
 var import_node_path = require("node:path");
 var readChunkSize = 64 * 1024;
+function portableReportNames(paths, root = process.cwd()) {
+  const absoluteRoot = (0, import_node_path.resolve)(root);
+  const candidates = paths.map((path6) => {
+    if (path6 === "-")
+      return "stdin";
+    const absolute = (0, import_node_path.resolve)(path6);
+    const fromRoot = (0, import_node_path.relative)(absoluteRoot, absolute);
+    if (fromRoot.length > 0 && !(0, import_node_path.isAbsolute)(fromRoot) && fromRoot !== ".." && !fromRoot.startsWith(`..${import_node_path.sep}`)) {
+      return fromRoot.split(import_node_path.sep).join("/");
+    }
+    return `external-report/${(0, import_node_path.basename)(absolute)}`;
+  });
+  const totals = /* @__PURE__ */ new Map();
+  for (const candidate of candidates) {
+    totals.set(candidate, (totals.get(candidate) ?? 0) + 1);
+  }
+  const occurrences = /* @__PURE__ */ new Map();
+  return candidates.map((candidate) => {
+    if ((totals.get(candidate) ?? 0) === 1)
+      return candidate;
+    const occurrence = (occurrences.get(candidate) ?? 0) + 1;
+    occurrences.set(candidate, occurrence);
+    if (candidate.startsWith("external-report/")) {
+      return `external-report/${occurrence}-${candidate.slice("external-report/".length)}`;
+    }
+    return `${candidate}#${occurrence}`;
+  });
+}
 async function readFileLimited(path6, maxBytes) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
     throw new RangeError("maxBytes must be a non-negative safe integer.");
@@ -44607,9 +44635,10 @@ async function readMatchedReports(patterns, label, maxBytes, output, maximumRepo
   }
   info(`VulnFuse is reading ${files.length} ${label} report${files.length === 1 ? "" : "s"}.`);
   const reports = [];
-  for (const file2 of files) {
+  const reportNames = portableReportNames(files, process.env.GITHUB_WORKSPACE || process.cwd());
+  for (const [index, file2] of files.entries()) {
     const content = await readFileLimited(file2, maxBytes);
-    const report = parseReport({ name: file2, content }, { maxBytes });
+    const report = parseReport({ name: reportNames[index] ?? "report", content }, { maxBytes });
     info(`${report.tool}: ${report.findings.length} findings from ${file2}`);
     for (const warning2 of report.warnings) {
       const path6 = warning2.path ? ` at ${warning2.path}` : "";

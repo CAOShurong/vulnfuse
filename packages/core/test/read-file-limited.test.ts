@@ -1,3 +1,5 @@
+import { join, resolve } from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fileSystem = vi.hoisted(() => ({
@@ -10,7 +12,7 @@ const fileSystem = vi.hoisted(() => ({
 
 vi.mock("node:fs/promises", () => fileSystem);
 
-import { readFileLimited, writeFileAtomic } from "../src/node.js";
+import { portableReportNames, readFileLimited, writeFileAtomic } from "../src/node.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -65,6 +67,33 @@ describe("readFileLimited", () => {
 
     await expect(readFileLimited("broken.json", 5)).rejects.toThrow("read failed");
     expect(handle.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("portableReportNames", () => {
+  it("uses forward-slash paths relative to the selected workspace", () => {
+    const root = resolve("portable-workspace");
+    expect(
+      portableReportNames(
+        [join(root, "reports", "scanner.sarif"), join(root, "vex", "status.json")],
+        root,
+      ),
+    ).toEqual(["reports/scanner.sarif", "vex/status.json"]);
+  });
+
+  it("omits outside parent directories and distinguishes duplicate basenames", () => {
+    const root = resolve("portable-workspace");
+    const first = resolve("outside-a", "report.json");
+    const second = resolve("outside-b", "report.json");
+    const labels = portableReportNames([first, second], root);
+
+    expect(labels).toEqual(["external-report/1-report.json", "external-report/2-report.json"]);
+    expect(labels.join("\n")).not.toContain("outside-a");
+    expect(labels.join("\n")).not.toContain("outside-b");
+  });
+
+  it("uses a stable standard-input label", () => {
+    expect(portableReportNames(["-"])).toEqual(["stdin"]);
   });
 });
 

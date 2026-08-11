@@ -1,8 +1,44 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, open, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 const readChunkSize = 64 * 1024;
+
+/**
+ * Labels local report files without persisting checkout-, runner-, or user-specific roots.
+ * Actual filesystem paths remain available to the caller for reads and local diagnostics.
+ */
+export function portableReportNames(paths: string[], root = process.cwd()): string[] {
+  const absoluteRoot = resolve(root);
+  const candidates = paths.map((path) => {
+    if (path === "-") return "stdin";
+    const absolute = resolve(path);
+    const fromRoot = relative(absoluteRoot, absolute);
+    if (
+      fromRoot.length > 0 &&
+      !isAbsolute(fromRoot) &&
+      fromRoot !== ".." &&
+      !fromRoot.startsWith(`..${sep}`)
+    ) {
+      return fromRoot.split(sep).join("/");
+    }
+    return `external-report/${basename(absolute)}`;
+  });
+  const totals = new Map<string, number>();
+  for (const candidate of candidates) {
+    totals.set(candidate, (totals.get(candidate) ?? 0) + 1);
+  }
+  const occurrences = new Map<string, number>();
+  return candidates.map((candidate) => {
+    if ((totals.get(candidate) ?? 0) === 1) return candidate;
+    const occurrence = (occurrences.get(candidate) ?? 0) + 1;
+    occurrences.set(candidate, occurrence);
+    if (candidate.startsWith("external-report/")) {
+      return `external-report/${occurrence}-${candidate.slice("external-report/".length)}`;
+    }
+    return `${candidate}#${occurrence}`;
+  });
+}
 
 export async function readFileLimited(path: string, maxBytes: number): Promise<string> {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
