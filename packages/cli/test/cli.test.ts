@@ -76,6 +76,37 @@ describe("CLI", () => {
     expect(sarif.version).toBe("2.1.0");
   });
 
+  it("prints one concise diagnostic for a missing input by default", async () => {
+    const missing = join(testDirectory, "missing.json");
+    const failure = await executeFailure([cli, "merge", missing]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toMatch(/^vulnfuse: ENOENT: .+missing\.json.+\n$/);
+    expect(failure.stderr).not.toContain("node:internal");
+    expect(failure.stderr).not.toMatch(/\n\s+at /);
+  });
+
+  it("shows the runtime stack only when --debug is requested", async () => {
+    const missing = join(testDirectory, "missing.json");
+    const failure = await executeFailure([cli, "--debug", "merge", missing]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain("ENOENT");
+    expect(failure.stderr).toContain("node:internal");
+    expect(failure.stderr).toMatch(/\n\s+at /);
+  });
+
+  it("keeps malformed-report diagnostics concise", async () => {
+    const malformed = join(testDirectory, "malformed.json");
+    await writeFile(malformed, "{not-json", "utf8");
+    const failure = await executeFailure([cli, "inspect", malformed]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toMatch(/^vulnfuse: .+\n$/s);
+    expect(failure.stderr).not.toContain("node:internal");
+    expect(failure.stderr).not.toMatch(/\n\s+at /);
+  });
+
   it("refuses to overwrite an input report", async () => {
     await expect(
       execute(process.execPath, [cli, "merge", trivy, "--output", trivy]),
@@ -136,3 +167,16 @@ describe("CLI", () => {
     expect(result.reports[0]).toMatchObject({ format: "trivy", tool: "Trivy" });
   });
 });
+
+async function executeFailure(args: string[]): Promise<{
+  code: number | string;
+  stdout: string;
+  stderr: string;
+}> {
+  try {
+    await execute(process.execPath, args);
+    throw new Error("Expected the CLI invocation to fail.");
+  } catch (error) {
+    return error as { code: number | string; stdout: string; stderr: string };
+  }
+}

@@ -17,7 +17,7 @@ import {
 } from "@vulnfuse/core";
 import { Command, InvalidArgumentError, Option } from "commander";
 
-const version = "0.4.3";
+const version = "0.4.4";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -43,6 +43,7 @@ export function createProgram(): Command {
       "Correlate duplicate vulnerability findings across scanners without hiding source evidence.",
     )
     .version(version)
+    .option("--debug", "Show runtime stack traces; output may include local paths")
     .showHelpAfterError();
 
   program
@@ -336,4 +337,18 @@ function boundedInteger(minimum: number, maximum: number) {
   };
 }
 
-await createProgram().parseAsync(process.argv);
+const program = createProgram();
+try {
+  await program.parseAsync(process.argv);
+} catch (error) {
+  process.stderr.write(`${formatRuntimeError(error, Boolean(program.opts().debug))}\n`);
+  process.exitCode = 1;
+}
+
+function formatRuntimeError(error: unknown, debug: boolean): string {
+  if (error instanceof Error) {
+    const detail = debug && error.stack ? error.stack : error.message;
+    return `vulnfuse: ${detail || error.name}`;
+  }
+  return `vulnfuse: ${String(error) || "Unknown runtime error"}`;
+}

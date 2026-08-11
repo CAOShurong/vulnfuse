@@ -39,10 +39,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.3 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.4 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.3/vulnfuse-core-0.4.3.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.3/vulnfuse-0.4.3.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.4/vulnfuse-core-0.4.4.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.4/vulnfuse-0.4.4.tgz
 vulnfuse --version
 ```
 
@@ -80,6 +80,8 @@ cat osv-results.json | node packages/cli/dist/index.js merge - trivy.json \
 
 Run `node packages/cli/dist/index.js merge --help` for all policy and safety options.
 
+Report-input and runtime failures print one concise diagnostic to stderr and return exit code 1. Add the global `--debug` option before the command when a stack trace is needed, for example `vulnfuse --debug inspect report.json`. Debug output can include local filesystem paths, so review it before sharing logs publicly.
+
 Compare current reports with a previous run and block only newly introduced high-severity clusters. Repeat `--baseline` for each previous scanner report:
 
 ```bash
@@ -113,7 +115,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.3
+  uses: CAOShurong/vulnfuse@v0.4.4
   with:
     reports: |
       reports/trivy.json
@@ -192,7 +194,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.4.3` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, cross-run baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.4` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, cross-run baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 
