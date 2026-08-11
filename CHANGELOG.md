@@ -4,6 +4,37 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.14] - 2026-08-12
+
+### Fixed
+
+- Resolve valid relative `artifactLocation.uriBaseId` chains from SARIF
+  `run.originalUriBaseIds` before file assets and locations enter correlation.
+  A scanner path such as `lib/memory.c` under `SRCROOT = src/` can now match
+  another scanner's direct `src/lib/memory.c` path.
+- Preserve the original relative URI, URI-base id, and resolution boundary as
+  source evidence when VulnFuse adds a portable prefix.
+- Warn and retain the unmodified finding when a referenced base is unknown,
+  circular, malformed, unsafe, or deeper than the bounded resolution limit.
+- Make repository checks fail when the CLI, HTML generator, or SARIF exporters
+  embed a version different from the workspace manifests.
+
+### Safety
+
+- Omit producer-specific absolute roots from canonical paths instead of
+  exporting usernames or machine layouts. Resolution only prepends validated
+  relative segments already embedded in the report.
+- Reject URI-base segments with queries, fragments, backslashes, malformed
+  percent encoding, or `..` traversal; add no dependency, file access, network
+  request, or source-root guess.
+
+### Limitations
+
+- This is portable repository-relative correlation, not complete SARIF URI
+  resolution or source-file navigation. VulnFuse does not accept user URI-base
+  mappings, reconstruct a redacted absolute root, resolve symlinks, or prove
+  that two producer path conventions name the same checkout.
+
 ## [0.4.13] - 2026-08-12
 
 ### Added
@@ -298,7 +329,8 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.13...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.14...HEAD
+[0.4.14]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.14
 [0.4.13]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.13
 [0.4.12]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.12
 [0.4.11]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.11

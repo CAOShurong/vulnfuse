@@ -261,6 +261,83 @@ Maintained alternatives cover adjacent boundaries. Microsoft's MIT-licensed SARI
 
 VulnFuse therefore adds no dependency or service. It inspects only already-loaded JSON, never executes a recorded command line, does not fetch external properties, preserves selected per-run health counts and warnings, and lets CLI/Action users opt into `fail-on-incomplete`. This still cannot prove coverage: a producer can lie about success or omit invocation metadata, and the absence of a warning does not establish that the intended targets, rules, versions, or configuration were actually scanned.
 
+## Why a SARIF file path can lose its source-root prefix
+
+The public v0.4.13 parser read `artifactLocation.uri` but ignored both
+`artifactLocation.uriBaseId` and `run.originalUriBaseIds`. Against Microsoft's
+pinned [`OriginalUriBaseIds.sarif`](https://github.com/microsoft/sarif-tutorials/blob/819b0f62f47ecde9a8f24dfc387c41926f5edabe/samples/OriginalUriBaseIds.sarif)
+sample, `inspect` returned three findings with no warning, while TUT1002 entered
+the canonical model as `io/kb.c`. The sample declares that URI under `SRCROOT`,
+whose portable relative segment is `src/`; another scanner reporting
+`src/io/kb.c` would therefore receive a different file asset. In VulnFuse's
+default instance scope, different assets are a hard correlation blocker rather
+than a small score difference. The downloaded CC-BY-4.0 sample was 2,992 bytes
+with SHA-256
+`48C63F0FA36C72724CE67CCCC1783122E83AF9805176E041A127468F3A3C7A4A`
+during the 2026-08-12 reproduction. It is used as external acceptance evidence,
+not copied into the Apache-2.0 repository fixtures.
+
+The behavior is defined by the standard, not inferred from one producer. OASIS
+SARIF 2.1 plus Errata 01 specifies consumer resolution through configured
+mappings and then `originalUriBaseIds`, permits a top-level absolute URI to be
+removed for privacy and deterministic output, prohibits loops and `..` path
+segments, and requires URI-base path segments to end in `/`. GitHub's current
+[SARIF support](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support)
+documents the same relative-root structure, while the CodeQL CLI
+[SARIF output contract](https://docs.github.com/en/code-security/reference/code-scanning/codeql/codeql-cli/sarif-output)
+says `uriBaseId` is generated when a file is relative to a known abstract
+location such as the source root. See the OASIS
+[URI-base sections](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html).
+
+Independent implementation reports show recurring workflow cost:
+
+- [SARIF VS Code extension #644](https://github.com/microsoft/sarif-vscode-extension/issues/644)
+  reports that every `%SRCROOT%` finding becomes “File not found” when a
+  monorepo workspace root differs from the analyzed subfolder.
+- [`sarif-rs` #986](https://github.com/psastras/sarif-rs/issues/986) requests a
+  source-root option because CodeQL paths cannot be opened when formatting a
+  SARIF file outside the analyzed checkout.
+- [CodeQL Action #2215](https://github.com/github/codeql-action/issues/2215)
+  reports wrong/file-not-found paths with multiple URI bases and describes
+  preprocessing the report as a workaround.
+- [SARIF SDK #2969](https://github.com/microsoft/sarif-sdk/issues/2969) reports
+  empty source hashes when one streaming path ignores `originalUriBaseIds`,
+  even though the post-processing path resolves them.
+- Jenkins [analysis-model #1418](https://github.com/jenkinsci/analysis-model/issues/1418)
+  was fixed after users reported source files missing when reports and builds
+  lived in different directories or machines.
+
+These reports do not establish one universal checkout-mapping policy. They do
+establish that ignoring the field loses information and pushes users toward
+manual path rewriting.
+
+Maintained alternatives were checked on 2026-08-12. Microsoft's SARIF SDK
+5.6.0 is an MIT-licensed comprehensive .NET model and toolchain, but importing
+that runtime does not fit VulnFuse's browser-compatible TypeScript core.
+`sarif-rs` is maintained, MIT-licensed Rust; its open source-root issue shows
+that adopting a separate formatter would not remove the mapping gap. Jenkins
+analysis-model 14.16.0 is maintained and MIT-licensed Java infrastructure that
+solves the problem inside Jenkins rather than as a drop-in local correlation
+library. GitHub's maintained MIT-licensed CodeQL Action is the right hosted
+upload path for GitHub users, but it is not a local heterogeneous correlator and
+its URI-base issue remains open. None justifies a new service, runtime, or
+dependency for the bounded prepend algorithm already specified by SARIF.
+
+VulnFuse therefore resolves only the portable part of the chain. It validates
+and prepends relative URI-base segments, stops at an omitted/redacted or
+absolute top-level root, and never copies that absolute producer path into the
+canonical file identity. Unknown, circular, malformed, traversal-bearing, or
+overlong chains preserve the raw location and warn. The original URI, base id,
+and successful resolution boundary remain as source properties. No file is
+opened, no URI is fetched, and no local workspace root is guessed.
+
+That last boundary is material. OASIS gives an explicit user mapping priority,
+but VulnFuse does not yet expose such a mapping. If `%SRCROOT%` has no usable
+relative segment in the report, the tool cannot know whether it means the
+repository root, a monorepo subdirectory, a generated tree, or another machine.
+This release improves portable correlation; it does not claim complete absolute
+URI resolution, source navigation, symlink equivalence, or filesystem identity.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.
@@ -275,6 +352,7 @@ VulnFuse therefore adds no dependency or service. It inspects only already-loade
 10. **Suppression is evidence-bearing disposition.** It should affect active queues only under conservative, explicit semantics, while the producer's kind, status, and justification remain reviewable.
 11. **Rule outcomes are evidence, not all vulnerabilities.** SARIF pass, informational, and not-applicable records should remain reviewable without entering active vulnerability gates, while malformed or contradicted outcomes fail closed.
 12. **Partial scan evidence and scan completeness are separate decisions.** Retain valid findings from a failed run, but make producer-declared incompleteness visible and optionally gateable after the artifact exists.
+13. **Portable path evidence should not expose machine identity.** Relative SARIF URI-base segments can improve correlation, while absolute producer roots remain private and cannot substitute for an explicit consumer checkout mapping.
 
 ## What this project intentionally does not claim
 

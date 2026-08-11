@@ -10,4 +10,6 @@ Baseline diffs record and warn about added/removed scanner tools and per-tool re
 
 SARIF result kinds and suppression evidence are retained. `--fail-on` and `--fail-on-new` exclude fully non-finding (`pass`, `informational`, or `notApplicable`) and fully suppressed clusters; malformed, contradictory, under-review, rejected, or actively corroborated records remain gate-eligible. This trusts producer metadata and is not an independent validation of a rule outcome or false-positive verdict.
 
+Valid relative SARIF `uriBaseId` chains contribute portable path prefixes before file-location correlation. Producer-specific absolute roots are omitted; malformed chains warn and preserve the raw URI. This does not map symbolic roots to the local checkout or open source files.
+
 The public package is not yet published to npm. Build and run it from the repository as documented in the root [README](../../README.md).

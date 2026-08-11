@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  correlateReports,
   countIncompleteReports,
   detectFormat,
   isIncompleteReportWarning,
@@ -230,6 +231,72 @@ describe("report parsing", () => {
         expect.objectContaining({
           code: "sarif.invalid-suppression",
           path: "runs[0].results[4].suppressions[0]",
+        }),
+      ]),
+    );
+  });
+
+  it("uses portable SARIF URI-base prefixes to correlate repository-relative locations", () => {
+    const parsed = parseReport({
+      name: "sarif-uri-bases.json",
+      content: fixture("sarif-uri-bases.json"),
+    });
+
+    expect(parsed.findings).toHaveLength(2);
+    expect(parsed.findings.map((finding) => finding.location?.uri)).toEqual([
+      "src/lib/memory.c",
+      "src/lib/memory.c",
+    ]);
+    expect(parsed.findings[0]?.properties).toMatchObject({
+      "sarif.originalLocationUri": "lib/memory.c",
+      "sarif.locationUriBaseId": "SRCROOT",
+      "sarif.locationResolution": "redacted-root",
+    });
+    expect(parsed.warnings).toEqual([]);
+
+    const correlated = correlateReports([parsed]);
+    expect(correlated.summary).toMatchObject({
+      inputFindings: 2,
+      clusters: 1,
+      duplicatesCollapsed: 1,
+    });
+    expect(correlated.clusters[0]?.sourceTools).toEqual([
+      "Relative Path Scanner",
+      "Repository Path Scanner",
+    ]);
+  });
+
+  it("keeps raw SARIF locations and warns for unknown, circular, and invalid URI bases", () => {
+    const parsed = parseReport({
+      name: "malformed-uri-bases.sarif",
+      content: fixture("sarif-uri-bases-malformed.json"),
+    });
+
+    expect(parsed.findings.map((finding) => finding.location?.uri)).toEqual([
+      "unknown.c",
+      "cycle.c",
+      "invalid.c",
+      "src/portable.c",
+    ]);
+    expect(parsed.findings[3]?.properties).toMatchObject({
+      "sarif.originalLocationUri": "portable.c",
+      "sarif.locationUriBaseId": "ABSSRC",
+      "sarif.locationResolution": "absolute-root-omitted",
+    });
+    expect(parsed.findings[3]?.location?.uri).not.toContain("Users");
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "sarif.unknown-uri-base",
+          path: "runs[0].results[0].locations[0].physicalLocation.artifactLocation.uriBaseId",
+        }),
+        expect.objectContaining({
+          code: "sarif.circular-uri-base",
+          path: "runs[0].results[1].locations[0].physicalLocation.artifactLocation.uriBaseId",
+        }),
+        expect.objectContaining({
+          code: "sarif.invalid-uri-base",
+          path: "runs[0].originalUriBaseIds.BAD.uri",
         }),
       ]),
     );

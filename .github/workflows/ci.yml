@@ -72,6 +72,15 @@ jobs:
           if ($partial.summary.inputFindings -ne 1 -or $partial.reports[0].warnings.Count -ne 5) {
             throw "Unexpected incomplete SARIF evidence"
           }
+          $uriBaseOutput = "${{ runner.temp }}/vulnfuse-uri-base.json"
+          node packages/cli/dist/index.js merge packages/core/test/fixtures/sarif-uri-bases.json --format json --output $uriBaseOutput
+          $uriBase = Get-Content -Raw $uriBaseOutput | ConvertFrom-Json
+          if ($uriBase.summary.inputFindings -ne 2 -or $uriBase.summary.clusters -ne 1 -or $uriBase.summary.duplicatesCollapsed -ne 1) {
+            throw "Portable SARIF URI-base paths did not correlate on Windows"
+          }
+          if ($uriBase.clusters[0].primary.location.uri -ne "src/lib/memory.c") {
+            throw "Unexpected portable SARIF URI-base path"
+          }
 
   action-smoke:
     name: Bundled GitHub Action smoke test
@@ -146,6 +155,24 @@ jobs:
           test "$INCOMPLETE" = "1"
           test "$FINDINGS" = "1"
           test -s "$REPORT"
+      - id: uri-base
+        name: Correlate portable SARIF URI-base paths
+        uses: ./
+        with:
+          reports: packages/core/test/fixtures/sarif-uri-bases.json
+          format: json
+          output: ${{ runner.temp }}/vulnfuse-uri-base.json
+      - name: Validate SARIF URI-base Action outputs
+        env:
+          FINDINGS: ${{ steps.uri-base.outputs.findings }}
+          CLUSTERS: ${{ steps.uri-base.outputs.clusters }}
+          COLLAPSED: ${{ steps.uri-base.outputs.duplicates-collapsed }}
+          REPORT: ${{ steps.uri-base.outputs.report }}
+        run: |
+          test "$FINDINGS" = "2"
+          test "$CLUSTERS" = "1"
+          test "$COLLAPSED" = "1"
+          test "$(node -p "require('$REPORT').clusters[0].primary.location.uri")" = "src/lib/memory.c"
 
   package-smoke:
     name: Clean package install
@@ -182,6 +209,9 @@ jobs:
           fi
           test -s partial.json
           test "$(node -p "require('./partial.json').reports[0].warnings.length")" = "5"
+          npx vulnfuse merge ../packages/core/test/fixtures/sarif-uri-bases.json --format json --output uri-base.json
+          test "$(node -p "require('./uri-base.json').summary.clusters")" = "1"
+          test "$(node -p "require('./uri-base.json').clusters[0].primary.location.uri")" = "src/lib/memory.c"
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md
           npx vulnfuse diff --baseline ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format html --output portable.html
