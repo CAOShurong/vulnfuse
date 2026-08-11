@@ -444,6 +444,49 @@ describe("exports", () => {
     expect(value.runs).toHaveLength(1);
   });
 
+  it("bounds GitHub-facing SARIF rule tags without dropping identifier evidence", () => {
+    const aliasRich = structuredClone(result);
+    const cluster = aliasRich.clusters[0];
+    expect(cluster).toBeDefined();
+    if (!cluster) return;
+    cluster.identifiers = Array.from({ length: 30 }, (_, index) => ({
+      scheme: "ALIAS",
+      value: `ALIAS-${String(index + 1).padStart(2, "0")}`,
+      relationship: "alias" as const,
+    })).reverse();
+
+    const sarif = JSON.parse(exportCorrelation(aliasRich, "sarif")) as {
+      runs: Array<{
+        tool: {
+          driver: {
+            rules: Array<{
+              properties: {
+                tags: string[];
+                vulnfuseOmittedIdentifierTagCount?: number;
+              };
+            }>;
+          };
+        };
+        results: Array<{ properties: { identifiers: unknown[] } }>;
+      }>;
+    };
+    const ruleProperties = sarif.runs[0]?.tool.driver.rules[0]?.properties;
+
+    expect(ruleProperties?.tags).toEqual([
+      "security",
+      cluster.primary.kind,
+      "ALIAS-01",
+      "ALIAS-02",
+      "ALIAS-03",
+      "ALIAS-04",
+      "ALIAS-05",
+      "ALIAS-06",
+      "ALIAS-07",
+    ]);
+    expect(ruleProperties?.vulnfuseOmittedIdentifierTagCount).toBe(23);
+    expect(sarif.runs[0]?.results[0]?.properties.identifiers).toHaveLength(30);
+  });
+
   it("exports reviewable Markdown and CSV", () => {
     const markdown = exportCorrelation(result, "markdown");
     expect(markdown).toContain("Why merged");

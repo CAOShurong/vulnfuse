@@ -4,6 +4,28 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.20] - 2026-08-12
+
+### Fixed
+
+- Bound exported SARIF rule tags to nine values so an alias-rich correlated
+  finding does not exceed GitHub Code Scanning's conservative rule-tag
+  troubleshooting guidance.
+- Keep every parsed identifier in the result properties and record
+  `vulnfuseOmittedIdentifierTagCount` whenever identifier tags are omitted.
+
+### Verification
+
+- Reproduced 32 tags from one real Trivy-based cluster with 30 aliases before
+  the fix, then added core, separate-process CLI, and bundled Action regression
+  tests that require nine tags and all 31 parsed identifiers.
+
+### Limitations
+
+- This addresses one documented code-scanning rejection mode. It does not
+  validate permissions, product enablement, file-size limits, result/rule/run
+  counts, location counts, or all other GitHub SARIF ingestion rules.
+
 ## [0.4.19] - 2026-08-12
 
 ### Fixed

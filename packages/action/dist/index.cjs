@@ -27007,7 +27007,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.19">
+  <meta name="generator" content="VulnFuse 0.4.20">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -27511,7 +27511,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.19",
+            semanticVersion: "0.4.20",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -27689,6 +27689,8 @@ function exportJson(result) {
 }
 
 // ../core/dist/exporters/sarif.js
+var maximumGithubCodeScanningRuleTags = 9;
+var identifierRelationshipPriority = { primary: 5, alias: 4, related: 3, weakness: 2, rule: 1 };
 function exportSarif(result) {
   const emittedClusters = result.clusters.filter((cluster) => !cluster.nonFinding);
   const nonFindingClusters = result.clusters.filter((cluster) => cluster.nonFinding);
@@ -27700,7 +27702,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.19",
+            semanticVersion: "0.4.20",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor2(cluster))
           }
@@ -27727,6 +27729,14 @@ function exportSarif(result) {
 `;
 }
 function ruleFor2(cluster) {
+  const identifierTags = [...cluster.identifiers].sort((left, right) => {
+    const relationshipDelta = identifierRelationshipPriority[right.relationship] - identifierRelationshipPriority[left.relationship];
+    if (relationshipDelta !== 0)
+      return relationshipDelta;
+    return `${left.scheme}:${left.value}`.localeCompare(`${right.scheme}:${right.value}`);
+  }).map((identifier) => identifier.value);
+  const identifierTagBudget = maximumGithubCodeScanningRuleTags - 2;
+  const omittedIdentifierTagCount = Math.max(0, identifierTags.length - identifierTagBudget);
   return {
     id: cluster.id,
     name: cluster.identifiers[0]?.value ?? cluster.id,
@@ -27734,11 +27744,8 @@ function ruleFor2(cluster) {
     ...cluster.primary.description ? { fullDescription: { text: cluster.primary.description } } : {},
     ...cluster.primary.references[0] ? { helpUri: cluster.primary.references[0] } : {},
     properties: {
-      tags: [
-        "security",
-        cluster.primary.kind,
-        ...cluster.identifiers.map((identifier) => identifier.value)
-      ],
+      tags: ["security", cluster.primary.kind, ...identifierTags.slice(0, identifierTagBudget)],
+      ...omittedIdentifierTagCount > 0 ? { vulnfuseOmittedIdentifierTagCount: omittedIdentifierTagCount } : {},
       "security-severity": securityScore2(cluster.severity)
     }
   };

@@ -554,6 +554,49 @@ change. That setting would alter repository policy and future release mutation
 rules; it is not necessary to verify the SLSA statement already attached to the
 assets and is not silently presented as enabled.
 
+## SARIF rule-tag ingestion-limit research (v0.4.20)
+
+GitHub's current
+[SARIF support reference](https://docs.github.com/en/enterprise-cloud@latest/code-security/reference/code-scanning/sarif-files/sarif-support)
+lists 20 tags per rule as the hard maximum and says only 10 are retained. Its
+[upload troubleshooting guide](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/troubleshoot-sarif-uploads/results-exceed-limit)
+names `Analysis SARIF file rejected due to rule tag limits` and tells generator
+authors to emit fewer than 10 tags when repairing that failure. The same
+reference makes clear that code scanning uses rule tags for filtering, while
+arbitrary VulnFuse result properties are not part of GitHub's supported display
+contract.
+
+VulnFuse 0.4.19 had an unbounded producer-side path: `security`, the finding
+kind, and every correlated identifier became rule tags. A local reproduction
+using the real Trivy fixture plus 30 valid aliases emitted 32 tags for one rule.
+The complete 30-identifier array was already duplicated in the result's
+VulnFuse properties, so limiting the filter/display copy does not require
+discarding the underlying evidence.
+
+Maintained alternatives do not remove the generator's responsibility:
+
+- `github/codeql-action/upload-sarif` is an active MIT upload client. It can
+  report GitHub's validation failure, but it cannot choose which VulnFuse alias
+  tags are expendable after generation.
+- Microsoft SARIF Multitool 5.5.0 is an active MIT general-purpose transformer.
+  Adding a separate transform step and runtime would increase installation and
+  migration work without a VulnFuse-specific evidence-retention policy.
+- `sarif-tools` 3.0.5 is an MIT Python 3.8+ inspection/transformation suite. It
+  adds a Python dependency and likewise has no basis for deciding which
+  VulnFuse identifiers are retained elsewhere.
+- `advanced-security/filter-sarif` is a maintained Apache-2.0 Action for
+  path/severity result filtering, not per-rule alias-cardinality repair.
+
+The selected fix therefore adds no dependency or service. It emits nine tags,
+the stricter directly documented troubleshooting boundary: `security`, the
+finding kind, then up to seven identifiers ordered by relationship priority and
+value. `vulnfuseOmittedIdentifierTagCount` makes the reduction explicit, while
+`results[].properties.identifiers` retains the complete set. Core,
+separate-process CLI, and bundled Action tests cover the same alias-rich case.
+This prevents one documented rejection mode; only GitHub's ingestion service
+can decide whether a complete upload satisfies every current limit, permission,
+and product-availability rule.
+
 ## Design conclusions from the research
 
 1. **Local-first is a meaningful boundary.** Scanner reports can expose package inventories, internal paths, images, hosts, and source locations. A static browser tool and offline CLI reduce the need to upload that material to another service.

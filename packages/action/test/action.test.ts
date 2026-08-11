@@ -33,6 +33,59 @@ afterEach(async () => {
 });
 
 describe("GitHub Action bundle", () => {
+  it("bounds SARIF rule tags while preserving every parsed identifier", async () => {
+    const aliases = Array.from(
+      { length: 30 },
+      (_, index) => `OSV-2026-${String(index + 1).padStart(4, "0")}`,
+    ).join(" ");
+    const input = join(testDirectory, "alias-rich.csv");
+    const outputReport = join(testDirectory, "alias-rich.sarif");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(
+      input,
+      `vulnerability_id,title,severity,aliases,tool\nCVE-2026-1000,Alias-rich finding,high,"${aliases}",Alias Scanner\n`,
+      "utf8",
+    );
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: input,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "sarif",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+    const sarif = JSON.parse(await readFile(outputReport, "utf8")) as {
+      runs: Array<{
+        tool: {
+          driver: {
+            rules: Array<{
+              properties: {
+                tags: string[];
+                vulnfuseOmittedIdentifierTagCount?: number;
+              };
+            }>;
+          };
+        };
+        results: Array<{ properties: { identifiers: unknown[] } }>;
+      }>;
+    };
+
+    expect(sarif.runs[0]?.tool.driver.rules[0]?.properties.tags).toHaveLength(9);
+    expect(sarif.runs[0]?.tool.driver.rules[0]?.properties.vulnfuseOmittedIdentifierTagCount).toBe(
+      24,
+    );
+    expect(sarif.runs[0]?.results[0]?.properties.identifiers).toHaveLength(31);
+  });
+
   it("processes CycloneDX XML VEX through the committed Action bundle", async () => {
     const outputReport = join(testDirectory, "cyclonedx-xml.json");
     const githubOutput = join(testDirectory, "github-output.txt");
