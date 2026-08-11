@@ -152,14 +152,14 @@ describe("report parsing", () => {
       ],
     };
     const xml = `<?xml version="1.0"?>
-      <cdx:bom xmlns:cdx="http://cyclonedx.org/schema/bom/1.6" serialNumber="${json.serialNumber}">
-        <cdx:metadata>
-          <cdx:component type="application"><cdx:name>xml-parity</cdx:name></cdx:component>
-          <cdx:tools><cdx:tool><cdx:name>Parity Producer</cdx:name><cdx:version>1.0.0</cdx:version></cdx:tool></cdx:tools>
-        </cdx:metadata>
-        <cdx:components><cdx:component type="library" bom-ref="pkg:npm/example@1.0.0"><cdx:name>example</cdx:name><cdx:version>1.0.0</cdx:version><cdx:purl>pkg:npm/example@1.0.0</cdx:purl></cdx:component></cdx:components>
-        <cdx:vulnerabilities><cdx:vulnerability><cdx:id>CVE-2026-0001</cdx:id><cdx:ratings><cdx:rating><cdx:score>8.1</cdx:score><cdx:severity>high</cdx:severity></cdx:rating></cdx:ratings><cdx:analysis><cdx:state>exploitable</cdx:state><cdx:detail>Confirmed by the producer.</cdx:detail></cdx:analysis><cdx:affects><cdx:target><cdx:ref>pkg:npm/example@1.0.0</cdx:ref><cdx:versions><cdx:version><cdx:version>1.0.0</cdx:version><cdx:status>affected</cdx:status></cdx:version></cdx:versions></cdx:target></cdx:affects></cdx:vulnerability></cdx:vulnerabilities>
-      </cdx:bom>`;
+      <cdx.v1:bom xmlns:cdx.v1="http://cyclonedx.org/schema/bom/1.6" serialNumber="${json.serialNumber}">
+        <cdx.v1:metadata>
+          <cdx.v1:component type="application"><cdx.v1:name>xml-parity</cdx.v1:name></cdx.v1:component>
+          <cdx.v1:tools><cdx.v1:tool><cdx.v1:name>Parity Producer</cdx.v1:name><cdx.v1:version>1.0.0</cdx.v1:version></cdx.v1:tool></cdx.v1:tools>
+        </cdx.v1:metadata>
+        <cdx.v1:components><cdx.v1:component type="library" bom-ref="pkg:npm/example@1.0.0"><cdx.v1:name>example</cdx.v1:name><cdx.v1:version>1.0.0</cdx.v1:version><cdx.v1:purl>pkg:npm/example@1.0.0</cdx.v1:purl></cdx.v1:component></cdx.v1:components>
+        <cdx.v1:vulnerabilities><cdx.v1:vulnerability><cdx.v1:id>CVE-2026-0001</cdx.v1:id><cdx.v1:ratings><cdx.v1:rating><cdx.v1:score>8.1</cdx.v1:score><cdx.v1:severity>high</cdx.v1:severity></cdx.v1:rating></cdx.v1:ratings><cdx.v1:analysis><cdx.v1:state>exploitable</cdx.v1:state><cdx.v1:detail>Confirmed by the producer.</cdx.v1:detail></cdx.v1:analysis><cdx.v1:affects><cdx.v1:target><cdx.v1:ref>pkg:npm/example@1.0.0</cdx.v1:ref><cdx.v1:versions><cdx.v1:version><cdx.v1:version>1.0.0</cdx.v1:version><cdx.v1:status>affected</cdx.v1:status></cdx.v1:version></cdx.v1:versions></cdx.v1:target></cdx.v1:affects></cdx.v1:vulnerability></cdx.v1:vulnerabilities>
+      </cdx.v1:bom>`;
 
     const jsonReport = parseReport({ name: "parity.cdx", content: JSON.stringify(json) });
     const xmlReport = parseReport({ name: "parity.cdx", content: xml });

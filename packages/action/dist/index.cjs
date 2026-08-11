@@ -42769,9 +42769,11 @@ function qualifiedName(name) {
   return { prefix: name.slice(0, separator), local: name.slice(separator + 1) };
 }
 function attributeValue(attributes, name) {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match3 = attributes.match(new RegExp(`(?:^|\\s)${escaped}\\s*=\\s*(["'])(.*?)\\1`, "i"));
-  return match3?.[2];
+  for (const match3 of attributes.matchAll(/(?:^|\s)([A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?)\s*=\s*(["'])(.*?)\2/g)) {
+    if (match3[1]?.toLowerCase() === name.toLowerCase())
+      return match3[3];
+  }
+  return void 0;
 }
 
 // ../core/dist/formats/detect.js

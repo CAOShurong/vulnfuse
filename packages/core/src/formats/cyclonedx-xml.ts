@@ -138,7 +138,10 @@ function qualifiedName(name: string): { prefix?: string; local: string } {
 }
 
 function attributeValue(attributes: string, name: string): string | undefined {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = attributes.match(new RegExp(`(?:^|\\s)${escaped}\\s*=\\s*(["'])(.*?)\\1`, "i"));
-  return match?.[2];
+  for (const match of attributes.matchAll(
+    /(?:^|\s)([A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?)\s*=\s*(["'])(.*?)\2/g,
+  )) {
+    if (match[1]?.toLowerCase() === name.toLowerCase()) return match[3];
+  }
+  return undefined;
 }
