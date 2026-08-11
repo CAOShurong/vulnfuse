@@ -55,8 +55,17 @@ jobs:
             throw "Unexpected OpenVEX inspection summary"
           }
           $partialOutput = "${{ runner.temp }}/vulnfuse-partial.json"
-          & node packages/cli/dist/index.js merge packages/core/test/fixtures/sarif-incomplete.json --format json --output $partialOutput --fail-on-incomplete
-          if ($LASTEXITCODE -ne 1 -or -not (Test-Path $partialOutput)) {
+          $partialProcess = Start-Process -FilePath node -ArgumentList @(
+            "packages/cli/dist/index.js",
+            "merge",
+            "packages/core/test/fixtures/sarif-incomplete.json",
+            "--format",
+            "json",
+            "--output",
+            $partialOutput,
+            "--fail-on-incomplete"
+          ) -Wait -PassThru -WindowStyle Hidden
+          if ($partialProcess.ExitCode -ne 1 -or -not (Test-Path $partialOutput)) {
             throw "Incomplete SARIF gate did not preserve output and exit 1"
           }
           $partial = Get-Content -Raw $partialOutput | ConvertFrom-Json
