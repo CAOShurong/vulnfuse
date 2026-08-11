@@ -25570,7 +25570,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.10">
+  <meta name="generator" content="VulnFuse 0.4.11">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -26074,7 +26074,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.10",
+            semanticVersion: "0.4.11",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -26261,7 +26261,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.10",
+            semanticVersion: "0.4.11",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor2(cluster))
           }
@@ -41191,15 +41191,6 @@ function parseCycloneDx(root, reportName) {
     }
     const ratings = asArray(vulnerability["ratings"]).map(asRecord).filter((entry) => Boolean(entry));
     const ratingSeverities = ratings.map((rating) => normalizeSeverity(rating["severity"] ?? asNumber(rating["score"])));
-    const affected = asRecord(asArray(vulnerability["affects"])[0]);
-    const affectedRef = asString(affected?.["ref"]);
-    const component = affectedRef ? components.get(affectedRef) : void 0;
-    const version2 = affectedVersion(affected) ?? asString(component?.["version"]);
-    const componentPurl = asString(component?.["purl"]);
-    const componentGroup = asString(component?.["group"]);
-    const componentName = asString(component?.["name"]);
-    const componentType = asString(component?.["type"]);
-    const fixedVersion = affectedFixedVersion(affected);
     const analysis = asRecord(vulnerability["analysis"]);
     const recommendation = asString(vulnerability["recommendation"] ?? analysis?.["detail"]);
     const properties = asJsonValue({
@@ -41208,33 +41199,46 @@ function parseCycloneDx(root, reportName) {
       analysis: vulnerability["analysis"],
       affects: vulnerability["affects"]
     });
-    findings.push(makeFinding({
-      source: source(toolName, reportName, tool?.version),
-      kind: "sca",
-      title: vulnerabilityId ? `${vulnerabilityId} in ${componentName ?? affectedRef ?? "component"}` : "CycloneDX vulnerability",
-      ...asString(vulnerability["description"] ?? vulnerability["detail"]) ? { description: asString(vulnerability["description"] ?? vulnerability["detail"]) } : {},
-      severity: ratingSeverities.length > 0 ? maxSeverity(ratingSeverities) : "unknown",
-      identifiers: uniqueIdentifiers(identifiers),
-      component: {
-        ...componentPurl ? { purl: componentPurl } : {},
-        ...componentGroup ? { ecosystem: componentGroup } : {},
-        ...componentName ? { name: componentName } : {},
-        ...version2 ? { version: version2 } : {},
-        ...componentType ? { type: componentType } : {}
-      },
-      ...rootAsset ? { asset: rootAsset } : {},
-      remediation: {
-        ...fixedVersion ? { fixedVersion } : {},
-        ...recommendation ? { recommendation } : {}
-      },
-      references: [
-        safeHttpReference(asRecord(vulnerability["source"])?.["url"]),
-        ...asArray(vulnerability["references"]).map((entry) => asRecord(entry)?.["url"]).map(safeHttpReference),
-        ...asArray(vulnerability["advisories"]).map((entry) => asRecord(entry)?.["url"]).map(safeHttpReference)
-      ].filter((entry) => Boolean(entry)),
-      ...properties && !Array.isArray(properties) && typeof properties === "object" ? { properties } : {},
-      nativeId: `${index}:${vulnerabilityId ?? "finding"}:${affectedRef ?? "component"}`
-    }));
+    const affectedEntries = asArray(vulnerability["affects"]).map(asRecord).filter((entry) => Boolean(entry));
+    const targets = affectedEntries.length > 0 ? affectedEntries : [void 0];
+    for (const [affectedIndex, affected] of targets.entries()) {
+      const affectedRef = asString(affected?.["ref"]);
+      const component = affectedRef ? components.get(affectedRef) : void 0;
+      const version2 = affectedVersion(affected) ?? asString(component?.["version"]);
+      const componentPurl = canonicalizePurl(asString(component?.["purl"])) ?? purlFromAffectedRef(affectedRef);
+      const componentGroup = asString(component?.["group"]);
+      const componentName = asString(component?.["name"]);
+      const componentType = asString(component?.["type"]);
+      const fixedVersion = affectedFixedVersion(affected);
+      const targetSuffix = targets.length > 1 ? `:${affectedIndex}` : "";
+      findings.push(makeFinding({
+        source: source(toolName, reportName, tool?.version),
+        kind: "sca",
+        title: vulnerabilityId ? `${vulnerabilityId} in ${componentName ?? componentPurl ?? affectedRef ?? "component"}` : "CycloneDX vulnerability",
+        ...asString(vulnerability["description"] ?? vulnerability["detail"]) ? { description: asString(vulnerability["description"] ?? vulnerability["detail"]) } : {},
+        severity: ratingSeverities.length > 0 ? maxSeverity(ratingSeverities) : "unknown",
+        identifiers: uniqueIdentifiers(identifiers),
+        component: {
+          ...componentPurl ? { purl: componentPurl } : {},
+          ...componentGroup ? { ecosystem: componentGroup } : {},
+          ...componentName ? { name: componentName } : {},
+          ...version2 ? { version: version2 } : {},
+          ...componentType ? { type: componentType } : {}
+        },
+        ...rootAsset ? { asset: rootAsset } : {},
+        remediation: {
+          ...fixedVersion ? { fixedVersion } : {},
+          ...recommendation ? { recommendation } : {}
+        },
+        references: [
+          safeHttpReference(asRecord(vulnerability["source"])?.["url"]),
+          ...asArray(vulnerability["references"]).map((entry) => asRecord(entry)?.["url"]).map(safeHttpReference),
+          ...asArray(vulnerability["advisories"]).map((entry) => asRecord(entry)?.["url"]).map(safeHttpReference)
+        ].filter((entry) => Boolean(entry)),
+        ...properties && !Array.isArray(properties) && typeof properties === "object" ? { properties } : {},
+        nativeId: `${index}:${vulnerabilityId ?? "finding"}:${affectedRef ?? "component"}${targetSuffix}`
+      }));
+    }
   }
   return {
     format: "cyclonedx",
@@ -41253,6 +41257,23 @@ function parseCycloneDx(root, reportName) {
       ...asString(root["serialNumber"]) ? { serialNumber: asString(root["serialNumber"]) } : {}
     }
   };
+}
+var BOM_LINK_ELEMENT = /^urn:cdx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[1-9][0-9]*#(.+)$/;
+function purlFromAffectedRef(ref) {
+  const direct = canonicalizePurl(ref);
+  if (direct)
+    return direct;
+  const fragment = ref?.match(BOM_LINK_ELEMENT)?.[1];
+  if (!fragment)
+    return void 0;
+  const encoded = canonicalizePurl(fragment);
+  if (encoded)
+    return encoded;
+  try {
+    return canonicalizePurl(decodeURIComponent(fragment));
+  } catch {
+    return void 0;
+  }
 }
 function cycloneTool(metadata) {
   const tools = metadata ? metadata["tools"] : void 0;

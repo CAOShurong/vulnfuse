@@ -69,10 +69,20 @@ VulnFuse reads CycloneDX JSON BOMs whose `bomFormat` is `CycloneDX`, including:
 
 - component `bom-ref`, PURL, group, name, version, and type;
 - vulnerability ID, source, ratings, CWE values, description, recommendation, references, advisories, and analysis;
-- `affects[].ref` and version/status entries;
+- every `affects[]` target and its version/status entries;
+- direct PURL affected references and PURL fragments inside valid CycloneDX
+  BOM-Link element references, including external VEX documents;
 - metadata root component and producing tool.
 
-An `unaffected` version in the first affected record is exposed as a fixed-version candidate. VEX analysis is preserved in properties; VulnFuse does not convert VEX state into a false-positive verdict.
+Each affected target becomes a separate canonical finding. A matching local
+component supplies its identity first; when no component PURL exists, a direct
+PURL reference or a PURL in a syntactically valid BOM-Link element fragment is
+validated with `packageurl-js` and used as package identity. An arbitrary
+external fragment is retained but not guessed, because resolving it requires
+the referenced BOM. An `unaffected` version in an affected record is exposed
+as a fixed-version candidate. The complete source `affects` array and VEX
+analysis remain in properties; VulnFuse does not convert VEX state into a
+false-positive verdict or retrieve external BOMs.
 
 ## OSV-Scanner JSON
 

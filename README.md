@@ -41,10 +41,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.10 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.11 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.10/vulnfuse-core-0.4.10.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.10/vulnfuse-0.4.10.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.11/vulnfuse-core-0.4.11.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.11/vulnfuse-0.4.11.tgz
 vulnfuse --version
 ```
 
@@ -132,7 +132,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.10
+  uses: CAOShurong/vulnfuse@v0.4.11
   with:
     reports: |
       reports/trivy.json
@@ -215,7 +215,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.4.10` is a public alpha with explainable, cluster-safe cross-scanner correlation, three-state SARIF disposition, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. Three-state disposition separates active findings, effectively suppressed findings, and producer-declared non-finding outcomes without deleting source evidence. It does not independently validate a suppression, rerun a check, establish applicability, or change hosted alert state. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures, a pinned public Microsoft BinSkim SARIF sample, and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.11` is a public alpha with explainable, cluster-safe cross-scanner correlation, CycloneDX multi-affect and PURL-bearing BOM-Link support, three-state SARIF disposition, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. CycloneDX support validates direct PURLs and PURL fragments but does not retrieve external BOMs or guess arbitrary BOM-Link identities. Three-state disposition separates active findings, effectively suppressed findings, and producer-declared non-finding outcomes without deleting source evidence. It does not independently validate a suppression, rerun a check, establish applicability, or change hosted alert state. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures, pinned public CycloneDX and Microsoft BinSkim samples, and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

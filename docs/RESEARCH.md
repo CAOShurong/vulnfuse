@@ -14,6 +14,45 @@ A large August 2026 preprint covering 52,895 high-exposure Docker Hub repositori
 
 VulnFuse therefore does not turn disagreement into a single verdict. It retains source records and makes the correlation claim inspectable.
 
+## Why an external VEX reference can carry package identity
+
+CycloneDX explicitly recommends separating dynamic VEX statements from a
+comparatively static SBOM and linking an affected target back to the precise
+inventory component with `vulnerabilities[].affects[].ref`. Its official guide
+shows an external BOM-Link element in that field. The maintained CycloneDX
+`sbom-utility` goes one step further in a public VEX example: the BOM-Link
+fragment is the component's complete `pkg:maven/...` Package URL. These are
+primary examples of a real interchange path, not a VulnFuse-specific
+convention. See the CycloneDX [external VEX guidance](https://cyclonedx.org/guides/sbom/relationships/#linking-external-vex-to-bom-inventory),
+the [BOM-Link schema](https://github.com/CycloneDX/specification/blob/master/schema/bom-1.6.schema.json),
+and the official [`sbom-utility` VEX example](https://github.com/CycloneDX/sbom-utility/blob/776791771674f4f6ee1af29dd468c59c5ae995e0/examples/cyclonedx/VEX/vex.json).
+
+The public v0.4.10 parser kept the complete external URN in source properties
+but looked only for an in-document component with the same `bom-ref`. In a VEX
+that intentionally contains no inventory, the resulting finding had no
+component PURL. A second report with the same CVE and the PURL therefore lacked
+enough shared evidence to meet the default correlation threshold and remained
+a separate singleton. The parser also read only `affects[0]`, so later affected
+targets disappeared from the canonical finding set entirely.
+
+The full `@cyclonedx/cyclonedx-library` 10.1.1 model was checked on 2026-08-11.
+It is maintained, Apache-2.0, dependency-free, and about 5.2 MB unpacked; it is
+a strong choice for applications that need complete schema construction and
+validation. VulnFuse already depends on MIT-licensed `packageurl-js` 2.0.1
+(about 57 KB unpacked) for its cross-format identity layer. Adding the full
+model only to recognize a validated PURL fragment would materially widen the
+core, browser, and committed Action bundle without resolving external
+documents. The selected change therefore uses the existing PURL parser, adds
+no runtime dependency or network request, and expands all affected targets.
+
+This is intentionally conservative. The complete BOM-Link element syntax must
+match before its fragment is considered, and that fragment must parse as a
+PURL. Product ids such as `#product-JKL`, hashes, and other legitimate
+`bom-ref` forms are not package identities and remain unresolved unless the
+referenced inventory is available. VulnFuse does not fetch that inventory,
+authenticate the VEX producer, or turn `analysis.state` into a suppression or
+exploitability verdict.
+
 ## Why pairwise matches are not enough
 
 The v0.4.2 correlator had a reproducible cluster-level failure even though its pairwise blocker rules worked as documented. Scanner A and Scanner B could match through one CVE, while Scanner B and Scanner C matched through another ID. Union-find transitive closure then put all three records in one cluster even when A and C named conflicting components and `explainMatch(A, C)` returned hard blockers. The resulting scanner-overlap table also described A and C as shared because it only saw the final cluster.
