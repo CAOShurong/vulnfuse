@@ -27,6 +27,10 @@ const severityFilters = ["all", "critical", "high", "medium", "low", "info", "un
 type CoverageFilter = "all" | "multi" | "single";
 type DispositionFilter = "all" | "active" | "suppressed" | "non-finding";
 
+export function shouldShowAnalysisResults(reportCount: number): boolean {
+  return reportCount > 0;
+}
+
 export function App() {
   const [inputs, setInputs] = useState<ReportInput[]>([]);
   const [baselineInputs, setBaselineInputs] = useState<ReportInput[]>([]);
@@ -421,7 +425,7 @@ export function App() {
           <ReportWarnings reports={analysis.baselineReports} label="Baseline report warnings" />
         </section>
 
-        {analysis.result && analysis.result.summary.inputFindings > 0 && (
+        {analysis.result && shouldShowAnalysisResults(inputs.length) && (
           <section className="results-section">
             <div className="workbench-head">
               <div>

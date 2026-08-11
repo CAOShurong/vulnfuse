@@ -41,6 +41,10 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
   const warnings: ParsedReport["warnings"] = [];
   const reportTools: string[] = [];
   const reportToolVersions = new Map<string, Set<string>>();
+  const reportAutomationCategories = new Map<
+    string,
+    { categories: Set<string>; uncategorizedRuns: number }
+  >();
   const runHealth: JsonValue[] = [];
 
   for (const [runIndex, runValue] of asArray(root["runs"]).entries()) {
@@ -55,6 +59,17 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
       versions.add(toolVersion);
       reportToolVersions.set(toolName, versions);
     }
+    const automationEvidence = reportAutomationCategories.get(toolName) ?? {
+      categories: new Set<string>(),
+      uncategorizedRuns: 0,
+    };
+    const automationId = asString(asRecord(run?.["automationDetails"])?.["id"]);
+    const categorySeparator = automationId?.lastIndexOf("/") ?? -1;
+    const automationCategory =
+      categorySeparator >= 0 ? automationId?.slice(0, categorySeparator).trim() : undefined;
+    if (automationCategory) automationEvidence.categories.add(automationCategory);
+    else automationEvidence.uncategorizedRuns += 1;
+    reportAutomationCategories.set(toolName, automationEvidence);
     const health = inspectRunHealth(run, runIndex, toolName, warnings);
     const healthValue = asJsonValue(health);
     if (healthValue !== undefined) runHealth.push(healthValue);
@@ -191,6 +206,17 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
       [...reportToolVersions.entries()]
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([tool, versions]) => [tool, [...versions].sort()] as const),
+    ),
+    sarifAutomationCategories: Object.fromEntries(
+      [...reportAutomationCategories.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([tool, evidence]) => [
+          tool,
+          {
+            categories: [...evidence.categories].sort(),
+            uncategorizedRuns: evidence.uncategorizedRuns,
+          },
+        ]),
     ),
     findings,
     warnings,

@@ -4,6 +4,35 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.17] - 2026-08-12
+
+### Added
+
+- Preserve per-tool SARIF automation-category evidence from
+  `run.automationDetails.id`, including declared zero-result runs and counts of
+  runs whose identifiers contain no category.
+- Detect category-set and categorized-to-uncategorized drift in the existing
+  `scanSetChange` warning and post-write CLI/Action gate without changing
+  finding states.
+- Preserve structured category evidence through VulnFuse JSON re-ingestion and
+  JSON, SARIF, Markdown, row-bearing CSV, and HTML baseline exports.
+- Keep the browser warning, zero-count summary, and export controls visible
+  when loaded current reports contain zero findings.
+
+### Verification
+
+- Add multi-run parsing, re-ingestion, exporters, CLI, bundled Action,
+  zero-finding browser visibility, and cross-platform smoke coverage.
+  Acceptance also uses a pinned zero-result Microsoft SARIF Tutorials fixture
+  and verifies a category-only derived pair in desktop and mobile headless UI.
+
+### Limitations
+
+- Categories are optional producer/user-supplied analysis identifiers, not
+  proof of scanned languages, files, targets, rules, databases, completeness,
+  or comparability. VulnFuse applies GitHub's documented last-slash category
+  interpretation literally and does not infer hierarchy or scope.
+
 ## [0.4.16] - 2026-08-12
 
 ### Added
