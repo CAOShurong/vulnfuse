@@ -37,6 +37,19 @@ if (typeof expectedVersion !== "string" || versions.size !== 1) {
   throw new Error(`Workspace package versions must all match; found ${[...versions].join(", ")}.`);
 }
 
+const embeddedVersions = [
+  ["packages/cli/src/index.ts", `const version = "${expectedVersion}"`],
+  ["packages/core/src/exporters/html.ts", `VulnFuse ${expectedVersion}`],
+  ["packages/core/src/exporters/sarif.ts", `semanticVersion: "${expectedVersion}"`],
+  ["packages/core/src/exporters/baseline.ts", `semanticVersion: "${expectedVersion}"`],
+];
+for (const [path, expectedText] of embeddedVersions) {
+  const content = await readFile(resolve(root, path), "utf8");
+  if (!content.includes(expectedText)) {
+    throw new Error(`${path} does not embed workspace version ${expectedVersion}.`);
+  }
+}
+
 const actionMetadata = await readFile(resolve(root, "action.yml"), "utf8");
 if (!/using:\s*node24\b/.test(actionMetadata))
   throw new Error("action.yml must use the Node 24 runtime.");

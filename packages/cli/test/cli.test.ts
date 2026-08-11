@@ -24,6 +24,11 @@ const incompleteSarif = resolve(
   import.meta.dirname,
   "../../core/test/fixtures/sarif-incomplete.json",
 );
+const uriBaseSarif = resolve(import.meta.dirname, "../../core/test/fixtures/sarif-uri-bases.json");
+const malformedUriBaseSarif = resolve(
+  import.meta.dirname,
+  "../../core/test/fixtures/sarif-uri-bases-malformed.json",
+);
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -35,6 +40,60 @@ afterEach(async () => {
 });
 
 describe("CLI", () => {
+  it("correlates SARIF URI-base and repository-relative paths in a separate process", async () => {
+    const inspection = await execute(process.execPath, [cli, "inspect", uriBaseSarif, "--json"]);
+    expect(JSON.parse(inspection.stdout)[0]).toMatchObject({
+      format: "sarif",
+      findings: 2,
+      warnings: [],
+    });
+
+    const output = join(testDirectory, "uri-base-result.json");
+    await execute(process.execPath, [
+      cli,
+      "merge",
+      uriBaseSarif,
+      "--format",
+      "json",
+      "--output",
+      output,
+    ]);
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      summary: { inputFindings: number; clusters: number; duplicatesCollapsed: number };
+      clusters: Array<{ primary: { location?: { uri?: string } }; sourceTools: string[] }>;
+    };
+    expect(result.summary).toMatchObject({ inputFindings: 2, clusters: 1, duplicatesCollapsed: 1 });
+    expect(result.clusters[0]?.primary.location?.uri).toBe("src/lib/memory.c");
+    expect(result.clusters[0]?.sourceTools).toEqual([
+      "Relative Path Scanner",
+      "Repository Path Scanner",
+    ]);
+  });
+
+  it("preserves findings and reports malformed SARIF URI-base chains", async () => {
+    const inspection = await execute(process.execPath, [
+      cli,
+      "inspect",
+      malformedUriBaseSarif,
+      "--json",
+    ]);
+    const report = JSON.parse(inspection.stdout)[0] as {
+      findings: number;
+      warnings: Array<{ code: string }>;
+    };
+    expect(report.findings).toBe(4);
+    expect(report.warnings.map((warning) => warning.code)).toEqual(
+      expect.arrayContaining([
+        "sarif.unknown-uri-base",
+        "sarif.circular-uri-base",
+        "sarif.invalid-uri-base",
+      ]),
+    );
+    expect(inspection.stderr).toContain("sarif.unknown-uri-base");
+    expect(inspection.stderr).toContain("sarif.circular-uri-base");
+    expect(inspection.stderr).toContain("sarif.invalid-uri-base");
+  });
+
   it("writes partial SARIF evidence before applying the incomplete-run gate", async () => {
     const inspection = await execute(process.execPath, [cli, "inspect", incompleteSarif, "--json"]);
     const inspected = JSON.parse(inspection.stdout)[0] as {

@@ -38,6 +38,8 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 | Output destroys an input                 | CLI and Action reject identical resolved input/output paths                                       |
 | Baseline coverage drift is misread       | Structured scanner/report-count drift warning; optional post-write CLI/Action failure             |
 | Failed SARIF run looks complete          | Preserve partial findings; targeted run-health warnings; optional post-write CLI/Action failure   |
+| SARIF URI base leaks producer paths      | Retain validated relative prefixes; omit absolute roots; never open or fetch referenced artifacts |
+| Malformed SARIF URI-base traversal       | Reject loops, `..`, queries, fragments, backslashes, bad encoding, and chains over 100 entries    |
 | Malformed suppression bypasses a gate    | Unknown containers, kinds, or statuses warn and remain active; mixed clusters remain active       |
 | Malformed result kind bypasses a gate    | Unknown, non-string, or contradictory kinds warn and remain active; active corroboration wins     |
 | Untrusted OpenVEX bypasses a gate        | VEX status is preserved but never converted into suppression or non-finding state                 |
@@ -69,6 +71,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 14. **A non-finding result kind is also an assertion.** A compromised, buggy, or misconfigured producer can label a result `pass`, `informational`, or `notApplicable`. VulnFuse rejects malformed or contradictory combinations and lets active corroborating evidence win, but it does not rerun the rule, verify the target, or prove applicability. Protect gate inputs and retain scanner execution logs for consequential decisions.
 15. **OpenVEX status and authorship are not authenticated.** A standalone document can claim `not_affected` or `fixed` without a valid signature, complete product scope, or sound analysis. VulnFuse keeps those labels active and visible, does not fetch JSON-LD contexts or unwrap attestations, and does not verify signatures, authors, reachability, or remediation. Validate provenance through the distribution channel before relying on a VEX assertion outside VulnFuse.
 16. **Run-health metadata is useful but producer-controlled and optional.** VulnFuse warns on SARIF's documented incomplete-result signals and can fail after preserving the output. A compromised or buggy producer can falsely claim success, omit invocations, or fail to describe unscanned targets and rules. The absence of an incomplete warning is not proof of coverage; retain the scanner exit status, logs, configuration, and target inventory for consequential decisions.
+17. **Portable URI-base resolution does not prove filesystem identity.** VulnFuse can recover relative prefixes embedded in `originalUriBaseIds`, but it deliberately omits absolute producer roots and does not know the consumer's checkout mapping, symlinks, case rules, or mounted filesystems. A malicious producer can still supply misleading but syntactically valid relative prefixes. Review source evidence when a location match is consequential.
 
 ## Non-goals
 

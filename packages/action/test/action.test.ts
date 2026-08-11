@@ -16,6 +16,11 @@ const openVex = resolve(repository, "packages/core/test/fixtures/openvex.json");
 const suppressedSarif = resolve(repository, "packages/core/test/fixtures/sarif-suppressed.json");
 const resultKindsSarif = resolve(repository, "packages/core/test/fixtures/sarif-result-kinds.json");
 const incompleteSarif = resolve(repository, "packages/core/test/fixtures/sarif-incomplete.json");
+const uriBaseSarif = resolve(repository, "packages/core/test/fixtures/sarif-uri-bases.json");
+const malformedUriBaseSarif = resolve(
+  repository,
+  "packages/core/test/fixtures/sarif-uri-bases-malformed.json",
+);
 let testDirectory: string;
 
 beforeEach(async () => {
@@ -27,6 +32,71 @@ afterEach(async () => {
 });
 
 describe("GitHub Action bundle", () => {
+  it("correlates portable SARIF URI-base paths through the committed Action bundle", async () => {
+    const outputReport = join(testDirectory, "uri-base.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: uriBaseSarif,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "json",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+
+    const result = JSON.parse(await readFile(outputReport, "utf8")) as {
+      summary: { inputFindings: number; clusters: number; duplicatesCollapsed: number };
+      clusters: Array<{ primary: { location?: { uri?: string } } }>;
+    };
+    expect(result.summary).toMatchObject({ inputFindings: 2, clusters: 1, duplicatesCollapsed: 1 });
+    expect(result.clusters[0]?.primary.location?.uri).toBe("src/lib/memory.c");
+    expect(await readFile(githubOutput, "utf8")).toContain("duplicates-collapsed");
+    expect(await readFile(stepSummary, "utf8")).toContain("Relative Path Scanner");
+    expect(await readFile(stepSummary, "utf8")).toContain("Repository Path Scanner");
+  });
+
+  it("emits annotations while preserving malformed SARIF URI-base findings", async () => {
+    const outputReport = join(testDirectory, "malformed-uri-base.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    const execution = await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: malformedUriBaseSarif,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "json",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+
+    const result = JSON.parse(await readFile(outputReport, "utf8")) as {
+      summary: { inputFindings: number };
+      reports: Array<{ warnings: Array<{ code: string }> }>;
+    };
+    expect(result.summary.inputFindings).toBe(4);
+    expect(result.reports[0]?.warnings).toHaveLength(3);
+    expect(execution.stdout).toContain("::warning");
+    expect(execution.stdout).toContain("sarif.unknown-uri-base");
+    expect(execution.stdout).toContain("sarif.circular-uri-base");
+    expect(execution.stdout).toContain("sarif.invalid-uri-base");
+  });
+
   it("writes partial SARIF evidence and outputs before failing the incomplete-run gate", async () => {
     const outputReport = join(testDirectory, "partial.json");
     const githubOutput = join(testDirectory, "github-output.txt");

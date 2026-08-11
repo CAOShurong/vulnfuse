@@ -25573,7 +25573,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.13">
+  <meta name="generator" content="VulnFuse 0.4.14">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -26077,7 +26077,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.13",
+            semanticVersion: "0.4.14",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -26266,7 +26266,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.13",
+            semanticVersion: "0.4.14",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor2(cluster))
           }
@@ -41861,6 +41861,7 @@ function parseSarif(root, reportName) {
     const healthValue = asJsonValue(health);
     if (healthValue !== void 0)
       runHealth.push(healthValue);
+    const originalUriBaseIds = asRecord(run2?.["originalUriBaseIds"]) ?? {};
     const rules = /* @__PURE__ */ new Map();
     for (const ruleValue of asArray(driver?.["rules"])) {
       const rule = asRecord(ruleValue);
@@ -41892,7 +41893,17 @@ function parseSarif(root, reportName) {
       const artifactLocation = asRecord(physical?.["artifactLocation"]);
       const region = asRecord(physical?.["region"]);
       const logical = asRecord(asArray(locationEntry?.["logicalLocations"])[0]);
-      const uri = asString(artifactLocation?.["uri"]);
+      const rawUri = asString(artifactLocation?.["uri"]);
+      const uriBaseId = asString(artifactLocation?.["uriBaseId"]);
+      const resolvedLocation = resolvePortableSarifLocation({
+        uri: rawUri,
+        uriBaseId,
+        originalUriBaseIds,
+        runIndex,
+        resultIndex,
+        warnings
+      });
+      const uri = resolvedLocation.uri;
       const fileAsset = asset("file", uri);
       const startLine = asNumber(region?.["startLine"]);
       const endLine = asNumber(region?.["endLine"]);
@@ -41913,6 +41924,7 @@ function parseSarif(root, reportName) {
       const resultKind = parseResultKind(result, runIndex, resultIndex, warnings);
       const properties = asJsonValue({
         ...resultProperties,
+        ...resolvedLocation.properties,
         "sarif.resultKind": resultKind.value,
         ...rawSuppressions !== void 0 ? { "sarif.suppressions": rawSuppressions } : {}
       });
@@ -41956,6 +41968,142 @@ function parseSarif(root, reportName) {
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown", runHealth }
   };
+}
+function resolvePortableSarifLocation(options) {
+  const { uri, uriBaseId, originalUriBaseIds, runIndex, resultIndex, warnings } = options;
+  if (!uri || !uriBaseId)
+    return { uri, properties: {} };
+  const locationPath = `runs[${runIndex}].results[${resultIndex}].locations[0].physicalLocation.artifactLocation`;
+  const baseEvidence = { "sarif.locationUriBaseId": uriBaseId };
+  if (isAbsoluteUri(uri)) {
+    warnings.push({
+      code: "sarif.invalid-uri-base",
+      message: "A SARIF artifactLocation combined an absolute URI with uriBaseId, so VulnFuse preserved the original URI without applying the base.",
+      path: `${locationPath}.uriBaseId`
+    });
+    return {
+      uri,
+      properties: { ...baseEvidence, "sarif.locationResolution": "unresolved" }
+    };
+  }
+  const prefixes = [];
+  const visited = /* @__PURE__ */ new Set();
+  let current = uriBaseId;
+  let resolution;
+  while (true) {
+    if (visited.has(current)) {
+      warnings.push({
+        code: "sarif.circular-uri-base",
+        message: "A SARIF URI-base chain contains a loop, so VulnFuse preserved the original relative location.",
+        path: `${locationPath}.uriBaseId`
+      });
+      return {
+        uri,
+        properties: { ...baseEvidence, "sarif.locationResolution": "unresolved" }
+      };
+    }
+    if (visited.size >= 100) {
+      warnings.push({
+        code: "sarif.invalid-uri-base",
+        message: "A SARIF URI-base chain exceeded the 100-entry safety limit, so VulnFuse preserved the original relative location.",
+        path: `${locationPath}.uriBaseId`
+      });
+      return {
+        uri,
+        properties: { ...baseEvidence, "sarif.locationResolution": "unresolved" }
+      };
+    }
+    visited.add(current);
+    if (!Object.prototype.hasOwnProperty.call(originalUriBaseIds, current)) {
+      warnings.push({
+        code: "sarif.unknown-uri-base",
+        message: "A SARIF artifactLocation references an unknown URI base, so VulnFuse preserved the original relative location.",
+        path: `${locationPath}.uriBaseId`
+      });
+      return {
+        uri,
+        properties: { ...baseEvidence, "sarif.locationResolution": "unresolved" }
+      };
+    }
+    const base = asRecord(originalUriBaseIds[current]);
+    const basePath = `runs[${runIndex}].originalUriBaseIds.${current}`;
+    if (!base) {
+      return unresolvedInvalidBase(uri, baseEvidence, warnings, basePath, "A SARIF originalUriBaseIds entry was not an object");
+    }
+    const rawBaseUri = base["uri"];
+    const baseUri = asString(rawBaseUri);
+    const rawParent = base["uriBaseId"];
+    const parent = asString(rawParent);
+    if (rawBaseUri !== void 0 && baseUri === void 0) {
+      return unresolvedInvalidBase(uri, baseEvidence, warnings, `${basePath}.uri`, "A SARIF URI base had a non-string uri");
+    }
+    if (rawParent !== void 0 && parent === void 0) {
+      return unresolvedInvalidBase(uri, baseEvidence, warnings, `${basePath}.uriBaseId`, "A SARIF URI base had a non-string uriBaseId");
+    }
+    if (baseUri === void 0) {
+      if (parent !== void 0) {
+        return unresolvedInvalidBase(uri, baseEvidence, warnings, `${basePath}.uriBaseId`, "A SARIF URI base without a uri also declared another uriBaseId");
+      }
+      resolution = "redacted-root";
+      break;
+    }
+    const invalidReason = invalidUriBaseReason(baseUri);
+    if (invalidReason) {
+      return unresolvedInvalidBase(uri, baseEvidence, warnings, `${basePath}.uri`, `A SARIF URI base ${invalidReason}`);
+    }
+    if (isAbsoluteUri(baseUri)) {
+      if (parent !== void 0) {
+        return unresolvedInvalidBase(uri, baseEvidence, warnings, `${basePath}.uriBaseId`, "An absolute SARIF URI base also declared another uriBaseId");
+      }
+      resolution = "absolute-root-omitted";
+      break;
+    }
+    if (!parent) {
+      return unresolvedInvalidBase(uri, baseEvidence, warnings, `${basePath}.uriBaseId`, "A relative SARIF URI base did not declare its parent uriBaseId");
+    }
+    prefixes.unshift(baseUri);
+    current = parent;
+  }
+  const resolvedUri = `${prefixes.join("")}${uri}`;
+  return {
+    uri: resolvedUri,
+    properties: {
+      ...baseEvidence,
+      ...resolvedUri !== uri ? { "sarif.originalLocationUri": uri } : {},
+      "sarif.locationResolution": resolution ?? "unresolved"
+    }
+  };
+}
+function unresolvedInvalidBase(uri, evidence, warnings, path6, reason) {
+  warnings.push({
+    code: "sarif.invalid-uri-base",
+    message: `${reason}, so VulnFuse preserved the original relative location.`,
+    path: path6
+  });
+  return {
+    uri,
+    properties: { ...evidence, "sarif.locationResolution": "unresolved" }
+  };
+}
+function invalidUriBaseReason(uri) {
+  if (!uri.endsWith("/"))
+    return "did not end with a forward slash";
+  if (uri.includes("?") || uri.includes("#"))
+    return "contained a query or fragment";
+  if (uri.includes("\\"))
+    return "contained a backslash instead of URI path separators";
+  for (const segment of uri.split("/")) {
+    try {
+      if (decodeURIComponent(segment) === "..")
+        return "contained a '..' path segment";
+    } catch {
+      return "contained malformed percent encoding";
+    }
+  }
+  return void 0;
+}
+function isAbsoluteUri(uri) {
+  return /^[a-z][a-z\d+.-]*:/i.test(uri);
 }
 function inspectRunHealth(run2, runIndex, toolName, warnings) {
   const rawResults = run2?.["results"];

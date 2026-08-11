@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Relative Path Scanner",
+          "semanticVersion": "1.0.0",
+          "rules": [
+            {
+              "id": "CVE-2025-43210",
+              "shortDescription": { "text": "Synthetic URI-base correlation case" },
+              "properties": { "tags": ["security", "sast"] }
+            }
+          ]
+        }
+      },
+      "originalUriBaseIds": {
+        "REPOROOT": {
+          "description": { "text": "Absolute producer path intentionally redacted." }
+        },
+        "SRCROOT": {
+          "uri": "src/",
+          "uriBaseId": "REPOROOT"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CVE-2025-43210",
+          "level": "error",
+          "message": { "text": "Synthetic unsafe memory access" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/memory.c",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": { "startLine": 42, "startColumn": 3 }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Repository Path Scanner",
+          "semanticVersion": "2.0.0",
+          "rules": [
+            {
+              "id": "CVE-2025-43210",
+              "shortDescription": { "text": "Synthetic URI-base correlation case" },
+              "properties": { "tags": ["security", "sast"] }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CVE-2025-43210",
+          "level": "error",
+          "message": { "text": "Synthetic unsafe memory access" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/lib/memory.c" },
+                "region": { "startLine": 42, "startColumn": 3 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

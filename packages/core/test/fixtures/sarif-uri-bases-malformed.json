@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": { "driver": { "name": "Synthetic Malformed URI-base Scanner" } },
+      "originalUriBaseIds": {
+        "A": { "uri": "a/", "uriBaseId": "B" },
+        "B": { "uri": "b/", "uriBaseId": "A" },
+        "BAD": { "uri": "../src/" },
+        "ABSROOT": { "uri": "file:///C:/Users/producer/project/" },
+        "ABSSRC": { "uri": "src/", "uriBaseId": "ABSROOT" }
+      },
+      "results": [
+        {
+          "ruleId": "RULE-unknown",
+          "message": { "text": "Synthetic unknown URI base" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "unknown.c", "uriBaseId": "MISSING" }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "RULE-cycle",
+          "message": { "text": "Synthetic circular URI base" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "cycle.c", "uriBaseId": "A" }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "RULE-invalid",
+          "message": { "text": "Synthetic invalid URI base" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "invalid.c", "uriBaseId": "BAD" }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "RULE-portable",
+          "message": { "text": "Synthetic portable prefix under an absolute producer root" },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "portable.c", "uriBaseId": "ABSSRC" }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
