@@ -11,6 +11,7 @@ import { parseCsv } from "./formats/csv.js";
 import { parseCycloneDx } from "./formats/cyclonedx.js";
 import { detectFormat } from "./formats/detect.js";
 import { parseGrype } from "./formats/grype.js";
+import { parseOpenVex } from "./formats/openvex.js";
 import { parseOsv } from "./formats/osv.js";
 import { parseSarif } from "./formats/sarif.js";
 import { parseSnyk } from "./formats/snyk.js";
@@ -36,7 +37,7 @@ export function parseReport(input: ReportInput, options: ParseOptions = {}): Par
   if (format === "csv") return parseCsv(content, input.name);
   if (format === "unknown") {
     throw new Error(
-      `Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OSV-Scanner, CSV, and VulnFuse JSON.`,
+      `Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OpenVEX, OSV-Scanner, CSV, and VulnFuse JSON.`,
     );
   }
 
@@ -63,6 +64,8 @@ export function parseReport(input: ReportInput, options: ParseOptions = {}): Par
       return parseSnyk(root, input.name);
     case "cyclonedx":
       return parseCycloneDx(root, input.name);
+    case "openvex":
+      return parseOpenVex(root, input.name);
     case "osv-scanner":
       return parseOsv(root, input.name);
     case "vulnfuse":

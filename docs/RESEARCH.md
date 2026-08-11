@@ -14,6 +14,81 @@ A large August 2026 preprint covering 52,895 high-exposure Docker Hub repositori
 
 VulnFuse therefore does not turn disagreement into a single verdict. It retains source records and makes the correlation claim inspectable.
 
+## Why OpenVEX must be ingestible without becoming a trusted verdict
+
+OpenVEX is an active interchange path rather than a speculative format. The
+OpenVEX specification defines a statement as a vulnerability, one or more
+products, a status, and a timestamp; subcomponents identify dependencies where
+the vulnerability originates. Trivy 0.73.0 accepts OpenVEX for container,
+filesystem, repository, VM, Kubernetes, and SBOM targets and documents PURL
+matching and subcomponent scoping. Grype 0.117.0 likewise advertises OpenVEX
+filtering and result augmentation. See the OpenVEX [statement and product
+model](https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md), Trivy's
+[local VEX documentation](https://trivy.dev/docs/latest/guide/supply-chain/vex/file/),
+and Grype's [maintained repository](https://github.com/anchore/grype).
+
+The public v0.4.11 CLI could not detect either of two pinned inputs. The
+OpenVEX project's `vexctl` v0.4.4 repository supplies one OpenVEX document next
+to Trivy, Grype, and Snyk SARIF fixtures for the same nginx workflow; the
+630-byte OpenVEX file at commit
+`d344883b69c29d7b8ec11b146743db77630fc6b8` had SHA-256
+`873E10D746EA29B7C7C4DB9AF42E5B95C3A01CD7D80DC73D1FB28A8E3A901F2D`.
+Aqua's public VEX Hub provided a non-demo production document at commit
+`8ae2a8c69e5958df726d228327a2c5fb13c2e640`; its 20,039-byte Trivy document
+had SHA-256
+`355CB4744029DF01F1E6AAD8F7446DEDA26F0FA6AD03E5D301EE740229146EA5`
+and contained 21 statements, 21 products, and 21 subcomponents. Both inputs
+returned `Could not detect the report format` before this change. See the
+[`vexctl` cross-tool fixtures](https://github.com/openvex/vexctl/tree/d344883b69c29d7b8ec11b146743db77630fc6b8/examples/sarif)
+and the pinned [Aqua VEX Hub
+document](https://github.com/aquasecurity/vexhub/blob/8ae2a8c69e5958df726d228327a2c5fb13c2e640/pkg/golang/github.com/aquasecurity/trivy/trivy.openvex.json).
+
+Interoperability remains uneven outside those scanners. A Dependency-Track
+user described a repository-and-CI VEX workflow in which `vexctl` produced
+OpenVEX, Dependency-Track rejected the document, and an attempted conversion
+to CycloneDX VEX still failed. This is one practitioner report rather than a
+usage survey, but it demonstrates the concrete conversion and migration cost
+of a format boundary. See the [Dependency-Track and VEX
+thread](https://www.reddit.com/r/devsecops/comments/1rx059b/dependency_track_and_vex/)
+and Dependency-Track [issue #4862](https://github.com/DependencyTrack/dependency-track/issues/4862).
+
+Maintained alternatives solve adjacent layers:
+
+- [`vexctl` 0.4.4](https://github.com/openvex/vexctl/releases/tag/v0.4.4)
+  is Apache-2.0 and creates, transforms, filters, and attests OpenVEX, but it is
+  a Go CLI rather than a TypeScript cross-scanner correlation library. Its open
+  issues include a [reported vulnerable cosign dependency](https://github.com/openvex/vexctl/issues/413)
+  and [broken attestation signing](https://github.com/openvex/vexctl/issues/428),
+  so importing that stack would widen VulnFuse's runtime and security boundary
+  rather than merely parse evidence.
+- [Trivy 0.73.0](https://github.com/aquasecurity/trivy/releases/tag/v0.73.0)
+  and [Grype 0.117.0](https://github.com/anchore/grype/releases/tag/v0.117.0)
+  are maintained Apache-2.0 standalone scanners. Their native VEX application
+  is the right choice inside each scan, but neither replaces review of several
+  already-generated heterogeneous reports.
+- [Dependency-Track 5.0.4](https://github.com/DependencyTrack/dependency-track/releases/tag/5.0.4)
+  is a maintained Apache-2.0 server and database platform. It provides a broader
+  inventory and policy lifecycle with correspondingly greater operating and
+  migration cost, and the cited workflow still required CycloneDX conversion.
+- [`openvex-js` 0.0.1](https://www.npmjs.com/package/openvex-js) is MIT,
+  about 159 KB unpacked, and requires Zod plus the Temporal polyfill as peer
+  dependencies. It is a new single-release model implementation; adopting it
+  would not supply VulnFuse's canonical mapping or correlation behavior.
+
+The selected parser therefore reuses VulnFuse's existing defensive JSON and
+`packageurl-js` helpers and adds no dependency or service. Every product and
+listed subcomponent becomes attributable evidence. Valid PURLs can correlate
+with scanner evidence; arbitrary IRIs and hashes remain preserved without
+being guessed into package identities.
+
+The trust boundary is stricter than scanner-native VEX filtering. OpenVEX
+`not_affected`, `affected`, `fixed`, and `under_investigation` labels are kept
+as producer assertions but never converted into VulnFuse suppression or
+non-finding state. The parser does not fetch JSON-LD contexts, discover remote
+documents, unwrap or verify attestations, authenticate authors, apply version
+ranges, or prove reachability or exploitability. This makes OpenVEX reviewable
+beside scanner output without turning an unverified file into a gate bypass.
+
 ## Why an external VEX reference can carry package identity
 
 CycloneDX explicitly recommends separating dynamic VEX statements from a

@@ -25570,7 +25570,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.11">
+  <meta name="generator" content="VulnFuse 0.4.12">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -26074,7 +26074,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.11",
+            semanticVersion: "0.4.12",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -26261,7 +26261,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.11",
+            semanticVersion: "0.4.12",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor2(cluster))
           }
@@ -32786,51 +32786,51 @@ var error18 = () => {
       }
       case "too_big": {
         const sizing = getSizing(issue3.origin);
-        const subject = withDefinite(issue3.origin ?? "value");
+        const subject2 = withDefinite(issue3.origin ?? "value");
         if (issue3.origin === "string") {
-          return `${sizing?.longLabel ?? "\u05D0\u05E8\u05D5\u05DA"} \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DB\u05D4 \u05DC\u05D4\u05DB\u05D9\u05DC ${issue3.maximum.toString()} ${sizing?.unit ?? ""} ${issue3.inclusive ? "\u05D0\u05D5 \u05E4\u05D7\u05D5\u05EA" : "\u05DC\u05DB\u05DC \u05D4\u05D9\u05D5\u05EA\u05E8"}`.trim();
+          return `${sizing?.longLabel ?? "\u05D0\u05E8\u05D5\u05DA"} \u05DE\u05D3\u05D9: ${subject2} \u05E6\u05E8\u05D9\u05DB\u05D4 \u05DC\u05D4\u05DB\u05D9\u05DC ${issue3.maximum.toString()} ${sizing?.unit ?? ""} ${issue3.inclusive ? "\u05D0\u05D5 \u05E4\u05D7\u05D5\u05EA" : "\u05DC\u05DB\u05DC \u05D4\u05D9\u05D5\u05EA\u05E8"}`.trim();
         }
         if (issue3.origin === "number") {
           const comparison = issue3.inclusive ? `\u05E7\u05D8\u05DF \u05D0\u05D5 \u05E9\u05D5\u05D5\u05D4 \u05DC-${issue3.maximum}` : `\u05E7\u05D8\u05DF \u05DE-${issue3.maximum}`;
-          return `\u05D2\u05D3\u05D5\u05DC \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA ${comparison}`;
+          return `\u05D2\u05D3\u05D5\u05DC \u05DE\u05D3\u05D9: ${subject2} \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA ${comparison}`;
         }
         if (issue3.origin === "array" || issue3.origin === "set") {
           const verb = issue3.origin === "set" ? "\u05E6\u05E8\u05D9\u05DB\u05D4" : "\u05E6\u05E8\u05D9\u05DA";
           const comparison = issue3.inclusive ? `${issue3.maximum} ${sizing?.unit ?? ""} \u05D0\u05D5 \u05E4\u05D7\u05D5\u05EA` : `\u05E4\u05D7\u05D5\u05EA \u05DE-${issue3.maximum} ${sizing?.unit ?? ""}`;
-          return `\u05D2\u05D3\u05D5\u05DC \u05DE\u05D3\u05D9: ${subject} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${comparison}`.trim();
+          return `\u05D2\u05D3\u05D5\u05DC \u05DE\u05D3\u05D9: ${subject2} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${comparison}`.trim();
         }
         const adj = issue3.inclusive ? "<=" : "<";
         const be = verbFor(issue3.origin ?? "value");
         if (sizing?.unit) {
-          return `${sizing.longLabel} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue3.maximum.toString()} ${sizing.unit}`;
+          return `${sizing.longLabel} \u05DE\u05D3\u05D9: ${subject2} ${be} ${adj}${issue3.maximum.toString()} ${sizing.unit}`;
         }
-        return `${sizing?.longLabel ?? "\u05D2\u05D3\u05D5\u05DC"} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue3.maximum.toString()}`;
+        return `${sizing?.longLabel ?? "\u05D2\u05D3\u05D5\u05DC"} \u05DE\u05D3\u05D9: ${subject2} ${be} ${adj}${issue3.maximum.toString()}`;
       }
       case "too_small": {
         const sizing = getSizing(issue3.origin);
-        const subject = withDefinite(issue3.origin ?? "value");
+        const subject2 = withDefinite(issue3.origin ?? "value");
         if (issue3.origin === "string") {
-          return `${sizing?.shortLabel ?? "\u05E7\u05E6\u05E8"} \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DB\u05D4 \u05DC\u05D4\u05DB\u05D9\u05DC ${issue3.minimum.toString()} ${sizing?.unit ?? ""} ${issue3.inclusive ? "\u05D0\u05D5 \u05D9\u05D5\u05EA\u05E8" : "\u05DC\u05E4\u05D7\u05D5\u05EA"}`.trim();
+          return `${sizing?.shortLabel ?? "\u05E7\u05E6\u05E8"} \u05DE\u05D3\u05D9: ${subject2} \u05E6\u05E8\u05D9\u05DB\u05D4 \u05DC\u05D4\u05DB\u05D9\u05DC ${issue3.minimum.toString()} ${sizing?.unit ?? ""} ${issue3.inclusive ? "\u05D0\u05D5 \u05D9\u05D5\u05EA\u05E8" : "\u05DC\u05E4\u05D7\u05D5\u05EA"}`.trim();
         }
         if (issue3.origin === "number") {
           const comparison = issue3.inclusive ? `\u05D2\u05D3\u05D5\u05DC \u05D0\u05D5 \u05E9\u05D5\u05D5\u05D4 \u05DC-${issue3.minimum}` : `\u05D2\u05D3\u05D5\u05DC \u05DE-${issue3.minimum}`;
-          return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject} \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA ${comparison}`;
+          return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject2} \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA ${comparison}`;
         }
         if (issue3.origin === "array" || issue3.origin === "set") {
           const verb = issue3.origin === "set" ? "\u05E6\u05E8\u05D9\u05DB\u05D4" : "\u05E6\u05E8\u05D9\u05DA";
           if (issue3.minimum === 1 && issue3.inclusive) {
             const singularPhrase = issue3.origin === "set" ? "\u05DC\u05E4\u05D7\u05D5\u05EA \u05E4\u05E8\u05D9\u05D8 \u05D0\u05D7\u05D3" : "\u05DC\u05E4\u05D7\u05D5\u05EA \u05E4\u05E8\u05D9\u05D8 \u05D0\u05D7\u05D3";
-            return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${singularPhrase}`;
+            return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject2} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${singularPhrase}`;
           }
           const comparison = issue3.inclusive ? `${issue3.minimum} ${sizing?.unit ?? ""} \u05D0\u05D5 \u05D9\u05D5\u05EA\u05E8` : `\u05D9\u05D5\u05EA\u05E8 \u05DE-${issue3.minimum} ${sizing?.unit ?? ""}`;
-          return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${comparison}`.trim();
+          return `\u05E7\u05D8\u05DF \u05DE\u05D3\u05D9: ${subject2} ${verb} \u05DC\u05D4\u05DB\u05D9\u05DC ${comparison}`.trim();
         }
         const adj = issue3.inclusive ? ">=" : ">";
         const be = verbFor(issue3.origin ?? "value");
         if (sizing?.unit) {
-          return `${sizing.shortLabel} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
+          return `${sizing.shortLabel} \u05DE\u05D3\u05D9: ${subject2} ${be} ${adj}${issue3.minimum.toString()} ${sizing.unit}`;
         }
-        return `${sizing?.shortLabel ?? "\u05E7\u05D8\u05DF"} \u05DE\u05D3\u05D9: ${subject} ${be} ${adj}${issue3.minimum.toString()}`;
+        return `${sizing?.shortLabel ?? "\u05E7\u05D8\u05DF"} \u05DE\u05D3\u05D9: ${subject2} ${be} ${adj}${issue3.minimum.toString()}`;
       }
       case "invalid_format": {
         const _issue = issue3;
@@ -41317,6 +41317,8 @@ function detectFormat(content, fileName = "report") {
   }
   if (asString(root["bomFormat"])?.toLowerCase() === "cyclonedx")
     return "cyclonedx";
+  if (openVexContext(root["@context"]) && Array.isArray(root["statements"]))
+    return "openvex";
   if (Array.isArray(root["matches"]) && root["descriptor"] !== void 0)
     return "grype";
   if (Array.isArray(root["Results"]) && (root["SchemaVersion"] !== void 0 || root["ArtifactName"] !== void 0))
@@ -41328,6 +41330,9 @@ function detectFormat(content, fileName = "report") {
   if (Array.isArray(root["vulnerabilities"]) || asRecord(root["issues"])?.["vulnerabilities"] !== void 0)
     return "snyk";
   return "unknown";
+}
+function openVexContext(value2) {
+  return [value2, ...asArray(value2)].some((candidate) => /^https:\/\/openvex\.dev\/ns\/v\d+(?:\.\d+){0,2}\/?$/i.test(asString(candidate) ?? ""));
 }
 function looksLikeDelimitedText(value2) {
   if (!value2 || hasUnsafeControlCharacter(value2))
@@ -41442,6 +41447,250 @@ function parseGrype(root, reportName) {
       ...sourceType ? { sourceType } : {}
     }
   };
+}
+
+// ../core/dist/formats/openvex.js
+var openVexStatuses = /* @__PURE__ */ new Set(["not_affected", "affected", "fixed", "under_investigation"]);
+function parseOpenVex(root, reportName) {
+  const findings = [];
+  const warnings = [];
+  const author = asString(root["author"]);
+  const toolName = author ? `OpenVEX (${author})` : "OpenVEX";
+  const documentId = asString(root["@id"]);
+  const documentTimestamp = asString(root["timestamp"]);
+  const statements = asArray(root["statements"]);
+  for (const [statementIndex, statementValue] of statements.entries()) {
+    const statement = asRecord(statementValue);
+    if (!statement) {
+      warnings.push({
+        code: "openvex.invalid-statement",
+        message: "An OpenVEX statement was not an object and was ignored.",
+        path: `statements[${statementIndex}]`
+      });
+      continue;
+    }
+    const vulnerability = asRecord(statement["vulnerability"]);
+    const vulnerabilityName = asString(vulnerability?.["name"]);
+    if (!vulnerabilityName) {
+      warnings.push({
+        code: "openvex.missing-vulnerability",
+        message: "An OpenVEX statement had no vulnerability name and was ignored.",
+        path: `statements[${statementIndex}].vulnerability.name`
+      });
+      continue;
+    }
+    const products = asArray(statement["products"]);
+    if (products.length === 0) {
+      warnings.push({
+        code: "openvex.no-products",
+        message: "An OpenVEX statement had no in-document products. Encapsulating-document inheritance is not resolved, so the statement was ignored.",
+        path: `statements[${statementIndex}].products`
+      });
+      continue;
+    }
+    const rawStatus = statement["status"];
+    const status = asString(rawStatus);
+    if (!status || !openVexStatuses.has(status)) {
+      warnings.push({
+        code: "openvex.invalid-status",
+        message: "An OpenVEX status was missing or invalid. Its evidence remains active and no disposition is inferred.",
+        path: `statements[${statementIndex}].status`
+      });
+    }
+    if (status === "not_affected" && !asString(statement["justification"]) && !asString(statement["impact_statement"])) {
+      warnings.push({
+        code: "openvex.incomplete-not-affected",
+        message: "A not_affected OpenVEX statement had neither justification nor impact_statement. Its evidence remains active.",
+        path: `statements[${statementIndex}]`
+      });
+    }
+    if (status === "affected" && !asString(statement["action_statement"])) {
+      warnings.push({
+        code: "openvex.incomplete-affected",
+        message: "An affected OpenVEX statement had no action_statement. Its evidence remains active.",
+        path: `statements[${statementIndex}]`
+      });
+    }
+    const identifiers = vulnerabilityIdentifiers(vulnerabilityName, vulnerability);
+    const vulnerabilityDescription = asString(vulnerability?.["description"]);
+    const statementId = asString(statement["@id"]);
+    for (const [productIndex, productValue] of products.entries()) {
+      const product = subject(productValue, `statements[${statementIndex}].products[${productIndex}]`, warnings);
+      if (!product)
+        continue;
+      const productRecord = asRecord(productValue);
+      const subcomponents = asArray(productRecord?.["subcomponents"]);
+      if (subcomponents.length === 0) {
+        findings.push(openVexFinding({
+          toolName,
+          reportName,
+          statement,
+          statementIndex,
+          productIndex,
+          vulnerabilityName,
+          vulnerabilityDescription,
+          identifiers,
+          status,
+          product,
+          component: product,
+          statementId,
+          documentId,
+          documentTimestamp
+        }));
+        continue;
+      }
+      for (const [subcomponentIndex, subcomponentValue] of subcomponents.entries()) {
+        const component = subject(subcomponentValue, `statements[${statementIndex}].products[${productIndex}].subcomponents[${subcomponentIndex}]`, warnings);
+        if (!component)
+          continue;
+        findings.push(openVexFinding({
+          toolName,
+          reportName,
+          statement,
+          statementIndex,
+          productIndex,
+          subcomponentIndex,
+          vulnerabilityName,
+          vulnerabilityDescription,
+          identifiers,
+          status,
+          product,
+          component,
+          statementId,
+          documentId,
+          documentTimestamp
+        }));
+      }
+    }
+  }
+  if (statements.length === 0) {
+    warnings.push({
+      code: "openvex.no-statements",
+      message: "The OpenVEX document has no statements.",
+      path: "statements"
+    });
+  }
+  return {
+    format: "openvex",
+    sourceName: reportName,
+    tool: toolName,
+    tools: [toolName],
+    findings,
+    warnings,
+    metadata: jsonRecord({
+      context: root["@context"],
+      documentId,
+      author,
+      role: root["role"],
+      timestamp: root["timestamp"],
+      lastUpdated: root["last_updated"],
+      version: asNumber(root["version"]),
+      tooling: root["tooling"]
+    })
+  };
+}
+function subject(value2, path6, warnings) {
+  const record2 = asRecord(value2);
+  if (!record2) {
+    warnings.push({
+      code: "openvex.invalid-product",
+      message: "An OpenVEX product or subcomponent was not an object and was ignored.",
+      path: path6
+    });
+    return void 0;
+  }
+  const id = asString(record2["@id"]);
+  const identifiers = asRecord(record2["identifiers"]);
+  const declaredPurl = asString(identifiers?.["purl"]);
+  const declaredCanonical = canonicalizePurl(declaredPurl);
+  const idCanonical = canonicalizePurl(id);
+  const purl = declaredCanonical ?? idCanonical;
+  const raw = asJsonValue(record2);
+  if (declaredPurl && !declaredCanonical) {
+    warnings.push({
+      code: "openvex.invalid-purl",
+      message: "An OpenVEX identifiers.purl value was invalid and was not used as package identity.",
+      path: `${path6}.identifiers.purl`
+    });
+  }
+  if (!id && !declaredPurl && Object.keys(asRecord(record2["hashes"]) ?? {}).length === 0) {
+    warnings.push({
+      code: "openvex.unidentified-product",
+      message: "An OpenVEX product or subcomponent had no usable identifier and was ignored.",
+      path: path6
+    });
+    return void 0;
+  }
+  return {
+    ...id ? { id } : {},
+    ...purl ? { purl } : {},
+    ...raw !== void 0 ? { raw } : {}
+  };
+}
+function vulnerabilityIdentifiers(vulnerabilityName, vulnerability) {
+  const identifiers = [];
+  const primary = normalizeIdentifier(vulnerabilityName, "primary");
+  if (primary)
+    identifiers.push(primary);
+  for (const aliasValue of asArray(vulnerability?.["aliases"])) {
+    const alias = asString(aliasValue);
+    if (!alias)
+      continue;
+    const identifier = normalizeIdentifier(alias, "alias");
+    if (identifier)
+      identifiers.push(identifier);
+  }
+  return uniqueIdentifiers(identifiers);
+}
+function openVexFinding(input) {
+  const componentIdentity = input.component.purl ?? input.component.id;
+  const productIdentity = input.product.purl ?? input.product.id;
+  const statusLabel = input.status ?? "unknown";
+  const actionStatement = asString(input.statement["action_statement"]);
+  return makeFinding({
+    source: source(input.toolName, input.reportName),
+    kind: findingKind(input.component.purl ?? input.product.purl),
+    title: `${input.vulnerabilityName} for ${componentIdentity ?? productIdentity ?? "unidentified product"} (OpenVEX: ${statusLabel})`,
+    ...input.vulnerabilityDescription ? { description: input.vulnerabilityDescription } : {},
+    severity: "unknown",
+    identifiers: input.identifiers,
+    ...input.component.purl ? { component: { purl: input.component.purl } } : {},
+    ...productAsset(input.product) ? { asset: productAsset(input.product) } : {},
+    ...actionStatement ? { remediation: { recommendation: actionStatement } } : {},
+    suppressed: false,
+    nonFinding: false,
+    references: [
+      safeHttpReference(asRecord(input.statement["vulnerability"])?.["@id"]),
+      safeHttpReference(input.statementId),
+      safeHttpReference(input.documentId)
+    ].filter((value2) => Boolean(value2)),
+    properties: jsonRecord({
+      "openvex.status": input.statement["status"],
+      "openvex.justification": input.statement["justification"],
+      "openvex.statusNotes": input.statement["status_notes"],
+      "openvex.impactStatement": input.statement["impact_statement"],
+      "openvex.actionStatement": input.statement["action_statement"],
+      "openvex.actionStatementTimestamp": input.statement["action_statement_timestamp"],
+      "openvex.statementTimestamp": input.statement["timestamp"] ?? input.documentTimestamp,
+      "openvex.product": input.product.raw,
+      "openvex.subcomponent": input.subcomponentIndex === void 0 ? void 0 : input.component.raw
+    }),
+    nativeId: `${input.statementIndex}:${input.productIndex}:${input.subcomponentIndex ?? "product"}`
+  });
+}
+function findingKind(purl) {
+  const type = purl?.slice(4).split("/", 1)[0]?.toLowerCase();
+  return type === "oci" || type === "docker" ? "container" : "sca";
+}
+function productAsset(product) {
+  const name = product.purl ?? product.id;
+  if (!name)
+    return void 0;
+  const kind = findingKind(product.purl);
+  return asset(kind === "container" ? "image" : "application", name);
+}
+function jsonRecord(values) {
+  return Object.fromEntries(Object.entries(values).map(([key, value2]) => [key, asJsonValue(value2)]).filter((entry) => entry[1] !== void 0));
 }
 
 // ../core/dist/formats/osv.js
@@ -42036,7 +42285,7 @@ function parseReport(input, options = {}) {
   if (format === "csv")
     return parseCsv(content, input.name);
   if (format === "unknown") {
-    throw new Error(`Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OSV-Scanner, CSV, and VulnFuse JSON.`);
+    throw new Error(`Could not detect the report format for ${input.name}. Supported formats: SARIF, Trivy, Grype, Snyk, CycloneDX, OpenVEX, OSV-Scanner, CSV, and VulnFuse JSON.`);
   }
   let parsed;
   try {
@@ -42058,6 +42307,8 @@ function parseReport(input, options = {}) {
       return parseSnyk(root, input.name);
     case "cyclonedx":
       return parseCycloneDx(root, input.name);
+    case "openvex":
+      return parseOpenVex(root, input.name);
     case "osv-scanner":
       return parseOsv(root, input.name);
     case "vulnfuse":

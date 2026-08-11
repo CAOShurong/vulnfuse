@@ -17,6 +17,7 @@ describe("report parsing", () => {
     ["snyk.json", "snyk", "Snyk", 1],
     ["osv.json", "osv-scanner", "OSV-Scanner", 1],
     ["cyclonedx.json", "cyclonedx", "Syft", 1],
+    ["openvex.json", "openvex", "OpenVEX (Example VEX Producer)", 3],
     ["sarif.json", "sarif", "CodeQL", 1],
     ["generic.csv", "csv", "Legacy Scanner", 1],
   ] as const;
@@ -82,6 +83,85 @@ describe("report parsing", () => {
     });
     expect(parsed.findings[1]?.component).toEqual({ version: "vers:generic/>=4.5|<5.0" });
     expect(parsed.findings[0]?.id).not.toBe(parsed.findings[1]?.id);
+  });
+
+  it("expands OpenVEX products and subcomponents without trusting producer status", () => {
+    const parsed = parseReport({ name: "openvex.json", content: fixture("openvex.json") });
+
+    expect(parsed.findings).toHaveLength(3);
+    expect(parsed.findings.map((finding) => finding.component?.purl)).toEqual([
+      "pkg:apk/alpine/git@2.45.2-r0?arch=x86_64",
+      "pkg:apk/alpine/curl@8.9.0-r0?arch=x86_64",
+      "pkg:npm/lodash@4.17.20",
+    ]);
+    expect(parsed.findings[0]).toMatchObject({
+      kind: "sca",
+      asset: {
+        type: "image",
+        name: "pkg:oci/widget@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      },
+      suppressed: false,
+      nonFinding: false,
+      properties: {
+        "openvex.status": "not_affected",
+        "openvex.justification": "vulnerable_code_not_in_execute_path",
+      },
+    });
+    expect(parsed.findings[0]?.identifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: "CVE-2024-32002", relationship: "primary" }),
+        expect.objectContaining({ value: "GHSA-8R3F-844C-MC37", relationship: "alias" }),
+      ]),
+    );
+  });
+
+  it("warns and keeps malformed OpenVEX assertions active", () => {
+    const parsed = parseReport({
+      name: "malformed.openvex.json",
+      content: JSON.stringify({
+        "@context": "https://openvex.dev/ns/v0.2.0",
+        "@id": "https://example.test/vex/malformed",
+        author: "Unverified Producer",
+        timestamp: "2026-08-11T00:00:00Z",
+        version: 1,
+        statements: [
+          {
+            vulnerability: { name: "CVE-2024-0001" },
+            products: [{ "@id": "pkg:npm/example@1.0.0" }],
+            status: "accepted_risk",
+          },
+          {
+            vulnerability: { name: "CVE-2024-0002" },
+            products: [{ "@id": "https://example.test/product", identifiers: { purl: "bad" } }],
+            status: "not_affected",
+          },
+          {
+            vulnerability: { name: "CVE-2024-0003" },
+            status: "affected",
+          },
+        ],
+      }),
+    });
+
+    expect(parsed.findings).toHaveLength(2);
+    expect(parsed.findings.every((finding) => !finding.suppressed && !finding.nonFinding)).toBe(
+      true,
+    );
+    expect(parsed.findings[1]?.component).toBeUndefined();
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "openvex.invalid-status", path: "statements[0].status" }),
+        expect.objectContaining({
+          code: "openvex.invalid-purl",
+          path: "statements[1].products[0].identifiers.purl",
+        }),
+        expect.objectContaining({
+          code: "openvex.incomplete-not-affected",
+          path: "statements[1]",
+        }),
+        expect.objectContaining({ code: "openvex.no-products", path: "statements[2].products" }),
+      ]),
+    );
   });
 
   it("does not guess a package identity from an arbitrary external BOM reference", () => {
