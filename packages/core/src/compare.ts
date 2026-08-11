@@ -9,6 +9,7 @@ import {
   type FindingCluster,
   type MatchExplanation,
   type ScanSetChange,
+  type SarifAutomationCategoryEvidence,
   type ScanSetToolVersionEvidence,
   type Severity,
 } from "./model.js";
@@ -106,7 +107,7 @@ export function compareCorrelations(
 
 export function describeScanSetChange(change: ScanSetChange): string {
   if (!change.detected) {
-    return "Scan set did not change by tool names, per-tool report counts, or embedded tool versions.";
+    return "Scan set did not change by tool names, per-tool report counts, embedded tool versions, or SARIF automation categories.";
   }
   const details: string[] = [];
   if (change.addedTools.length > 0) {
@@ -128,6 +129,16 @@ export function describeScanSetChange(change: ScanSetChange): string {
         .map(
           (item) =>
             `${toolLabel(item.tool)} ${versionEvidenceLabel(item.baseline)} to ${versionEvidenceLabel(item.current)}`,
+        )
+        .join(", ")}`,
+    );
+  }
+  if (change.changedSarifAutomationCategories.length > 0) {
+    details.push(
+      `SARIF automation categories ${change.changedSarifAutomationCategories
+        .map(
+          (item) =>
+            `${toolLabel(item.tool)} ${automationCategoryEvidenceLabel(item.baseline)} to ${automationCategoryEvidenceLabel(item.current)}`,
         )
         .join(", ")}`,
     );
@@ -173,16 +184,35 @@ function compareScanSets(baseline: CorrelationResult, current: CorrelationResult
         item.baseline.unversionedReports !== item.current.unversionedReports
       );
     });
+  const baselineAutomationCategories = sarifAutomationCategoryEvidence(baseline);
+  const currentAutomationCategories = sarifAutomationCategoryEvidence(current);
+  const changedSarifAutomationCategories = baselineTools
+    .filter((tool) => currentCounts.has(tool))
+    .filter(
+      (tool) => baselineAutomationCategories.has(tool) || currentAutomationCategories.has(tool),
+    )
+    .map((tool) => ({
+      tool,
+      baseline: baselineAutomationCategories.get(tool) ?? emptyAutomationCategoryEvidence(),
+      current: currentAutomationCategories.get(tool) ?? emptyAutomationCategoryEvidence(),
+    }))
+    .filter(
+      (item) =>
+        JSON.stringify(item.baseline.categories) !== JSON.stringify(item.current.categories) ||
+        item.baseline.uncategorizedRuns !== item.current.uncategorizedRuns,
+    );
   return {
     detected:
       addedTools.length > 0 ||
       removedTools.length > 0 ||
       changedReportCounts.length > 0 ||
-      changedToolVersions.length > 0,
+      changedToolVersions.length > 0 ||
+      changedSarifAutomationCategories.length > 0,
     addedTools,
     removedTools,
     changedReportCounts,
     changedToolVersions,
+    changedSarifAutomationCategories,
   };
 }
 
@@ -217,6 +247,42 @@ function versionEvidenceLabel(evidence: ScanSetToolVersionEvidence): string {
   const versions = JSON.stringify(evidence.versions);
   if (evidence.unversionedReports === 0) return versions;
   return `${versions} plus ${evidence.unversionedReports} unversioned report${evidence.unversionedReports === 1 ? "" : "s"}`;
+}
+
+function emptyAutomationCategoryEvidence(): SarifAutomationCategoryEvidence {
+  return { categories: [], uncategorizedRuns: 0 };
+}
+
+function sarifAutomationCategoryEvidence(
+  result: CorrelationResult,
+): Map<string, SarifAutomationCategoryEvidence> {
+  const evidence = new Map<string, { categories: Set<string>; uncategorizedRuns: number }>();
+  for (const report of result.reports) {
+    for (const [tool, reportEvidence] of Object.entries(report.sarifAutomationCategories)) {
+      const current = evidence.get(tool) ?? {
+        categories: new Set<string>(),
+        uncategorizedRuns: 0,
+      };
+      for (const category of reportEvidence.categories) current.categories.add(category);
+      current.uncategorizedRuns += reportEvidence.uncategorizedRuns;
+      evidence.set(tool, current);
+    }
+  }
+  return new Map(
+    [...evidence.entries()].map(([tool, item]) => [
+      tool,
+      {
+        categories: [...item.categories].sort(),
+        uncategorizedRuns: item.uncategorizedRuns,
+      },
+    ]),
+  );
+}
+
+function automationCategoryEvidenceLabel(evidence: SarifAutomationCategoryEvidence): string {
+  const categories = JSON.stringify(evidence.categories);
+  if (evidence.uncategorizedRuns === 0) return categories;
+  return `${categories} plus ${evidence.uncategorizedRuns} uncategorized run${evidence.uncategorizedRuns === 1 ? "" : "s"}`;
 }
 
 function matchCandidates(

@@ -110,6 +110,34 @@ jobs:
           if ($versionDiff.scanSetChange.changedToolVersions.Count -ne 1 -or $versionChange.tool -ne "CodeQL" -or $versionChange.baseline.versions[0] -ne "2.20.0" -or $versionChange.current.versions[0] -ne "2.26.2") {
             throw "Unexpected embedded scanner-version drift evidence"
           }
+          $categoryBaseline = "${{ runner.temp }}/vulnfuse-category-baseline.sarif"
+          $categoryCurrent = "${{ runner.temp }}/vulnfuse-category-current.sarif"
+          $categoryDocument = Get-Content -Raw packages/core/test/fixtures/sarif.json | ConvertFrom-Json
+          $categoryDocument.runs[0] | Add-Member -NotePropertyName automationDetails -NotePropertyValue @{ id = "monorepo/main/2026-08-11" }
+          $categoryDocument | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $categoryBaseline
+          $categoryDocument.runs[0].automationDetails.id = "monorepo/release/2026-08-12"
+          $categoryDocument | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $categoryCurrent
+          $categoryOutput = "${{ runner.temp }}/vulnfuse-category-drift.json"
+          $categoryProcess = Start-Process -FilePath node -ArgumentList @(
+            "packages/cli/dist/index.js",
+            "diff",
+            "--baseline",
+            $categoryBaseline,
+            $categoryCurrent,
+            "--format",
+            "json",
+            "--output",
+            $categoryOutput,
+            "--fail-on-scan-set-change"
+          ) -Wait -PassThru -WindowStyle Hidden
+          if ($categoryProcess.ExitCode -ne 1 -or -not (Test-Path $categoryOutput)) {
+            throw "SARIF automation-category gate did not preserve output and exit 1"
+          }
+          $categoryDiff = Get-Content -Raw $categoryOutput | ConvertFrom-Json
+          $categoryChange = $categoryDiff.scanSetChange.changedSarifAutomationCategories[0]
+          if ($categoryDiff.scanSetChange.changedSarifAutomationCategories.Count -ne 1 -or $categoryChange.tool -ne "CodeQL" -or $categoryChange.baseline.categories[0] -ne "monorepo/main" -or $categoryChange.current.categories[0] -ne "monorepo/release") {
+            throw "Unexpected SARIF automation-category drift evidence"
+          }
 
   action-smoke:
     name: Bundled GitHub Action smoke test
@@ -245,6 +273,34 @@ jobs:
           test "$(node -p "require('$REPORT').scanSetChange.changedToolVersions[0].tool")" = "CodeQL"
           test "$(node -p "require('$REPORT').scanSetChange.changedToolVersions[0].baseline.versions[0]")" = "2.20.0"
           test "$(node -p "require('$REPORT').scanSetChange.changedToolVersions[0].current.versions[0]")" = "2.26.2"
+      - name: Prepare SARIF automation-category drift fixtures
+        env:
+          BASELINE_REPORT: ${{ runner.temp }}/vulnfuse-category-baseline.sarif
+          CURRENT_REPORT: ${{ runner.temp }}/vulnfuse-category-current.sarif
+        run: |
+          node -e "const fs=require('fs');const document=JSON.parse(fs.readFileSync('packages/core/test/fixtures/sarif.json','utf8'));document.runs[0].automationDetails={id:'monorepo/main/2026-08-11'};fs.writeFileSync(process.env.BASELINE_REPORT,JSON.stringify(document));document.runs[0].automationDetails.id='monorepo/release/2026-08-12';fs.writeFileSync(process.env.CURRENT_REPORT,JSON.stringify(document));"
+      - id: category-drift
+        name: Gate SARIF automation-category drift after preserving the comparison
+        continue-on-error: true
+        uses: ./
+        with:
+          reports: ${{ runner.temp }}/vulnfuse-category-current.sarif
+          baseline-reports: ${{ runner.temp }}/vulnfuse-category-baseline.sarif
+          format: json
+          output: ${{ runner.temp }}/vulnfuse-category-drift.json
+          fail-on-scan-set-change: "true"
+      - name: Validate SARIF automation-category Action evidence
+        env:
+          OUTCOME: ${{ steps.category-drift.outcome }}
+          SCAN_SET_CHANGED: ${{ steps.category-drift.outputs.scan-set-changed }}
+          REPORT: ${{ steps.category-drift.outputs.report }}
+        run: |
+          test "$OUTCOME" = "failure"
+          test "$SCAN_SET_CHANGED" = "true"
+          test -s "$REPORT"
+          test "$(node -p "require('$REPORT').scanSetChange.changedSarifAutomationCategories[0].tool")" = "CodeQL"
+          test "$(node -p "require('$REPORT').scanSetChange.changedSarifAutomationCategories[0].baseline.categories[0]")" = "monorepo/main"
+          test "$(node -p "require('$REPORT').scanSetChange.changedSarifAutomationCategories[0].current.categories[0]")" = "monorepo/release"
 
   package-smoke:
     name: Clean package install
@@ -297,6 +353,15 @@ jobs:
           test -s version-drift.json
           test "$(node -p "require('./version-drift.json').scanSetChange.changedToolVersions[0].tool")" = "CodeQL"
           test "$(node -p "require('./version-drift.json').scanSetChange.changedToolVersions[0].current.versions[0]")" = "2.26.2"
+          node -e "const fs=require('fs');const document=JSON.parse(fs.readFileSync('../packages/core/test/fixtures/sarif.json','utf8'));document.runs[0].automationDetails={id:'monorepo/main/2026-08-11'};fs.writeFileSync('sarif-category-baseline.json',JSON.stringify(document));document.runs[0].automationDetails.id='monorepo/release/2026-08-12';fs.writeFileSync('sarif-category-current.json',JSON.stringify(document));"
+          if npx vulnfuse diff --baseline sarif-category-baseline.json sarif-category-current.json --format json --output category-drift.json --fail-on-scan-set-change; then
+            echo "Expected SARIF automation-category gate to exit 1" >&2
+            exit 1
+          fi
+          test -s category-drift.json
+          test "$(node -p "require('./category-drift.json').scanSetChange.changedSarifAutomationCategories[0].tool")" = "CodeQL"
+          test "$(node -p "require('./category-drift.json').scanSetChange.changedSarifAutomationCategories[0].baseline.categories[0]")" = "monorepo/main"
+          test "$(node -p "require('./category-drift.json').scanSetChange.changedSarifAutomationCategories[0].current.categories[0]")" = "monorepo/release"
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md
           npx vulnfuse diff --baseline ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format html --output portable.html

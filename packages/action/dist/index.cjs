@@ -26146,7 +26146,7 @@ function compareCorrelations(baseline, current) {
 }
 function describeScanSetChange(change) {
   if (!change.detected) {
-    return "Scan set did not change by tool names, per-tool report counts, or embedded tool versions.";
+    return "Scan set did not change by tool names, per-tool report counts, embedded tool versions, or SARIF automation categories.";
   }
   const details = [];
   if (change.addedTools.length > 0) {
@@ -26160,6 +26160,9 @@ function describeScanSetChange(change) {
   }
   if (change.changedToolVersions.length > 0) {
     details.push(`embedded versions ${change.changedToolVersions.map((item) => `${toolLabel(item.tool)} ${versionEvidenceLabel(item.baseline)} to ${versionEvidenceLabel(item.current)}`).join(", ")}`);
+  }
+  if (change.changedSarifAutomationCategories.length > 0) {
+    details.push(`SARIF automation categories ${change.changedSarifAutomationCategories.map((item) => `${toolLabel(item.tool)} ${automationCategoryEvidenceLabel(item.baseline)} to ${automationCategoryEvidenceLabel(item.current)}`).join(", ")}`);
   }
   return `Scan set changed: ${details.join("; ")}. New and absent states may reflect coverage change rather than a code or remediation change.`;
 }
@@ -26190,12 +26193,20 @@ function compareScanSets(baseline, current) {
     }
     return baselineCounts.get(item.tool) === currentCounts.get(item.tool) && item.baseline.unversionedReports !== item.current.unversionedReports;
   });
+  const baselineAutomationCategories = sarifAutomationCategoryEvidence(baseline);
+  const currentAutomationCategories = sarifAutomationCategoryEvidence(current);
+  const changedSarifAutomationCategories = baselineTools.filter((tool) => currentCounts.has(tool)).filter((tool) => baselineAutomationCategories.has(tool) || currentAutomationCategories.has(tool)).map((tool) => ({
+    tool,
+    baseline: baselineAutomationCategories.get(tool) ?? emptyAutomationCategoryEvidence(),
+    current: currentAutomationCategories.get(tool) ?? emptyAutomationCategoryEvidence()
+  })).filter((item) => JSON.stringify(item.baseline.categories) !== JSON.stringify(item.current.categories) || item.baseline.uncategorizedRuns !== item.current.uncategorizedRuns);
   return {
-    detected: addedTools.length > 0 || removedTools.length > 0 || changedReportCounts.length > 0 || changedToolVersions.length > 0,
+    detected: addedTools.length > 0 || removedTools.length > 0 || changedReportCounts.length > 0 || changedToolVersions.length > 0 || changedSarifAutomationCategories.length > 0,
     addedTools,
     removedTools,
     changedReportCounts,
-    changedToolVersions
+    changedToolVersions,
+    changedSarifAutomationCategories
   };
 }
 function reportCounts(result) {
@@ -26228,6 +26239,37 @@ function versionEvidenceLabel(evidence) {
   if (evidence.unversionedReports === 0)
     return versions;
   return `${versions} plus ${evidence.unversionedReports} unversioned report${evidence.unversionedReports === 1 ? "" : "s"}`;
+}
+function emptyAutomationCategoryEvidence() {
+  return { categories: [], uncategorizedRuns: 0 };
+}
+function sarifAutomationCategoryEvidence(result) {
+  const evidence = /* @__PURE__ */ new Map();
+  for (const report of result.reports) {
+    for (const [tool, reportEvidence] of Object.entries(report.sarifAutomationCategories)) {
+      const current = evidence.get(tool) ?? {
+        categories: /* @__PURE__ */ new Set(),
+        uncategorizedRuns: 0
+      };
+      for (const category of reportEvidence.categories)
+        current.categories.add(category);
+      current.uncategorizedRuns += reportEvidence.uncategorizedRuns;
+      evidence.set(tool, current);
+    }
+  }
+  return new Map([...evidence.entries()].map(([tool, item]) => [
+    tool,
+    {
+      categories: [...item.categories].sort(),
+      uncategorizedRuns: item.uncategorizedRuns
+    }
+  ]));
+}
+function automationCategoryEvidenceLabel(evidence) {
+  const categories = JSON.stringify(evidence.categories);
+  if (evidence.uncategorizedRuns === 0)
+    return categories;
+  return `${categories} plus ${evidence.uncategorizedRuns} uncategorized run${evidence.uncategorizedRuns === 1 ? "" : "s"}`;
 }
 function matchCandidates(baseline, current, options) {
   const pairs = candidatePairs(baseline, current, options);
@@ -26707,6 +26749,7 @@ function correlateReports(reports, options = {}) {
     }
     const tools = Object.keys(sourceToolFindings).sort();
     const toolVersions = normalizedToolVersions(report);
+    const sarifAutomationCategories = report.sarifAutomationCategories ?? {};
     coverageInputs.push({
       tool: report.tool,
       findings: report.findings.length,
@@ -26718,6 +26761,7 @@ function correlateReports(reports, options = {}) {
       tool: report.tool,
       tools,
       toolVersions,
+      sarifAutomationCategories,
       findings: report.findings.length,
       warnings: report.warnings,
       metadata: report.metadata
@@ -26963,7 +27007,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.16">
+  <meta name="generator" content="VulnFuse 0.4.17">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -27467,7 +27511,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.16",
+            semanticVersion: "0.4.17",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -27656,7 +27700,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.16",
+            semanticVersion: "0.4.17",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor2(cluster))
           }
@@ -43375,6 +43419,7 @@ function parseSarif(root, reportName) {
   const warnings = [];
   const reportTools = [];
   const reportToolVersions = /* @__PURE__ */ new Map();
+  const reportAutomationCategories = /* @__PURE__ */ new Map();
   const runHealth = [];
   for (const [runIndex, runValue] of asArray(root["runs"]).entries()) {
     const run2 = asRecord(runValue);
@@ -43389,6 +43434,18 @@ function parseSarif(root, reportName) {
       versions.add(toolVersion);
       reportToolVersions.set(toolName, versions);
     }
+    const automationEvidence = reportAutomationCategories.get(toolName) ?? {
+      categories: /* @__PURE__ */ new Set(),
+      uncategorizedRuns: 0
+    };
+    const automationId = asString(asRecord(run2?.["automationDetails"])?.["id"]);
+    const categorySeparator = automationId?.lastIndexOf("/") ?? -1;
+    const automationCategory = categorySeparator >= 0 ? automationId?.slice(0, categorySeparator).trim() : void 0;
+    if (automationCategory)
+      automationEvidence.categories.add(automationCategory);
+    else
+      automationEvidence.uncategorizedRuns += 1;
+    reportAutomationCategories.set(toolName, automationEvidence);
     const health = inspectRunHealth(run2, runIndex, toolName, warnings);
     const healthValue = asJsonValue(health);
     if (healthValue !== void 0)
@@ -43497,6 +43554,13 @@ function parseSarif(root, reportName) {
     tool: reportTools[0] ?? "SARIF",
     tools: reportTools.length > 0 ? [...reportTools].sort() : ["SARIF"],
     toolVersions: Object.fromEntries([...reportToolVersions.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tool, versions]) => [tool, [...versions].sort()])),
+    sarifAutomationCategories: Object.fromEntries([...reportAutomationCategories.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tool, evidence]) => [
+      tool,
+      {
+        categories: [...evidence.categories].sort(),
+        uncategorizedRuns: evidence.uncategorizedRuns
+      }
+    ])),
     findings,
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown", runHealth }
@@ -44147,6 +44211,7 @@ function parseVulnFuse(root, reportName) {
   const findings = [];
   const reportTools = [];
   const reportToolVersions = /* @__PURE__ */ new Map();
+  const reportAutomationCategories = /* @__PURE__ */ new Map();
   for (const reportValue of asArray(root["reports"])) {
     const report = asRecord(reportValue);
     const declaredTools = [
@@ -44166,6 +44231,25 @@ function parseVulnFuse(root, reportName) {
         values.add(version2);
         reportToolVersions.set(tool, values);
       }
+    }
+    const automationCategories = asRecord(report?.["sarifAutomationCategories"]);
+    for (const [tool, evidenceValue] of Object.entries(automationCategories ?? {})) {
+      const evidence = asRecord(evidenceValue);
+      if (!evidence)
+        continue;
+      const current = reportAutomationCategories.get(tool) ?? {
+        categories: /* @__PURE__ */ new Set(),
+        uncategorizedRuns: 0
+      };
+      for (const category of asArray(evidence["categories"]).map(asString)) {
+        if (category)
+          current.categories.add(category);
+      }
+      const uncategorizedRuns = asNumber(evidence["uncategorizedRuns"]);
+      if (uncategorizedRuns !== void 0 && uncategorizedRuns > 0) {
+        current.uncategorizedRuns += Math.floor(uncategorizedRuns);
+      }
+      reportAutomationCategories.set(tool, current);
     }
   }
   for (const [clusterIndex, clusterValue] of asArray(root["clusters"]).entries()) {
@@ -44200,6 +44284,13 @@ function parseVulnFuse(root, reportName) {
     tool: tools[0] ?? "VulnFuse",
     tools: tools.length > 0 ? tools : ["VulnFuse"],
     toolVersions: Object.fromEntries([...reportToolVersions.entries()].map(([tool, values]) => [tool, [...values]])),
+    sarifAutomationCategories: Object.fromEntries([...reportAutomationCategories.entries()].map(([tool, evidence]) => [
+      tool,
+      {
+        categories: [...evidence.categories],
+        uncategorizedRuns: evidence.uncategorizedRuns
+      }
+    ])),
     findings,
     warnings,
     metadata
@@ -44224,9 +44315,35 @@ function finalizeReport(report) {
     if (finding.source.version)
       add(finding.source.tool, finding.source.version);
   }
+  const automationCategories = /* @__PURE__ */ new Map();
+  for (const [tool, evidence] of Object.entries(report.sarifAutomationCategories ?? {})) {
+    const normalizedTool = tool.trim();
+    if (!normalizedTool)
+      continue;
+    const current = automationCategories.get(normalizedTool) ?? {
+      categories: /* @__PURE__ */ new Set(),
+      uncategorizedRuns: 0
+    };
+    for (const category of evidence.categories) {
+      const normalizedCategory = category.trim();
+      if (normalizedCategory)
+        current.categories.add(normalizedCategory);
+    }
+    if (Number.isFinite(evidence.uncategorizedRuns) && evidence.uncategorizedRuns > 0) {
+      current.uncategorizedRuns += Math.floor(evidence.uncategorizedRuns);
+    }
+    automationCategories.set(normalizedTool, current);
+  }
   return {
     ...report,
-    toolVersions: Object.fromEntries([...versions.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tool, values]) => [tool, [...values].sort()]))
+    toolVersions: Object.fromEntries([...versions.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tool, values]) => [tool, [...values].sort()])),
+    sarifAutomationCategories: Object.fromEntries([...automationCategories.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([tool, evidence]) => [
+      tool,
+      {
+        categories: [...evidence.categories].sort(),
+        uncategorizedRuns: evidence.uncategorizedRuns
+      }
+    ]))
   };
 }
 
@@ -44372,7 +44489,7 @@ async function run() {
     }
     if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
       setFailed(
-        `The scanner set or embedded tool-version evidence changed from the baseline. The comparison was still written to ${output}.`
+        `The scanner set, embedded tool-version evidence, or SARIF automation-category evidence changed from the baseline. The comparison was still written to ${output}.`
       );
     }
     if (incompleteReports > 0 && failOnIncomplete) {

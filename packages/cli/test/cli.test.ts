@@ -539,6 +539,52 @@ describe("CLI", () => {
     });
   });
 
+  it("writes the diff before failing on SARIF automation-category drift", async () => {
+    const baseline = join(testDirectory, "category-baseline.sarif");
+    const current = join(testDirectory, "category-current.sarif");
+    const output = join(testDirectory, "category-drift.json");
+    const document = {
+      version: "2.1.0",
+      runs: [
+        {
+          tool: { driver: { name: "CodeQL", semanticVersion: "2.26.2" } },
+          automationDetails: { id: "monorepo/main/2026-08-11" },
+          results: [],
+        },
+      ],
+    };
+    await writeFile(baseline, JSON.stringify(document), "utf8");
+    document.runs[0]!.automationDetails.id = "monorepo/release/2026-08-12";
+    await writeFile(current, JSON.stringify(document), "utf8");
+
+    const failure = await executeFailure([
+      cli,
+      "diff",
+      "--baseline",
+      baseline,
+      current,
+      "--format",
+      "json",
+      "--output",
+      output,
+      "--fail-on-scan-set-change",
+    ]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain('SARIF automation categories "CodeQL"');
+    expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({
+      scanSetChange: {
+        changedSarifAutomationCategories: [
+          {
+            tool: "CodeQL",
+            baseline: { categories: ["monorepo/main"], uncategorizedRuns: 0 },
+            current: { categories: ["monorepo/release"], uncategorizedRuns: 0 },
+          },
+        ],
+      },
+    });
+  });
+
   it("writes a portable HTML report from the same CLI workflow", async () => {
     const output = join(testDirectory, "portable.html");
     await execute(process.execPath, [

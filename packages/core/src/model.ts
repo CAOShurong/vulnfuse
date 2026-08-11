@@ -96,12 +96,18 @@ export interface ParseWarning {
   path?: string;
 }
 
+export interface SarifAutomationCategoryEvidence {
+  categories: string[];
+  uncategorizedRuns: number;
+}
+
 export interface ParsedReport {
   format: ReportFormat;
   sourceName: string;
   tool: string;
   tools?: string[];
   toolVersions?: Record<string, string[]>;
+  sarifAutomationCategories?: Record<string, SarifAutomationCategoryEvidence>;
   findings: CanonicalFinding[];
   warnings: ParseWarning[];
   metadata: Record<string, JsonValue>;
@@ -224,6 +230,7 @@ export interface CorrelationResult {
     tool: string;
     tools: string[];
     toolVersions: Record<string, string[]>;
+    sarifAutomationCategories: Record<string, SarifAutomationCategoryEvidence>;
     findings: number;
     warnings: ParseWarning[];
     metadata: Record<string, JsonValue>;
@@ -271,12 +278,19 @@ export interface ScanSetToolVersionChange {
   current: ScanSetToolVersionEvidence;
 }
 
+export interface ScanSetSarifAutomationCategoryChange {
+  tool: string;
+  baseline: SarifAutomationCategoryEvidence;
+  current: SarifAutomationCategoryEvidence;
+}
+
 export interface ScanSetChange {
   detected: boolean;
   addedTools: string[];
   removedTools: string[];
   changedReportCounts: ScanSetReportCountChange[];
   changedToolVersions: ScanSetToolVersionChange[];
+  changedSarifAutomationCategories: ScanSetSarifAutomationCategoryChange[];
 }
 
 export interface BaselineDiffResult {

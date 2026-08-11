@@ -21,7 +21,7 @@ import { Command, InvalidArgumentError, Option } from "commander";
 import { glob, isDynamicPattern } from "tinyglobby";
 import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.16";
+const version = "0.4.17";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -157,7 +157,7 @@ export function createProgram(): Command {
     )
     .option(
       "--fail-on-scan-set-change",
-      "Exit 1 after writing when scanner tools or per-tool report counts changed",
+      "Exit 1 after writing when scanner identity or available SARIF category evidence changed",
     )
     .option(
       "--fail-on-incomplete",

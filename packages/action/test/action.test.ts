@@ -486,6 +486,56 @@ describe("GitHub Action bundle", () => {
     );
   });
 
+  it("preserves a SARIF automation-category diff before the Action fails", async () => {
+    const baseline = join(testDirectory, "category-baseline.sarif");
+    const current = join(testDirectory, "category-current.sarif");
+    const outputReport = join(testDirectory, "category-drift.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    const document = {
+      version: "2.1.0",
+      runs: [
+        {
+          tool: { driver: { name: "CodeQL", semanticVersion: "2.26.2" } },
+          automationDetails: { id: "monorepo/main/2026-08-11" },
+          results: [],
+        },
+      ],
+    };
+    await writeFile(baseline, JSON.stringify(document), "utf8");
+    document.runs[0]!.automationDetails.id = "monorepo/release/2026-08-12";
+    await writeFile(current, JSON.stringify(document), "utf8");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: current,
+          "INPUT_BASELINE-REPORTS": baseline,
+          INPUT_OUTPUT: outputReport,
+          INPUT_FORMAT: "json",
+          "INPUT_FAIL-ON-SCAN-SET-CHANGE": "true",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+
+    const diff = JSON.parse(await readFile(outputReport, "utf8")) as {
+      scanSetChange: { changedSarifAutomationCategories: unknown[] };
+    };
+    expect(diff.scanSetChange.changedSarifAutomationCategories).toHaveLength(1);
+    expect(await readFile(githubOutput, "utf8")).toMatch(
+      /scan-set-changed<<[^\r\n]+\r?\ntrue\r?\n/,
+    );
+    expect(await readFile(stepSummary, "utf8")).toContain('SARIF automation categories "CodeQL"');
+  });
+
   it("allows the Action to emit a self-contained baseline HTML report", async () => {
     const outputReport = join(testDirectory, "baseline.html");
     const githubOutput = join(testDirectory, "github-output.txt");

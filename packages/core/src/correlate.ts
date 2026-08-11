@@ -257,6 +257,7 @@ export function correlateReports(
     }
     const tools = Object.keys(sourceToolFindings).sort();
     const toolVersions = normalizedToolVersions(report);
+    const sarifAutomationCategories = report.sarifAutomationCategories ?? {};
     coverageInputs.push({
       tool: report.tool,
       findings: report.findings.length,
@@ -268,6 +269,7 @@ export function correlateReports(
       tool: report.tool,
       tools,
       toolVersions,
+      sarifAutomationCategories,
       findings: report.findings.length,
       warnings: report.warnings,
       metadata: report.metadata,

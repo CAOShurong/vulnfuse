@@ -6,7 +6,7 @@ import type {
   ReportInput,
 } from "./model.js";
 import { canonicalFindingSchema, vulnfuseDocumentSchema } from "./schema.js";
-import { asArray, asRecord, asString } from "./utils.js";
+import { asArray, asNumber, asRecord, asString } from "./utils.js";
 import { parseCsv } from "./formats/csv.js";
 import { parseCycloneDx } from "./formats/cyclonedx.js";
 import { parseCycloneDxXml } from "./formats/cyclonedx-xml.js";
@@ -98,6 +98,10 @@ function parseVulnFuse(root: Record<string, unknown>, reportName: string): Parse
   const findings: CanonicalFinding[] = [];
   const reportTools: string[] = [];
   const reportToolVersions = new Map<string, Set<string>>();
+  const reportAutomationCategories = new Map<
+    string,
+    { categories: Set<string>; uncategorizedRuns: number }
+  >();
   for (const reportValue of asArray(root["reports"])) {
     const report = asRecord(reportValue);
     const declaredTools = [
@@ -117,6 +121,23 @@ function parseVulnFuse(root: Record<string, unknown>, reportName: string): Parse
         values.add(version);
         reportToolVersions.set(tool, values);
       }
+    }
+    const automationCategories = asRecord(report?.["sarifAutomationCategories"]);
+    for (const [tool, evidenceValue] of Object.entries(automationCategories ?? {})) {
+      const evidence = asRecord(evidenceValue);
+      if (!evidence) continue;
+      const current = reportAutomationCategories.get(tool) ?? {
+        categories: new Set<string>(),
+        uncategorizedRuns: 0,
+      };
+      for (const category of asArray(evidence["categories"]).map(asString)) {
+        if (category) current.categories.add(category);
+      }
+      const uncategorizedRuns = asNumber(evidence["uncategorizedRuns"]);
+      if (uncategorizedRuns !== undefined && uncategorizedRuns > 0) {
+        current.uncategorizedRuns += Math.floor(uncategorizedRuns);
+      }
+      reportAutomationCategories.set(tool, current);
     }
   }
   for (const [clusterIndex, clusterValue] of asArray(root["clusters"]).entries()) {
@@ -154,6 +175,15 @@ function parseVulnFuse(root: Record<string, unknown>, reportName: string): Parse
     toolVersions: Object.fromEntries(
       [...reportToolVersions.entries()].map(([tool, values]) => [tool, [...values]] as const),
     ),
+    sarifAutomationCategories: Object.fromEntries(
+      [...reportAutomationCategories.entries()].map(([tool, evidence]) => [
+        tool,
+        {
+          categories: [...evidence.categories],
+          uncategorizedRuns: evidence.uncategorizedRuns,
+        },
+      ]),
+    ),
     findings,
     warnings,
     metadata,
@@ -176,12 +206,43 @@ function finalizeReport(report: ParsedReport): ParsedReport {
   for (const finding of report.findings) {
     if (finding.source.version) add(finding.source.tool, finding.source.version);
   }
+  const automationCategories = new Map<
+    string,
+    { categories: Set<string>; uncategorizedRuns: number }
+  >();
+  for (const [tool, evidence] of Object.entries(report.sarifAutomationCategories ?? {})) {
+    const normalizedTool = tool.trim();
+    if (!normalizedTool) continue;
+    const current = automationCategories.get(normalizedTool) ?? {
+      categories: new Set<string>(),
+      uncategorizedRuns: 0,
+    };
+    for (const category of evidence.categories) {
+      const normalizedCategory = category.trim();
+      if (normalizedCategory) current.categories.add(normalizedCategory);
+    }
+    if (Number.isFinite(evidence.uncategorizedRuns) && evidence.uncategorizedRuns > 0) {
+      current.uncategorizedRuns += Math.floor(evidence.uncategorizedRuns);
+    }
+    automationCategories.set(normalizedTool, current);
+  }
   return {
     ...report,
     toolVersions: Object.fromEntries(
       [...versions.entries()]
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([tool, values]) => [tool, [...values].sort()] as const),
+    ),
+    sarifAutomationCategories: Object.fromEntries(
+      [...automationCategories.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([tool, evidence]) => [
+          tool,
+          {
+            categories: [...evidence.categories].sort(),
+            uncategorizedRuns: evidence.uncategorizedRuns,
+          },
+        ]),
     ),
   };
 }

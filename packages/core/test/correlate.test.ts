@@ -611,9 +611,10 @@ describe("baseline comparison", () => {
       removedTools: [],
       changedReportCounts: [],
       changedToolVersions: [],
+      changedSarifAutomationCategories: [],
     });
     expect(describeScanSetChange(unchanged.scanSetChange)).toBe(
-      "Scan set did not change by tool names, per-tool report counts, or embedded tool versions.",
+      "Scan set did not change by tool names, per-tool report counts, embedded tool versions, or SARIF automation categories.",
     );
 
     const current = correlateReports([
@@ -641,6 +642,7 @@ describe("baseline comparison", () => {
       removedTools: [],
       changedReportCounts: [{ tool: "Trivy", baseline: 1, current: 2 }],
       changedToolVersions: [],
+      changedSarifAutomationCategories: [],
     });
   });
 
@@ -680,6 +682,7 @@ describe("baseline comparison", () => {
           current: { versions: ["2.26.2"], unversionedReports: 0 },
         },
       ],
+      changedSarifAutomationCategories: [],
     });
     expect(describeScanSetChange(changed.scanSetChange)).toContain(
       'embedded versions "CodeQL" ["2.20.0"] to ["2.26.2"]',
@@ -744,6 +747,101 @@ describe("baseline comparison", () => {
     );
     expect(unchanged.scanSetChange.detected).toBe(false);
     expect(unchanged.scanSetChange.changedToolVersions).toEqual([]);
+  });
+
+  it("detects SARIF automation-category drift without changing zero-result findings", () => {
+    const sarif = (id?: string) =>
+      parseReport({
+        name: "empty.sarif",
+        content: JSON.stringify({
+          version: "2.1.0",
+          runs: [
+            {
+              tool: { driver: { name: "CodeScanner", semanticVersion: "1.2.3" } },
+              ...(id ? { automationDetails: { id } } : {}),
+              results: [],
+            },
+          ],
+        }),
+      });
+
+    const changed = compareCorrelations(
+      correlateReports([sarif("monorepo/main/2026-08-11")]),
+      correlateReports([sarif("monorepo/release/2026-08-12")]),
+    );
+    expect(changed.summary).toMatchObject({
+      baselineClusters: 0,
+      currentClusters: 0,
+      new: 0,
+      absent: 0,
+    });
+    expect(changed.scanSetChange.changedSarifAutomationCategories).toEqual([
+      {
+        tool: "CodeScanner",
+        baseline: { categories: ["monorepo/main"], uncategorizedRuns: 0 },
+        current: { categories: ["monorepo/release"], uncategorizedRuns: 0 },
+      },
+    ]);
+    expect(changed.scanSetChange.detected).toBe(true);
+    expect(describeScanSetChange(changed.scanSetChange)).toContain(
+      'SARIF automation categories "CodeScanner"',
+    );
+    expect(JSON.parse(exportBaselineDiff(changed, "json"))).toMatchObject({
+      scanSetChange: { changedSarifAutomationCategories: [{ tool: "CodeScanner" }] },
+    });
+
+    const evidenceLost = compareCorrelations(
+      correlateReports([sarif("monorepo/main/")]),
+      correlateReports([sarif()]),
+    );
+    expect(evidenceLost.scanSetChange.changedSarifAutomationCategories).toEqual([
+      {
+        tool: "CodeScanner",
+        baseline: { categories: ["monorepo/main"], uncategorizedRuns: 0 },
+        current: { categories: [], uncategorizedRuns: 1 },
+      },
+    ]);
+
+    const sarifExport = JSON.parse(exportBaselineDiff(changed, "sarif")) as {
+      runs: Array<{
+        invocations: Array<{
+          properties?: {
+            scanSetChange?: { changedSarifAutomationCategories?: unknown[] };
+          };
+        }>;
+      }>;
+    };
+    expect(
+      sarifExport.runs[0]?.invocations[0]?.properties?.scanSetChange
+        ?.changedSarifAutomationCategories,
+    ).toHaveLength(1);
+    for (const format of ["markdown", "html"] as const) {
+      const exported = exportBaselineDiff(changed, format).replaceAll("\\", "");
+      expect(exported).toContain("SARIF automation categories");
+      expect(exported).toContain("monorepo/main");
+      expect(exported).toContain("monorepo/release");
+    }
+
+    const findingReport = (category: string) => {
+      const document = JSON.parse(fixture("sarif.json")) as {
+        runs: Array<Record<string, unknown>>;
+      };
+      document.runs[0]!["automationDetails"] = { id: `${category}/2026-08-12` };
+      return parseReport({
+        name: `${category.replaceAll("/", "-")}.sarif`,
+        content: JSON.stringify(document),
+      });
+    };
+    const csv = exportBaselineDiff(
+      compareCorrelations(
+        correlateReports([findingReport("monorepo/main")]),
+        correlateReports([findingReport("monorepo/release")]),
+      ),
+      "csv",
+    );
+    expect(csv).toContain("SARIF automation categories");
+    expect(csv).toContain("monorepo/main");
+    expect(csv).toContain("monorepo/release");
   });
 
   it("distinguishes updated evidence from findings absent in the current run", () => {

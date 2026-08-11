@@ -36,7 +36,7 @@ inputs:
     required: false
     default: none
   fail-on-scan-set-change:
-    description: "With baseline-reports, fail after writing when scanner tools, per-tool report counts, or embedded producer versions changed."
+    description: "With baseline-reports, fail after writing when scanner tools, report counts, embedded producer versions, or SARIF automation categories changed."
     required: false
     default: "false"
   fail-on-incomplete:
@@ -73,7 +73,7 @@ outputs:
   unchanged:
     description: Number of clusters unchanged from the baseline.
   scan-set-changed:
-    description: Whether scanner tools, per-tool report counts, or embedded producer versions changed from the baseline.
+    description: Whether scanner tools, report counts, embedded producer versions, or SARIF automation categories changed from the baseline.
   incomplete-reports:
     description: Number of input reports with SARIF run-completeness warnings.
   report:

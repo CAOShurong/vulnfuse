@@ -108,6 +108,47 @@ describe("report parsing", () => {
     expect(reconstructed.toolVersions).toEqual({ "Empty Scanner": ["4.5.6"] });
   });
 
+  it("preserves GitHub-style SARIF automation categories for zero-result runs", () => {
+    const parsed = parseReport({
+      name: "categories.sarif",
+      content: JSON.stringify({
+        version: "2.1.0",
+        runs: [
+          {
+            tool: { driver: { name: "CodeQL", semanticVersion: "2.26.2" } },
+            automationDetails: { id: "monorepo/javascript/2026-08-12" },
+            results: [],
+          },
+          {
+            tool: { driver: { name: "CodeQL", semanticVersion: "2.26.2" } },
+            automationDetails: { id: "monorepo/javascript/" },
+            results: [],
+          },
+          {
+            tool: { driver: { name: "CodeQL", semanticVersion: "2.26.2" } },
+            automationDetails: { id: "run-without-category" },
+            results: [],
+          },
+          {
+            tool: { driver: { name: "CodeQL", semanticVersion: "2.26.2" } },
+            automationDetails: "malformed",
+            results: [],
+          },
+        ],
+      }),
+    });
+
+    expect(parsed.sarifAutomationCategories).toEqual({
+      CodeQL: { categories: ["monorepo/javascript"], uncategorizedRuns: 2 },
+    });
+
+    const reconstructed = parseReport({
+      name: "categories-correlation.json",
+      content: JSON.stringify(correlateReports([parsed])),
+    });
+    expect(reconstructed.sarifAutomationCategories).toEqual(parsed.sarifAutomationCategories);
+  });
+
   it("parses supported evidence from the official CycloneDX XML VEX fixture", () => {
     const parsed = parseReport({
       name: "cyclonedx-vex.xml",
