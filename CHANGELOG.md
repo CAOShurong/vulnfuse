@@ -4,6 +4,19 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-08-11
+
+### Fixed
+
+- Reject files whose known size exceeds `--max-bytes` before reading their contents in the CLI and GitHub Action.
+- Bound incremental reads to at most the configured limit plus one observed byte so file growth and metadata races cannot bypass the check.
+- Close the file handle on success, size rejection, incremental overflow, and read failure.
+- Clean each workspace `dist` before building so repeated local builds cannot leave deleted-source artifacts in release packages.
+
+### Added
+
+- Add a Node-only `@vulnfuse/core/node` entry point so the CLI and Action share one dependency-free bounded-read implementation without pulling Node APIs into the browser entry point.
+
 ## [0.4.4] - 2026-08-11
 
 ### Fixed
@@ -108,7 +121,8 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.5
 [0.4.4]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.4
 [0.4.3]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.3
 [0.4.2]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.2

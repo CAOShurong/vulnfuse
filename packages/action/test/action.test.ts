@@ -124,4 +124,32 @@ describe("GitHub Action bundle", () => {
     expect(html).toContain('id="state-filter"');
     expect(html).toContain("Content-Security-Policy");
   });
+
+  it("rejects an oversized report without writing output", async () => {
+    const oversized = join(testDirectory, "oversized.json");
+    const outputReport = join(testDirectory, "oversized-output.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(oversized, "123456", "utf8");
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await expect(
+      execute(process.execPath, [action], {
+        cwd: repository,
+        env: {
+          ...process.env,
+          INPUT_REPORTS: oversized,
+          INPUT_OUTPUT: outputReport,
+          "INPUT_MAX-BYTES": "5",
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_STEP_SUMMARY: stepSummary,
+          GITHUB_WORKSPACE: repository,
+          RUNNER_TEMP: testDirectory,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+
+    await expect(readFile(outputReport, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
 });

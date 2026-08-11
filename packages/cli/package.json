@@ -1,6 +1,6 @@
 {
   "name": "vulnfuse",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Merge and explain duplicate findings across vulnerability scanners",
   "type": "module",
   "license": "Apache-2.0",
@@ -18,13 +18,13 @@
   },
   "scripts": {
     "prepack": "node ../../scripts/sync-package-license.mjs",
-    "build": "tsc -p tsconfig.build.json && node ../../scripts/make-cli-executable.mjs",
+    "build": "node ../../scripts/clean-workspace-dist.mjs && tsc -p tsconfig.build.json && node ../../scripts/make-cli-executable.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build",
     "test": "vitest run"
   },
   "dependencies": {
-    "@vulnfuse/core": "0.4.4",
+    "@vulnfuse/core": "0.4.5",
     "commander": "15.0.0"
   }
 }

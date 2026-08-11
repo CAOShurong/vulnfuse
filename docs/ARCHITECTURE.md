@@ -31,7 +31,7 @@ shared core ──► CLI
 
 ### `@vulnfuse/core`
 
-The core has no Node-only dependency. It contains:
+The default core entry point has no Node-only dependency. It contains:
 
 - safe unknown-to-JSON helpers;
 - format detection and parser adapters;
@@ -45,13 +45,15 @@ The core has no Node-only dependency. It contains:
 
 The browser and Node runtimes execute the same correlation code.
 
+The separate `@vulnfuse/core/node` entry point uses only Node.js built-ins and provides bounded file reading for the CLI and Action. Keeping it behind a subpath export prevents browser bundles from resolving filesystem APIs while avoiding two drifting adapter implementations.
+
 ### `vulnfuse` CLI
 
-The CLI adds filesystem and standard-input handling, bounded reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, and new-only baseline gates. It does not contain a second implementation of parsing or matching.
+The CLI adds filesystem and standard-input handling, metadata preflight plus bounded incremental reads, atomic output, overwrite protection, policy flags, inspection output, all-cluster severity gates, and new-only baseline gates. It does not contain a second implementation of parsing, matching, or Node file limits.
 
 ### `@vulnfuse/action`
 
-The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action resolves bounded current and optional baseline glob input without following symbolic links, invokes the core, writes the chosen correlation or comparison report, exposes counts, and creates a GitHub job summary. The bundled `dist/index.cjs` is committed because JavaScript Actions execute repository content directly.
+The repository-root `action.yml` invokes a Node 24 CommonJS bundle. The Action resolves bounded current and optional baseline glob input without following symbolic links, uses the same preflight and incremental-read guard as the CLI, invokes the core, writes the chosen correlation or comparison report, exposes counts, and creates a GitHub job summary. The bundled `dist/index.cjs` is committed because JavaScript Actions execute repository content directly.
 
 ### `@vulnfuse/web`
 

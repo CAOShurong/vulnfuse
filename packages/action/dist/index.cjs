@@ -21275,7 +21275,7 @@ __export(index_exports, {
   run: () => run
 });
 module.exports = __toCommonJS(index_exports);
-var import_promises = require("node:fs/promises");
+var import_promises2 = require("node:fs/promises");
 var import_node_path = require("node:path");
 
 // ../../node_modules/@actions/core/lib/command.js
@@ -23748,10 +23748,10 @@ var Minimatch = class {
       }
       return filtered.join("/");
     }).join("|");
-    const [open2, close] = set2.length > 1 ? ["(?:", ")"] : ["", ""];
-    re = "^" + open2 + re + close + "$";
+    const [open3, close] = set2.length > 1 ? ["(?:", ")"] : ["", ""];
+    re = "^" + open3 + re + close + "$";
     if (this.partial) {
-      re = "^(?:\\/|" + open2 + re.slice(1, -1) + close + ")$";
+      re = "^(?:\\/|" + open3 + re.slice(1, -1) + close + ")$";
     }
     if (this.negate)
       re = "^(?!" + re + ").+$";
@@ -25473,7 +25473,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.4">
+  <meta name="generator" content="VulnFuse 0.4.5">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -25920,7 +25920,7 @@ function exportDiffSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.4",
+            semanticVersion: "0.4.5",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor)
           }
@@ -26063,7 +26063,7 @@ function exportSarif(result) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.4",
+            semanticVersion: "0.4.5",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: result.clusters.map((cluster) => ruleFor2(cluster))
           }
@@ -41759,6 +41759,38 @@ function parseVulnFuse(root, reportName) {
   };
 }
 
+// ../core/dist/node.js
+var import_promises = require("node:fs/promises");
+var readChunkSize = 64 * 1024;
+async function readFileLimited(path6, maxBytes) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+    throw new RangeError("maxBytes must be a non-negative safe integer.");
+  }
+  const handle = await (0, import_promises.open)(path6, "r");
+  try {
+    const { size } = await handle.stat();
+    if (size > maxBytes) {
+      throw new Error(`${path6} is ${size.toLocaleString()} bytes; the configured limit is ${maxBytes.toLocaleString()} bytes.`);
+    }
+    const chunks = [];
+    let length = 0;
+    while (true) {
+      const buffer = Buffer.allocUnsafe(Math.min(readChunkSize, maxBytes - length + 1));
+      const { bytesRead } = await handle.read(buffer, 0, buffer.byteLength, null);
+      if (bytesRead === 0)
+        break;
+      length += bytesRead;
+      if (length > maxBytes) {
+        throw new Error(`${path6} exceeded the configured ${maxBytes.toLocaleString()} byte limit while reading.`);
+      }
+      chunks.push(buffer.subarray(0, bytesRead));
+    }
+    return Buffer.concat(chunks, length).toString("utf8");
+  } finally {
+    await handle.close();
+  }
+}
+
 // src/index.ts
 var allowedFormats = /* @__PURE__ */ new Set(["json", "sarif", "csv", "markdown", "html"]);
 var allowedScopes = /* @__PURE__ */ new Set(["instance", "root-cause"]);
@@ -41800,8 +41832,8 @@ async function run() {
       const baseline = correlateReports(baselineReports, { threshold, scope });
       baselineDiff = compareCorrelations(baseline, result);
     }
-    await (0, import_promises.mkdir)((0, import_node_path.dirname)(output), { recursive: true });
-    await (0, import_promises.writeFile)(
+    await (0, import_promises2.mkdir)((0, import_node_path.dirname)(output), { recursive: true });
+    await (0, import_promises2.writeFile)(
       output,
       baselineDiff ? exportBaselineDiff(baselineDiff, format) : exportCorrelation(result, format),
       "utf8"
@@ -41861,13 +41893,8 @@ async function readMatchedReports(patterns, label, maxBytes, output, maximumRepo
   info(`VulnFuse is reading ${files.length} ${label} report${files.length === 1 ? "" : "s"}.`);
   const reports = [];
   for (const file2 of files) {
-    const buffer = await (0, import_promises.readFile)(file2);
-    if (buffer.byteLength > maxBytes) {
-      throw new Error(
-        `${file2} is ${buffer.byteLength.toLocaleString()} bytes; the configured limit is ${maxBytes.toLocaleString()} bytes.`
-      );
-    }
-    const report = parseReport({ name: file2, content: buffer.toString("utf8") }, { maxBytes });
+    const content = await readFileLimited(file2, maxBytes);
+    const report = parseReport({ name: file2, content }, { maxBytes });
     info(`${report.tool}: ${report.findings.length} findings from ${file2}`);
     reports.push(report);
   }

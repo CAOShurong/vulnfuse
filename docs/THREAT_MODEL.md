@@ -31,7 +31,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 
 | Risk                                    | Mitigation                                                                                        |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Oversized report memory exhaustion      | 100 MiB per-report default in browser, CLI, and Action                                            |
+| Oversized report memory exhaustion      | 100 MiB per-report default; browser size check; CLI/Action metadata preflight and bounded read    |
 | Excessive file expansion                | 1,000-report limit in CLI/Action/browser                                                          |
 | Quadratic matching denial of service    | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
 | Quadratic scanner-pair output           | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
@@ -48,7 +48,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 ## Important residual risks
 
 1. **Browser extensions and compromised hosting can observe page data.** A malicious extension with page access or a compromised browser profile is outside the application's control. Use the CLI in an isolated environment for highly sensitive reports.
-2. **Memory use remains proportional to report and finding count.** The browser reads each accepted file fully into memory. The size limit is per file, not a guarantee that a device can handle the aggregate.
+2. **Memory use remains proportional to accepted report and finding count.** The browser reads each accepted file fully into memory. The CLI and Action avoid reading a file whose known size is already over the limit and stop a growing or unusual file after one byte beyond it, but accepted text, parsed models, correlation state, and exports still coexist. The size limit is per file, not a guarantee that a device can handle the aggregate.
 3. **Correlation can still be wrong.** Vendor reports can contain incomplete or incorrect identifiers. Transitive clustering can connect A to C through B. Review match edges before using a cluster for remediation or compliance.
 4. **Exports can propagate sensitive content.** Downloaded JSON, SARIF, CSV, Markdown, and HTML retain evidence. Protect them as you would the original reports. The portable HTML makes no network request by itself, but opening an advisory link is an explicit navigation and browser extensions can still observe the page.
 5. **References are not validated for safety or truth.** HTTP(S) allowlisting prevents active schemes, but a reference can still point to a malicious or misleading site. Opening it is an explicit user action.
