@@ -4,6 +4,28 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.19] - 2026-08-12
+
+### Fixed
+
+- Replace the immutable-release-only `gh release verify` examples with the
+  observed working `gh attestation verify` path for the SLSA provenance emitted
+  by `actions/attest`.
+- Constrain the example to the expected repository, release workflow, tag, and
+  GitHub-hosted runner, and add a regression test tied to the current version.
+
+### Verification
+
+- Public v0.4.18 assets passed the unmodified flat checksum manifest and strict
+  `gh attestation verify`; the repository API reported immutable releases
+  disabled and both `gh release verify` commands failed as expected.
+
+### Limitations
+
+- The provenance statement is signed evidence about the GitHub Actions build,
+  not proof that its inputs, dependencies, runner, or output are safe. Enabling
+  GitHub immutable releases is a separate repository policy decision.
+
 ## [0.4.18] - 2026-08-12
 
 ### Fixed
