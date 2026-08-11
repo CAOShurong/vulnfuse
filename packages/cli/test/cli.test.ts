@@ -41,6 +41,43 @@ afterEach(async () => {
 });
 
 describe("CLI", () => {
+  it("bounds SARIF rule tags while preserving every parsed identifier", async () => {
+    const aliases = Array.from(
+      { length: 30 },
+      (_, index) => `OSV-2026-${String(index + 1).padStart(4, "0")}`,
+    ).join(" ");
+    const input = join(testDirectory, "alias-rich.csv");
+    const output = join(testDirectory, "alias-rich.sarif");
+    await writeFile(
+      input,
+      `vulnerability_id,title,severity,aliases,tool\nCVE-2026-1000,Alias-rich finding,high,"${aliases}",Alias Scanner\n`,
+      "utf8",
+    );
+
+    await execute(process.execPath, [cli, "merge", input, "--format", "sarif", "--output", output]);
+    const sarif = JSON.parse(await readFile(output, "utf8")) as {
+      runs: Array<{
+        tool: {
+          driver: {
+            rules: Array<{
+              properties: {
+                tags: string[];
+                vulnfuseOmittedIdentifierTagCount?: number;
+              };
+            }>;
+          };
+        };
+        results: Array<{ properties: { identifiers: unknown[] } }>;
+      }>;
+    };
+
+    expect(sarif.runs[0]?.tool.driver.rules[0]?.properties.tags).toHaveLength(9);
+    expect(sarif.runs[0]?.tool.driver.rules[0]?.properties.vulnfuseOmittedIdentifierTagCount).toBe(
+      24,
+    );
+    expect(sarif.runs[0]?.results[0]?.properties.identifiers).toHaveLength(31);
+  });
+
   it("inspects CycloneDX XML VEX in a separate process", async () => {
     const inspection = await execute(process.execPath, [cli, "inspect", cycloneXml, "--json"]);
     expect(JSON.parse(inspection.stdout)[0]).toMatchObject({

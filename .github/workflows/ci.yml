@@ -107,6 +107,18 @@ jobs:
           if ($cycloneXml[0].format -ne "cyclonedx" -or $cycloneXml[0].findings -ne 1 -or $cycloneXml[0].active -ne 1) {
             throw "Unexpected CycloneDX XML inspection summary"
           }
+          $aliasInput = "${{ runner.temp }}/vulnfuse-alias-cardinality.csv"
+          $aliasOutput = "${{ runner.temp }}/vulnfuse-alias-cardinality.sarif"
+          $aliases = (1..30 | ForEach-Object { "OSV-2026-$($_.ToString('0000'))" }) -join " "
+          $aliasCsv = "vulnerability_id,title,severity,aliases,tool`nCVE-2026-1000,Synthetic alias-cardinality fixture,high,`"$aliases`",Synthetic Alias Scanner`n"
+          [IO.File]::WriteAllText($aliasInput, $aliasCsv, [Text.UTF8Encoding]::new($false))
+          node packages/cli/dist/index.js merge $aliasInput --format sarif --output $aliasOutput
+          $aliasSarif = Get-Content -Raw $aliasOutput | ConvertFrom-Json
+          $aliasRule = $aliasSarif.runs[0].tool.driver.rules[0]
+          $aliasResult = $aliasSarif.runs[0].results[0]
+          if ($aliasRule.properties.tags.Count -ne 9 -or $aliasRule.properties.vulnfuseOmittedIdentifierTagCount -ne 24 -or $aliasResult.properties.identifiers.Count -ne 31) {
+            throw "SARIF rule-tag bounds did not preserve complete identifier evidence on Windows"
+          }
           $versionCurrent = "${{ runner.temp }}/vulnfuse-version-current.sarif"
           $versionDocument = Get-Content -Raw packages/core/test/fixtures/sarif.json | ConvertFrom-Json
           $versionDocument.runs[0].tool.driver.semanticVersion = "2.26.2"
@@ -166,6 +178,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Prepare an alias-rich workflow fixture
+        env:
+          ALIAS_REPORT: ${{ runner.temp }}/vulnfuse-alias-cardinality.csv
+        run: node -e "const fs=require('fs');const aliases=Array.from({length:30},(_,i)=>'OSV-2026-'+String(i+1).padStart(4,'0')).join(' ');fs.writeFileSync(process.env.ALIAS_REPORT,'vulnerability_id,title,severity,aliases,tool\nCVE-2026-1000,Synthetic alias-cardinality fixture,high,\"'+aliases+'\",Synthetic Alias Scanner\n');"
+      - id: alias-tags
+        name: Export bounded SARIF tags with the repository Action
+        uses: ./
+        with:
+          reports: ${{ runner.temp }}/vulnfuse-alias-cardinality.csv
+          format: sarif
+          output: ${{ runner.temp }}/vulnfuse-alias-cardinality.sarif
+      - name: Validate Action rule-tag bounds and retained evidence
+        env:
+          REPORT: ${{ steps.alias-tags.outputs.report }}
+        run: node -e "const fs=require('fs');const sarif=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const rule=sarif.runs[0].tool.driver.rules[0];const result=sarif.runs[0].results[0];if(rule.properties.tags.length!==9||rule.properties.vulnfuseOmittedIdentifierTagCount!==24||result.properties.identifiers.length!==31)throw new Error('Unexpected Action SARIF tag/identifier contract');"
       - id: fuse
         name: Correlate fixture reports with the repository Action
         uses: ./
