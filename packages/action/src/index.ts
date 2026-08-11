@@ -1,5 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import * as core from "@actions/core";
 import * as glob from "@actions/glob";
@@ -16,7 +15,7 @@ import {
   type ParsedReport,
   type Severity,
 } from "@vulnfuse/core";
-import { readFileLimited } from "@vulnfuse/core/node";
+import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
 const allowedFormats = new Set<OutputFormat>(["json", "sarif", "csv", "markdown", "html"]);
 const allowedScopes = new Set<MatchScope>(["instance", "root-cause"]);
@@ -60,11 +59,9 @@ export async function run(): Promise<void> {
       const baseline = correlateReports(baselineReports, { threshold, scope });
       baselineDiff = compareCorrelations(baseline, result);
     }
-    await mkdir(dirname(output), { recursive: true });
-    await writeFile(
+    await writeFileAtomic(
       output,
       baselineDiff ? exportBaselineDiff(baselineDiff, format) : exportCorrelation(result, format),
-      "utf8",
     );
 
     core.setOutput("findings", result.summary.inputFindings);

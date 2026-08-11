@@ -1,4 +1,6 @@
-import { open } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, open, rename, unlink, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 const readChunkSize = 64 * 1024;
 
@@ -32,5 +34,18 @@ export async function readFileLimited(path: string, maxBytes: number): Promise<s
     return Buffer.concat(chunks, length).toString("utf8");
   } finally {
     await handle.close();
+  }
+}
+
+export async function writeFileAtomic(path: string, content: string): Promise<void> {
+  const destination = resolve(path);
+  await mkdir(dirname(destination), { recursive: true });
+  const temporary = `${destination}.vulnfuse-${process.pid}-${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, content, { encoding: "utf8", flag: "wx", flush: true });
+    await rename(temporary, destination);
+  } catch (error) {
+    await unlink(temporary).catch(() => undefined);
+    throw error;
   }
 }

@@ -25,25 +25,26 @@ The CLI reads only named input paths or standard input and writes only the reque
 
 ### GitHub Action
 
-The Action runs inside the calling repository's runner. Glob expansion does not follow symbolic links and does not match directories. The Action needs no network permission or credential. Other workflow steps and scanner actions remain outside VulnFuse's boundary.
+The Action runs inside the calling repository's runner. Glob expansion does not follow symbolic links and does not match directories. Reports are written through a temporary sibling before replacement, matching the CLI. The Action needs no network permission or credential. Other workflow steps and scanner actions remain outside VulnFuse's boundary.
 
 ## Implemented safeguards
 
-| Risk                                    | Mitigation                                                                                        |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Oversized report memory exhaustion      | 100 MiB per-report default; browser size check; CLI/Action metadata preflight and bounded read    |
-| Excessive file expansion                | 1,000-report limit in CLI/Action/browser                                                          |
-| Quadratic matching denial of service    | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
-| Quadratic scanner-pair output           | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
-| Output destroys an input                | CLI and Action reject identical resolved input/output paths                                       |
-| Symlink escape in Action globbing       | Symbolic-link following is disabled                                                               |
-| Script or HTML injection in workbench   | React text rendering; no `dangerouslySetInnerHTML`                                                |
-| Script or HTML injection in HTML export | Contextual escaping; fixed data-free script/style blocks; restrictive Content Security Policy     |
-| Unsafe advisory schemes                 | Only HTTP(S) references are rendered as links in portable HTML                                    |
-| Spreadsheet formula injection           | CSV exporter enables formula escaping                                                             |
-| Remote code execution from report data  | No template evaluation, dynamic import, shell construction, or executable deserialization         |
-| Silent evidence loss                    | Source members and actual match edges remain attached to clusters                                 |
-| Unsafe false merge                      | Explicit identity, component, asset, and kind conflicts can block merging                         |
+| Risk                                     | Mitigation                                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Oversized report memory exhaustion       | 100 MiB per-report default; browser size check; CLI/Action metadata preflight and bounded read    |
+| Excessive file expansion                 | 1,000-report limit in CLI/Action/browser                                                          |
+| Quadratic matching denial of service     | Candidate indexing; 2,000,000 finding/source-record pair limits; 1,000,000 baseline-cluster limit |
+| Quadratic scanner-pair output            | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
+| Output destroys an input                 | CLI and Action reject identical resolved input/output paths                                       |
+| Failed output write exposes partial data | Unique exclusive temporary sibling, flush, rename, and cleanup on reported failure                |
+| Symlink escape in Action globbing        | Symbolic-link following is disabled                                                               |
+| Script or HTML injection in workbench    | React text rendering; no `dangerouslySetInnerHTML`                                                |
+| Script or HTML injection in HTML export  | Contextual escaping; fixed data-free script/style blocks; restrictive Content Security Policy     |
+| Unsafe advisory schemes                  | Only HTTP(S) references are rendered as links in portable HTML                                    |
+| Spreadsheet formula injection            | CSV exporter enables formula escaping                                                             |
+| Remote code execution from report data   | No template evaluation, dynamic import, shell construction, or executable deserialization         |
+| Silent evidence loss                     | Source members and actual match edges remain attached to clusters                                 |
+| Unsafe false merge                       | Explicit identity, component, asset, and kind conflicts can block merging                         |
 
 ## Important residual risks
 
@@ -56,6 +57,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 7. **An absent finding is not proof of a fix.** A baseline cluster can disappear because a scanner failed, changed configuration, or did not scan the same asset. Treat `absent` as missing current evidence until another control verifies remediation.
 8. **Baseline mode retains two report sets.** Browser and runner memory use can approach the combined size of the baseline and current inputs, plus their parsed models and comparison output.
 9. **Coverage statistics can be misread.** A tool may appear exclusive because it scanned a different asset, package inventory, configuration, database snapshot, or advisory namespace. Pairwise overlap is not an accuracy score.
+10. **Atomic replacement is filesystem-dependent.** A caught write or rename error preserves the old destination and cleans its temporary sibling, but a hard termination can leave a `.vulnfuse-*.tmp` file. The implementation does not claim directory-fsync power-loss durability or atomic replacement on every network or unusual filesystem.
 
 ## Non-goals
 

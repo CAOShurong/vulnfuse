@@ -1,5 +1,4 @@
-import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import {
   compareCorrelations,
@@ -16,9 +15,9 @@ import {
   type Severity,
 } from "@vulnfuse/core";
 import { Command, InvalidArgumentError, Option } from "commander";
-import { readFileLimited } from "@vulnfuse/core/node";
+import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.5";
+const version = "0.4.6";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -93,7 +92,7 @@ export function createProgram(): Command {
         titleWeight: options.titleWeight,
       });
       const output = exportCorrelation(result, options.format);
-      if (options.output) await atomicWrite(options.output, output);
+      if (options.output) await writeFileAtomic(options.output, output);
       else process.stdout.write(output);
       if (
         options.failOn !== "none" &&
@@ -175,7 +174,7 @@ export function createProgram(): Command {
       );
       const result = compareCorrelations(baseline, current);
       const output = exportBaselineDiff(result, options.format);
-      if (options.output) await atomicWrite(options.output, output);
+      if (options.output) await writeFileAtomic(options.output, output);
       else process.stdout.write(output);
       if (
         options.failOnNew !== "none" &&
@@ -248,19 +247,6 @@ async function readStdin(maxBytes: number): Promise<string> {
     chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8");
-}
-
-async function atomicWrite(path: string, content: string): Promise<void> {
-  const destination = resolve(path);
-  await mkdir(dirname(destination), { recursive: true });
-  const temporary = `${destination}.vulnfuse-${process.pid}.tmp`;
-  try {
-    await writeFile(temporary, content, "utf8");
-    await rename(temporary, destination);
-  } catch (error) {
-    await unlink(temporary).catch(() => undefined);
-    throw error;
-  }
 }
 
 function reportSummary(report: ParsedReport) {
