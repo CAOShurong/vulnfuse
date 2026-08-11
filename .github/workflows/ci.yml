@@ -111,11 +111,15 @@ jobs:
           version=$(node -p "require('../package.json').version")
           npm install "../package-artifacts/vulnfuse-core-${version}.tgz" "../package-artifacts/vulnfuse-${version}.tgz"
           npx vulnfuse --version
+          npx vulnfuse inspect "../packages/core/test/fixtures/{trivy,grype}.json" --json > inspection.json
+          test "$(node -p "require('./inspection.json').length")" = "2"
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md
           npx vulnfuse diff --baseline ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format html --output portable.html
           grep -q "Content-Security-Policy" portable.html
           grep -q "VulnFuse baseline comparison" portable.html
+          npm sbom --sbom-format cyclonedx --omit dev > vulnfuse-sbom.cdx.json
+          node ../scripts/verify-sbom.mjs vulnfuse-sbom.cdx.json vulnfuse @vulnfuse/core commander tinyglobby fdir picomatch
       - uses: actions/upload-artifact@v7
         with:
           name: npm-tarballs

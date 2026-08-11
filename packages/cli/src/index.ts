@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -15,9 +16,10 @@ import {
   type Severity,
 } from "@vulnfuse/core";
 import { Command, InvalidArgumentError, Option } from "commander";
+import { glob, isDynamicPattern } from "tinyglobby";
 import { readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.6";
+const version = "0.4.7";
 const maxReports = 1_000;
 
 interface MergeOptions {
@@ -49,7 +51,7 @@ export function createProgram(): Command {
   program
     .command("merge")
     .description("Parse and correlate two or more scanner reports.")
-    .argument("<reports...>", "Report paths, or '-' for standard input")
+    .argument("<reports...>", "Report paths, glob patterns, or '-' for standard input")
     .addOption(
       new Option("-f, --format <format>", "Output format")
         .choices(["json", "sarif", "csv", "markdown", "html"])
@@ -81,6 +83,7 @@ export function createProgram(): Command {
         .default("none"),
     )
     .action(async (reportPaths: string[], options: MergeOptions) => {
+      reportPaths = await expandReportPaths(reportPaths);
       assertReportArguments(reportPaths);
       assertOutputIsNotInput(options.output, reportPaths);
       const inputs = await readInputs(reportPaths, options.maxBytes);
@@ -105,10 +108,10 @@ export function createProgram(): Command {
   program
     .command("diff")
     .description("Compare current reports with one or more baseline reports.")
-    .argument("<reports...>", "Current report paths, or '-' for standard input")
+    .argument("<reports...>", "Current report paths, glob patterns, or '-' for standard input")
     .option(
       "-b, --baseline <path>",
-      "Baseline report path; repeat for multiple scanner reports",
+      "Baseline report path or glob; repeat for multiple patterns",
       collectValue,
       [],
     )
@@ -143,6 +146,8 @@ export function createProgram(): Command {
         .default("none"),
     )
     .action(async (reportPaths: string[], options: DiffOptions) => {
+      reportPaths = await expandReportPaths(reportPaths, "Current report pattern");
+      options.baseline = await expandReportPaths(options.baseline, "Baseline report pattern");
       assertReportArguments(reportPaths);
       assertReportArguments(options.baseline, "baseline report");
       if (options.baseline.length + reportPaths.length > maxReports) {
@@ -187,7 +192,7 @@ export function createProgram(): Command {
   program
     .command("inspect")
     .description("Detect formats and summarize reports without correlating them.")
-    .argument("<reports...>", "Report paths, or '-' for standard input")
+    .argument("<reports...>", "Report paths, glob patterns, or '-' for standard input")
     .option(
       "--max-bytes <bytes>",
       "Maximum bytes per report",
@@ -196,6 +201,7 @@ export function createProgram(): Command {
     )
     .option("--json", "Emit machine-readable JSON")
     .action(async (reportPaths: string[], options: { maxBytes: number; json?: boolean }) => {
+      reportPaths = await expandReportPaths(reportPaths);
       assertReportArguments(reportPaths);
       const inputs = await readInputs(reportPaths, options.maxBytes);
       const reports = inputs.map((input) => parseReport(input, { maxBytes: options.maxBytes }));
@@ -207,14 +213,79 @@ export function createProgram(): Command {
   program
     .command("detect")
     .description("Print only the detected format for one report.")
-    .argument("<report>", "Report path, or '-' for standard input")
+    .argument("<report>", "Report path, glob matching one file, or '-' for standard input")
     .action(async (reportPath: string) => {
-      const [input] = await readInputs([reportPath], 100 * 1024 * 1024);
+      const reportPaths = await expandReportPaths([reportPath]);
+      if (reportPaths.length !== 1) {
+        throw new Error(
+          `detect requires exactly one report; the pattern matched ${reportPaths.length}.`,
+        );
+      }
+      const [input] = await readInputs(reportPaths, 100 * 1024 * 1024);
       if (!input) throw new Error("No report was supplied.");
       process.stdout.write(`${detectFormat(input.content, input.name)}\n`);
     });
 
   return program;
+}
+
+async function expandReportPaths(paths: string[], label = "Report pattern"): Promise<string[]> {
+  const expanded: string[] = [];
+  const seen = new Set<string>();
+  const add = (path: string) => {
+    const key = path === "-" ? path : deduplicationPath(path);
+    if (seen.has(key)) return;
+    seen.add(key);
+    expanded.push(path);
+  };
+
+  for (const path of paths) {
+    if (path === "-" || (await pathExists(path))) {
+      add(path);
+      continue;
+    }
+    const pattern = portablePattern(path);
+    if (!isDynamicPattern(pattern)) {
+      add(path);
+      continue;
+    }
+    const matches = await glob(pattern, {
+      absolute: true,
+      caseSensitiveMatch: process.platform !== "win32",
+      dot: true,
+      expandDirectories: false,
+      followSymbolicLinks: false,
+      onlyFiles: true,
+    });
+    if (matches.length === 0) throw new Error(`${label} '${path}' did not match any files.`);
+    for (const match of matches.sort()) add(match);
+  }
+  return expanded;
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error.code === "ENOENT" || error.code === "ENOTDIR")
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function portablePattern(pattern: string): string {
+  return process.platform === "win32" ? pattern.replaceAll("\\", "/") : pattern;
+}
+
+function deduplicationPath(path: string): string {
+  const absolute = resolve(path);
+  return process.platform === "win32" ? absolute.toLowerCase() : absolute;
 }
 
 async function readInputs(paths: string[], maxBytes: number): Promise<ReportInput[]> {

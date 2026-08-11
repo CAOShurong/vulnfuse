@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -184,6 +184,106 @@ describe("CLI", () => {
       reports: Array<{ format: string; tool: string }>;
     };
     expect(result.reports[0]).toMatchObject({ format: "trivy", tool: "Trivy" });
+  });
+
+  it("expands a quoted report glob without relying on the shell", async () => {
+    const first = join(testDirectory, "a-trivy.json");
+    await writeFile(first, await readFile(trivy, "utf8"), "utf8");
+    await writeFile(join(testDirectory, "b-grype.json"), await readFile(grype, "utf8"), "utf8");
+    await mkdir(join(testDirectory, "ignored-directory.json"));
+
+    const inspection = await execute(process.execPath, [
+      cli,
+      "inspect",
+      first,
+      join(testDirectory, "*.json"),
+      "--json",
+    ]);
+    const reports = JSON.parse(inspection.stdout) as Array<{ format: string; tool: string }>;
+
+    expect(reports).toEqual([
+      expect.objectContaining({ format: "trivy", tool: "Trivy" }),
+      expect.objectContaining({ format: "grype", tool: "Grype" }),
+    ]);
+  });
+
+  it("treats an existing filename with glob characters as a literal path", async () => {
+    const bracketed = join(testDirectory, "[trivy].json");
+    await writeFile(bracketed, await readFile(trivy, "utf8"), "utf8");
+
+    const detection = await execute(process.execPath, [cli, "detect", bracketed]);
+
+    expect(detection.stdout).toBe("trivy\n");
+  });
+
+  it("fails clearly when a report pattern matches no files", async () => {
+    const pattern = join(testDirectory, "missing-*.json");
+    const failure = await executeFailure([cli, "inspect", pattern]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain(`Report pattern '${pattern}' did not match any files.`);
+    expect(failure.stderr).not.toMatch(/\n\s+at /);
+  });
+
+  it("requires a detect pattern to match exactly one file", async () => {
+    await writeFile(join(testDirectory, "a.json"), await readFile(trivy, "utf8"), "utf8");
+    await writeFile(join(testDirectory, "b.json"), await readFile(grype, "utf8"), "utf8");
+
+    const failure = await executeFailure([cli, "detect", join(testDirectory, "*.json")]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain("detect requires exactly one report; the pattern matched 2.");
+  });
+
+  it("applies the report-count limit after glob expansion", async () => {
+    await Promise.all(
+      Array.from({ length: 1_001 }, (_, index) =>
+        writeFile(join(testDirectory, `report-${String(index).padStart(4, "0")}.json`), "{}"),
+      ),
+    );
+
+    const failure = await executeFailure([cli, "inspect", join(testDirectory, "*.json")]);
+
+    expect(failure).toMatchObject({ code: 1, stdout: "" });
+    expect(failure.stderr).toContain("At most 1000 reports can be processed in one invocation.");
+  });
+
+  it("expands baseline and current report patterns independently", async () => {
+    const baselineDirectory = join(testDirectory, "baseline");
+    const currentDirectory = join(testDirectory, "current");
+    await mkdir(baselineDirectory);
+    await mkdir(currentDirectory);
+    await writeFile(join(baselineDirectory, "trivy.json"), await readFile(trivy, "utf8"), "utf8");
+    await writeFile(join(currentDirectory, "trivy.json"), await readFile(trivy, "utf8"), "utf8");
+    await writeFile(join(currentDirectory, "grype.json"), await readFile(grype, "utf8"), "utf8");
+    const output = join(testDirectory, "diff.json");
+
+    await execute(process.execPath, [
+      cli,
+      "diff",
+      "--baseline",
+      join(baselineDirectory, "*.json"),
+      join(currentDirectory, "*.json"),
+      "--format",
+      "json",
+      "--output",
+      output,
+    ]);
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      summary: {
+        baselineClusters: number;
+        currentClusters: number;
+        new: number;
+        unchanged: number;
+      };
+    };
+
+    expect(result.summary).toMatchObject({
+      baselineClusters: 2,
+      currentClusters: 3,
+      new: 1,
+      unchanged: 1,
+    });
   });
 });
 

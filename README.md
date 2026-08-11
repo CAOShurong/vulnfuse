@@ -39,14 +39,14 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.6 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.7 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.6/vulnfuse-core-0.4.6.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.6/vulnfuse-0.4.6.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.7/vulnfuse-core-0.4.7.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.7/vulnfuse-0.4.7.tgz
 vulnfuse --version
 ```
 
-The paired install matters because the CLI and shared core are separate packages. Every release also includes `SHA256SUMS.txt` and a CycloneDX SBOM.
+The paired install matters because the CLI and shared core are separate packages. Every release also includes `SHA256SUMS.txt`, a CycloneDX SBOM generated from a fresh install of those exact CLI/core archives, and a separate CycloneDX SBOM for the bundled Action runtime.
 
 ### CLI from source
 
@@ -61,6 +61,14 @@ node packages/cli/dist/index.js merge \
   --format markdown \
   --output vulnfuse-report.md
 ```
+
+Use a quoted glob when scanner jobs produce many reports. VulnFuse expands it consistently instead of relying on the current shell:
+
+```bash
+vulnfuse merge "reports/**/*.json" --format html --output vulnfuse-review.html
+```
+
+Use forward slashes in portable patterns, including on Windows. Existing paths are treated literally before glob syntax, overlapping paths are deduplicated, directories and symbolic-link traversal are excluded, and an unmatched pattern fails instead of silently producing an empty result. The 1,000-report limit is applied after expansion, but a very broad pattern can still spend time traversing its starting directory tree; scope patterns to the report directory.
 
 Inspect formats before merging:
 
@@ -119,7 +127,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.6
+  uses: CAOShurong/vulnfuse@v0.4.7
   with:
     reports: |
       reports/trivy.json
@@ -198,7 +206,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.4.6` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, cross-run baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.7` is a public alpha with explainable, cluster-safe cross-scanner correlation, scanner coverage/overlap analytics, cross-run baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. The core behavior is covered by synthetic cross-format fixtures and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

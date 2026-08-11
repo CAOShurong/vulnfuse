@@ -4,6 +4,27 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-08-11
+
+### Added
+
+- Expand quoted report globs inside the CLI for shell-independent `merge`, `diff`, `inspect`, and single-match `detect` workflows.
+- Treat existing paths as literal before glob interpretation, deduplicate overlapping paths/patterns, and sort each pattern's matches deterministically.
+
+### Safety
+
+- Match files only, do not traverse symbolic-link directories, fail on unmatched patterns, and enforce the 1,000-report limit after expansion.
+- Verify that release SBOMs contain their expected runtime components instead of trusting a syntactically valid but incomplete workspace inventory.
+
+### Fixed
+
+- Generate the CLI/core release SBOM from a fresh installation of the exact packed archives, so it includes transitive runtime dependencies such as `tinyglobby`, `fdir`, and `picomatch`.
+- Publish a separate Action runtime SBOM instead of combining two materially different installation surfaces into an ambiguous inventory.
+
+### Dependencies
+
+- Add MIT-licensed `tinyglobby` 0.2.17 to the CLI only; the core, browser, and GitHub Action dependency surfaces are unchanged.
+
 ## [0.4.6] - 2026-08-11
 
 ### Fixed

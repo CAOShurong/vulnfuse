@@ -11,6 +11,7 @@ const required = [
   "action.yml",
   "package-lock.json",
   "scripts/clean-workspace-dist.mjs",
+  "scripts/verify-sbom.mjs",
   "packages/action/dist/index.cjs",
   "docs/MATCHING.md",
   "docs/FORMATS.md",
