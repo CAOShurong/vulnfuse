@@ -12,6 +12,7 @@ const repository = resolve(import.meta.dirname, "../../..");
 const trivy = resolve(repository, "packages/core/test/fixtures/trivy.json");
 const grype = resolve(repository, "packages/core/test/fixtures/grype.json");
 const csv = resolve(repository, "packages/core/test/fixtures/generic.csv");
+const openVex = resolve(repository, "packages/core/test/fixtures/openvex.json");
 const suppressedSarif = resolve(repository, "packages/core/test/fixtures/sarif-suppressed.json");
 const resultKindsSarif = resolve(repository, "packages/core/test/fixtures/sarif-result-kinds.json");
 let testDirectory: string;
@@ -25,6 +26,57 @@ afterEach(async () => {
 });
 
 describe("GitHub Action bundle", () => {
+  it("correlates OpenVEX evidence without applying producer status as a gate verdict", async () => {
+    const scanner = join(testDirectory, "scanner.csv");
+    const outputReport = join(testDirectory, "openvex-report.json");
+    const githubOutput = join(testDirectory, "github-output.txt");
+    const stepSummary = join(testDirectory, "summary.md");
+    await writeFile(
+      scanner,
+      "vulnerability_id,title,severity,purl,tool\n" +
+        'CVE-2024-32002,"CVE-2024-32002 for pkg:apk/alpine/git@2.45.2-r0?arch=x86_64 (OpenVEX: not_affected)",high,"pkg:apk/alpine/git@2.45.2-r0?arch=x86_64",Other Scanner\n',
+      "utf8",
+    );
+    await writeFile(githubOutput, "", "utf8");
+    await writeFile(stepSummary, "", "utf8");
+
+    await execute(process.execPath, [action], {
+      cwd: repository,
+      env: {
+        ...process.env,
+        INPUT_REPORTS: `${openVex}\n${scanner}`,
+        INPUT_OUTPUT: outputReport,
+        INPUT_FORMAT: "json",
+        INPUT_SCOPE: "root-cause",
+        GITHUB_OUTPUT: githubOutput,
+        GITHUB_STEP_SUMMARY: stepSummary,
+        GITHUB_WORKSPACE: repository,
+        RUNNER_TEMP: testDirectory,
+      },
+    });
+
+    const result = JSON.parse(await readFile(outputReport, "utf8")) as {
+      summary: {
+        inputFindings: number;
+        clusters: number;
+        duplicatesCollapsed: number;
+        activeClusters: number;
+      };
+      clusters: Array<{ sourceTools: string[]; suppressed: boolean; nonFinding: boolean }>;
+    };
+    expect(result.summary).toMatchObject({
+      inputFindings: 4,
+      clusters: 3,
+      duplicatesCollapsed: 1,
+      activeClusters: 3,
+    });
+    expect(result.clusters.some((cluster) => cluster.sourceTools.length === 2)).toBe(true);
+    expect(result.clusters.every((cluster) => !cluster.suppressed && !cluster.nonFinding)).toBe(
+      true,
+    );
+    expect(await readFile(stepSummary, "utf8")).toContain("OpenVEX (Example VEX Producer)");
+  });
+
   it("runs outside GitHub and writes report, outputs, and summary", async () => {
     const outputReport = join(testDirectory, "report.json");
     const githubOutput = join(testDirectory, "github-output.txt");

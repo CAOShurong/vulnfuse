@@ -258,9 +258,11 @@ export function App() {
 
         <section className="format-rail" aria-label="Supported formats">
           <span>READS</span>
-          {["SARIF 2.1", "Trivy", "Grype", "Snyk", "CycloneDX", "OSV", "CSV"].map((format) => (
-            <b key={format}>{format}</b>
-          ))}
+          {["SARIF 2.1", "Trivy", "Grype", "Snyk", "CycloneDX", "OpenVEX", "OSV", "CSV"].map(
+            (format) => (
+              <b key={format}>{format}</b>
+            ),
+          )}
         </section>
 
         <section className="workbench" id="workbench">

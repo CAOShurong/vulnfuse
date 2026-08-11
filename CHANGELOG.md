@@ -4,6 +4,36 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-08-12
+
+### Added
+
+- Detect and parse standalone OpenVEX JSON-LD documents across the core
+  library, CLI, browser workbench, and bundled GitHub Action.
+- Expand every product and listed subcomponent into attributable canonical
+  evidence, using valid PURLs for component identity and retaining the parent
+  product as asset scope.
+- Preserve vulnerability aliases, document author and timestamps, status,
+  justification, impact/action statements, identifiers, hashes, and raw product
+  or subcomponent records.
+
+### Safety
+
+- Keep every OpenVEX statement active for correlation and gates. Producer
+  `not_affected` and `fixed` labels are evidence, not authenticated suppression
+  or non-finding verdicts.
+- Warn on invalid status/PURL fields, incomplete status requirements, and
+  absent in-document products instead of guessing an identity or granting a
+  quiet gate bypass.
+- Add no runtime dependency and make no context, discovery, or attestation
+  network request.
+
+### Limitations
+
+- VulnFuse does not unwrap or verify DSSE/in-toto attestations, authenticate the
+  author, inherit products from an encapsulating document, apply version-range
+  matching, or prove exploitability, reachability, remediation, or safety.
+
 ## [0.4.11] - 2026-08-11
 
 ### Fixed

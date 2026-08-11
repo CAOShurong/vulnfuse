@@ -13,6 +13,7 @@ export type ReportFormat =
   | "grype"
   | "snyk"
   | "cyclonedx"
+  | "openvex"
   | "osv-scanner"
   | "csv"
   | "vulnfuse"

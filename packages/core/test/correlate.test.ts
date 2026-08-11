@@ -25,6 +25,31 @@ function report(name: string) {
 }
 
 describe("explainable correlation", () => {
+  it("correlates OpenVEX component evidence without applying its status as a verdict", () => {
+    const parsedVex = report("openvex.json");
+    const vexFinding = parsedVex.findings[0];
+    expect(vexFinding).toBeDefined();
+    if (!vexFinding) return;
+    const scanner = parseReport({
+      name: "scanner.csv",
+      content:
+        "vulnerability_id,title,severity,purl,tool\n" +
+        'CVE-2024-32002,"CVE-2024-32002 in pkg:apk/alpine/git@2.45.2-r0?arch=x86_64",high,"pkg:apk/alpine/git@2.45.2-r0?arch=x86_64",Other Scanner\n',
+    });
+
+    const result = correlateReports([{ ...parsedVex, findings: [vexFinding] }, scanner], {
+      scope: "root-cause",
+    });
+
+    expect(result.clusters).toHaveLength(1);
+    expect(result.clusters[0]).toMatchObject({ suppressed: false, nonFinding: false });
+    expect(result.clusters[0]?.members).toHaveLength(2);
+    expect(result.clusters[0]?.sourceTools).toEqual([
+      "OpenVEX (Example VEX Producer)",
+      "Other Scanner",
+    ]);
+  });
+
   it("correlates a BOM-linked external VEX PURL with another scanner", () => {
     const parsedVex = report("cyclonedx-bomlink.json");
     const vexFinding = parsedVex.findings[0];

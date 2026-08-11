@@ -84,6 +84,37 @@ as a fixed-version candidate. The complete source `affects` array and VEX
 analysis remain in properties; VulnFuse does not convert VEX state into a
 false-positive verdict or retrieve external BOMs.
 
+## OpenVEX JSON-LD
+
+VulnFuse detects standalone OpenVEX documents whose `@context` names an
+`https://openvex.dev/ns/v...` context. It reads document author, role,
+timestamp, update time, version, tooling, and ID, plus statement:
+
+- vulnerability name, aliases, description, and reference IRI;
+- every product and every listed subcomponent;
+- PURL identifiers from `identifiers.purl` or a PURL-valued `@id`;
+- status, justification, status notes, impact statement, action statement,
+  timestamps, hashes, and other source component fields.
+
+When a product lists subcomponents, each subcomponent becomes a separate
+canonical finding and the parent product remains its asset scope. Without
+subcomponents, the product itself supplies component identity. Valid PURLs are
+canonicalized with `packageurl-js`; arbitrary IRIs and hashes stay preserved in
+format-specific properties but are not guessed into package identities.
+
+OpenVEX status is producer-supplied evidence. `not_affected`, `affected`,
+`fixed`, and `under_investigation` are preserved under
+`properties["openvex.status"]`, but none is converted into VulnFuse suppression
+or non-finding state. Invalid status, invalid declared PURLs, incomplete
+`not_affected`/`affected` statements, and missing in-document products emit
+targeted warnings and cannot create a silent gate bypass.
+
+The parser does not fetch JSON-LD contexts, inherit products from an
+encapsulating document, unwrap DSSE/in-toto attestations, verify signatures,
+authenticate authors, apply version-range matching, or prove reachability or
+exploitability. Supply the standalone OpenVEX predicate as JSON when the source
+is an attestation, and validate its provenance separately.
+
 ## OSV-Scanner JSON
 
 VulnFuse reads `results[].source` and `results[].packages[]`, including package name, ecosystem, version, PURL, vulnerability ID, aliases, summary, details, references, severity metadata, affected ranges, and `fixed` events.

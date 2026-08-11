@@ -50,6 +50,10 @@ jobs:
           if ($result.summary.inputFindings -ne 4 -or $result.summary.clusters -ne 3 -or $result.summary.duplicatesCollapsed -ne 1) {
             throw "Unexpected fixture correlation summary"
           }
+          $openvex = node packages/cli/dist/index.js inspect packages/core/test/fixtures/openvex.json --json | ConvertFrom-Json
+          if ($openvex[0].format -ne "openvex" -or $openvex[0].findings -ne 3 -or $openvex[0].active -ne 3) {
+            throw "Unexpected OpenVEX inspection summary"
+          }
 
   action-smoke:
     name: Bundled GitHub Action smoke test
@@ -86,6 +90,24 @@ jobs:
           test "$ABSENT" = "0"
           test "$UNCHANGED" = "1"
           test -s "$REPORT"
+      - id: openvex
+        name: Inspect OpenVEX with the repository Action
+        uses: ./
+        with:
+          reports: packages/core/test/fixtures/openvex.json
+          format: json
+          output: ${{ runner.temp }}/vulnfuse-openvex.json
+      - name: Validate OpenVEX Action outputs
+        env:
+          FINDINGS: ${{ steps.openvex.outputs.findings }}
+          ACTIVE: ${{ steps.openvex.outputs.active }}
+          SUPPRESSED: ${{ steps.openvex.outputs.suppressed }}
+          REPORT: ${{ steps.openvex.outputs.report }}
+        run: |
+          test "$FINDINGS" = "3"
+          test "$ACTIVE" = "3"
+          test "$SUPPRESSED" = "0"
+          test -s "$REPORT"
 
   package-smoke:
     name: Clean package install
@@ -113,6 +135,9 @@ jobs:
           npx vulnfuse --version
           npx vulnfuse inspect "../packages/core/test/fixtures/{trivy,grype}.json" --json > inspection.json
           test "$(node -p "require('./inspection.json').length")" = "2"
+          npx vulnfuse inspect ../packages/core/test/fixtures/openvex.json --json > openvex-inspection.json
+          test "$(node -p "require('./openvex-inspection.json')[0].format")" = "openvex"
+          test "$(node -p "require('./openvex-inspection.json')[0].findings")" = "3"
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md
           npx vulnfuse diff --baseline ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format html --output portable.html

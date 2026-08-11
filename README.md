@@ -2,7 +2,7 @@
   <img src="docs/assets/logo.svg" width="112" alt="VulnFuse shield logo">
   <h1>VulnFuse</h1>
   <p><strong>Stop triaging the same vulnerability three times.</strong></p>
-  <p>Local-first, explainable correlation for SARIF, Trivy, Grype, Snyk, CycloneDX, OSV-Scanner, and CSV reports.</p>
+  <p>Local-first, explainable correlation for SARIF, Trivy, Grype, Snyk, CycloneDX, OpenVEX, OSV-Scanner, and CSV reports.</p>
 
 [![CI](https://github.com/CAOShurong/vulnfuse/actions/workflows/ci.yml/badge.svg)](https://github.com/CAOShurong/vulnfuse/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/CAOShurong/vulnfuse/actions/workflows/codeql.yml/badge.svg)](https://github.com/CAOShurong/vulnfuse/actions/workflows/codeql.yml)
@@ -20,7 +20,7 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 
 ## What makes it useful
 
-- **Seven input families, five outputs.** Read SARIF 2.1, Trivy JSON, Grype JSON, Snyk JSON, CycloneDX VDR/VEX, OSV-Scanner JSON, and ordinary CSV. Write VulnFuse JSON, SARIF, CSV, Markdown, or one self-contained interactive HTML file.
+- **Eight input families, five outputs.** Read SARIF 2.1, Trivy JSON, Grype JSON, Snyk JSON, CycloneDX VDR/VEX, standalone OpenVEX, OSV-Scanner JSON, and ordinary CSV. Write VulnFuse JSON, SARIF, CSV, Markdown, or one self-contained interactive HTML file.
 - **Every merge is reviewable.** Match edges retain the score, confidence, evidence, and exact reasons such as a shared CVE, PURL, asset, location, rule, or scanner fingerprint.
 - **Conflicts are first-class.** Explicitly different vulnerability IDs, packages, assets, or finding kinds can block a merge even when titles look similar.
 - **A bridge cannot bypass a conflict.** Candidate edges are considered strongest-first, and two clusters join only after every cross-cluster member pair passes the same hard-blocker policy.
@@ -41,10 +41,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.11 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.12 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.11/vulnfuse-core-0.4.11.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.11/vulnfuse-0.4.11.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.12/vulnfuse-core-0.4.12.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.12/vulnfuse-0.4.12.tgz
 vulnfuse --version
 ```
 
@@ -132,7 +132,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.11
+  uses: CAOShurong/vulnfuse@v0.4.12
   with:
     reports: |
       reports/trivy.json
@@ -169,6 +169,7 @@ When a baseline is supplied, the selected output format contains the comparison 
 | Grype JSON       | matches, artifacts, PURLs, locations, advisories, fixes                         | The JSON schema has changed over time; fixtures cover the current common shape |
 | Snyk JSON        | legacy `vulnerabilities`, identifiers, dependency paths, fixes                  | Snyk Code SARIF should be supplied as SARIF                                    |
 | CycloneDX JSON   | components, vulnerabilities, ratings, affects, analysis/VEX context             | XML BOMs are not parsed yet                                                    |
+| OpenVEX JSON-LD  | products, subcomponents, vulnerability aliases, status, justification, actions  | Status is retained as evidence, never trusted as a suppression verdict         |
 | OSV-Scanner JSON | sources, packages, aliases, affected ranges, fixed events                       | Scanner output is accepted; arbitrary OSV records need the result wrapper      |
 | CSV              | common ID, severity, component, PURL, asset, location, rule, and fix columns    | Header aliases are documented in [FORMATS.md](docs/FORMATS.md)                 |
 
@@ -209,13 +210,14 @@ Scanner reports can contain repository paths, package inventories, hostnames, co
 - A correlation result does **not** prove that a vulnerability is exploitable, reachable, fixed, or a false positive.
 - A SARIF suppression is producer-supplied review state. VulnFuse preserves and applies it to gates; it does not independently validate the justification or mutate an alert in GitHub or another platform.
 - A SARIF non-finding kind is producer-supplied rule outcome. VulnFuse preserves and applies it to local gates; it does not rerun the check or prove the outcome or applicability.
+- An OpenVEX status is a producer assertion. VulnFuse preserves it for review but does not authenticate the author, verify an attestation, prove reachability, or convert `not_affected` or `fixed` into a quiet gate bypass.
 - GitHub code scanning does not document `result.kind` in its supported SARIF subset. VulnFuse therefore omits non-finding clusters from exported `results[]` and retains them under `run.properties.nonFindingClusters`; GitHub will not display those retained property records as alerts.
 
 Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in automation. Report suspected vulnerabilities through the private process in [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-`v0.4.11` is a public alpha with explainable, cluster-safe cross-scanner correlation, CycloneDX multi-affect and PURL-bearing BOM-Link support, three-state SARIF disposition, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. CycloneDX support validates direct PURLs and PURL fragments but does not retrieve external BOMs or guess arbitrary BOM-Link identities. Three-state disposition separates active findings, effectively suppressed findings, and producer-declared non-finding outcomes without deleting source evidence. It does not independently validate a suppression, rerun a check, establish applicability, or change hosted alert state. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures, pinned public CycloneDX and Microsoft BinSkim samples, and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
+`v0.4.12` is a public alpha with explainable, cluster-safe cross-scanner correlation, standalone OpenVEX and CycloneDX VEX input, three-state SARIF disposition, scanner coverage/overlap analytics, scan-set-aware baseline comparison, and self-contained offline HTML review in the core library, CLI, browser workbench, and GitHub Action. Cluster-safe means that no proposed transitive merge is allowed to carry an existing hard blocker into one cluster; it does not mean that accepted correlations are independently proven ground truth. OpenVEX and CycloneDX support validates available PURLs and preserves producer context, but does not fetch external evidence, verify attestations or authors, or turn VEX status into a suppression verdict. Three-state disposition separates active findings, effectively suppressed findings, and producer-declared SARIF non-finding outcomes without deleting source evidence. It does not independently validate a suppression, rerun a check, establish applicability, or change hosted alert state. Scan-set awareness detects tool-name and report-count drift; it cannot establish that two scans used the same asset, configuration, scanner build, or vulnerability database. The core behavior is covered by synthetic cross-format fixtures, pinned public OpenVEX, CycloneDX, and Microsoft BinSkim samples, and end-to-end CLI/browser/Action checks, but real vendor output varies by scanner version. Please open a sanitized [format compatibility issue](https://github.com/CAOShurong/vulnfuse/issues/new?template=format.yml) when a legitimate report is not parsed correctly.
 
 Near-term work:
 

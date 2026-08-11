@@ -22,6 +22,7 @@ export function detectFormat(content: string, fileName = "report"): ReportFormat
     return "sarif";
   }
   if (asString(root["bomFormat"])?.toLowerCase() === "cyclonedx") return "cyclonedx";
+  if (openVexContext(root["@context"]) && Array.isArray(root["statements"])) return "openvex";
   if (Array.isArray(root["matches"]) && root["descriptor"] !== undefined) return "grype";
   if (
     Array.isArray(root["Results"]) &&
@@ -41,6 +42,12 @@ export function detectFormat(content: string, fileName = "report"): ReportFormat
   )
     return "snyk";
   return "unknown";
+}
+
+function openVexContext(value: unknown): boolean {
+  return [value, ...asArray(value)].some((candidate) =>
+    /^https:\/\/openvex\.dev\/ns\/v\d+(?:\.\d+){0,2}\/?$/i.test(asString(candidate) ?? ""),
+  );
 }
 
 function looksLikeDelimitedText(value: string): boolean {

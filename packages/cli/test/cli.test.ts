@@ -11,6 +11,7 @@ const cli = resolve(import.meta.dirname, "../dist/index.js");
 const trivy = resolve(import.meta.dirname, "../../core/test/fixtures/trivy.json");
 const grype = resolve(import.meta.dirname, "../../core/test/fixtures/grype.json");
 const csv = resolve(import.meta.dirname, "../../core/test/fixtures/generic.csv");
+const openVex = resolve(import.meta.dirname, "../../core/test/fixtures/openvex.json");
 const suppressedSarif = resolve(
   import.meta.dirname,
   "../../core/test/fixtures/sarif-suppressed.json",
@@ -30,6 +31,47 @@ afterEach(async () => {
 });
 
 describe("CLI", () => {
+  it("inspects OpenVEX and correlates its component evidence in a separate process", async () => {
+    const inspection = await execute(process.execPath, [cli, "inspect", openVex, "--json"]);
+    expect(JSON.parse(inspection.stdout)[0]).toMatchObject({
+      format: "openvex",
+      tool: "OpenVEX (Example VEX Producer)",
+      findings: 3,
+      active: 3,
+      suppressed: 0,
+      nonFinding: 0,
+    });
+
+    const scanner = join(testDirectory, "scanner.csv");
+    const output = join(testDirectory, "openvex-result.json");
+    await writeFile(
+      scanner,
+      "vulnerability_id,title,severity,purl,tool\n" +
+        'CVE-2024-32002,"CVE-2024-32002 for pkg:apk/alpine/git@2.45.2-r0?arch=x86_64 (OpenVEX: not_affected)",high,"pkg:apk/alpine/git@2.45.2-r0?arch=x86_64",Other Scanner\n',
+      "utf8",
+    );
+    await execute(process.execPath, [
+      cli,
+      "merge",
+      openVex,
+      scanner,
+      "--scope",
+      "root-cause",
+      "--format",
+      "json",
+      "--output",
+      output,
+    ]);
+
+    const result = JSON.parse(await readFile(output, "utf8")) as {
+      summary: { inputFindings: number; clusters: number; duplicatesCollapsed: number };
+      clusters: Array<{ sourceTools: string[]; suppressed: boolean; nonFinding: boolean }>;
+    };
+    expect(result.summary).toMatchObject({ inputFindings: 4, clusters: 3, duplicatesCollapsed: 1 });
+    expect(result.clusters[0]).toMatchObject({ suppressed: false, nonFinding: false });
+    expect(result.clusters.some((cluster) => cluster.sourceTools.length === 2)).toBe(true);
+  });
+
   it("inspects and correlates reports in a separate process", async () => {
     const inspection = await execute(process.execPath, [cli, "inspect", trivy, grype]);
     expect(inspection.stdout).toContain("Trivy");
