@@ -108,7 +108,8 @@ jobs:
           mkdir clean-install
           cd clean-install
           npm init -y
-          npm install ../package-artifacts/vulnfuse-core-0.4.2.tgz ../package-artifacts/vulnfuse-0.4.2.tgz
+          version=$(node -p "require('../package.json').version")
+          npm install "../package-artifacts/vulnfuse-core-${version}.tgz" "../package-artifacts/vulnfuse-${version}.tgz"
           npx vulnfuse --version
           npx vulnfuse merge ../packages/core/test/fixtures/trivy.json ../packages/core/test/fixtures/grype.json --format markdown --output report.md
           grep -q "1 duplicate records were collapsed" report.md
