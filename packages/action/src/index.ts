@@ -4,6 +4,7 @@ import * as core from "@actions/core";
 import * as glob from "@actions/glob";
 import {
   compareCorrelations,
+  countIncompleteReports,
   correlateReports,
   describeScanSetChange,
   exportBaselineDiff,
@@ -39,6 +40,7 @@ export async function run(): Promise<void> {
     const failOn = inputChoice("fail-on", "none", allowedFailOn);
     const failOnNew = inputChoice("fail-on-new", "none", allowedFailOn);
     const failOnScanSetChange = inputBoolean("fail-on-scan-set-change", false);
+    const failOnIncomplete = inputBoolean("fail-on-incomplete", false);
     const threshold = inputNumber("threshold", 70, 0, 100);
     const maxBytes = inputNumber("max-bytes", 100 * 1024 * 1024, 1, 1024 ** 3, true);
     if (!baselinePatterns && failOnNew !== "none") {
@@ -64,6 +66,10 @@ export async function run(): Promise<void> {
       const baseline = correlateReports(baselineReports, { threshold, scope });
       baselineDiff = compareCorrelations(baseline, result);
     }
+    const incompleteReports = countIncompleteReports([
+      ...(baselineDiff?.baselineReports ?? []),
+      ...result.reports,
+    ]);
     await writeFileAtomic(
       output,
       baselineDiff ? exportBaselineDiff(baselineDiff, format) : exportCorrelation(result, format),
@@ -82,8 +88,9 @@ export async function run(): Promise<void> {
     core.setOutput("absent", baselineDiff?.summary.absent ?? 0);
     core.setOutput("unchanged", baselineDiff?.summary.unchanged ?? 0);
     core.setOutput("scan-set-changed", baselineDiff?.scanSetChange.detected ?? false);
+    core.setOutput("incomplete-reports", incompleteReports);
     core.setOutput("report", output);
-    await writeSummary(result, output, baselineDiff);
+    await writeSummary(result, output, baselineDiff, incompleteReports);
     core.info(
       `${result.summary.inputFindings} source records became ${result.summary.clusters} clusters (${result.summary.activeClusters} active, ${result.summary.suppressedClusters} suppressed, and ${result.summary.nonFindingClusters} non-finding); ${result.summary.duplicatesCollapsed} duplicates collapsed.`,
     );
@@ -116,6 +123,11 @@ export async function run(): Promise<void> {
     if (baselineDiff?.scanSetChange.detected && failOnScanSetChange) {
       core.setFailed(
         `The scanner tools or per-tool report counts changed from the baseline. The comparison was still written to ${output}.`,
+      );
+    }
+    if (incompleteReports > 0 && failOnIncomplete) {
+      core.setFailed(
+        `${incompleteReports} input report${incompleteReports === 1 ? "" : "s"} contained SARIF run-completeness warnings. Partial evidence and outputs were retained at ${output}.`,
       );
     }
   } catch (error) {
@@ -165,6 +177,7 @@ async function writeSummary(
   result: ReturnType<typeof correlateReports>,
   output: string,
   baselineDiff?: BaselineDiffResult,
+  incompleteReports = 0,
 ): Promise<void> {
   const table = [
     [
@@ -213,6 +226,10 @@ async function writeSummary(
       true,
     )
     .addTable(table)
+    .addRaw(
+      `Incomplete input reports: **${incompleteReports}**. SARIF producer run-health metadata is evidence; a zero count does not prove scan completeness.`,
+      true,
+    )
     .addHeading("Scanner coverage", 3)
     .addRaw(
       `**${result.summary.coverage.singleToolClusters} one-tool clusters** and **${result.summary.coverage.multiToolClusters} multi-tool clusters**. Agreement is evidence coverage, not a correctness vote.`,

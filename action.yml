@@ -39,6 +39,10 @@ inputs:
     description: "With baseline-reports, fail after writing when scanner tools or per-tool report counts changed."
     required: false
     default: "false"
+  fail-on-incomplete:
+    description: Fail after writing when SARIF run metadata indicates incomplete input evidence.
+    required: false
+    default: "false"
   max-bytes:
     description: Maximum bytes accepted for each input report.
     required: false
@@ -70,6 +74,8 @@ outputs:
     description: Number of clusters unchanged from the baseline.
   scan-set-changed:
     description: Whether scanner tools or per-tool report counts changed from the baseline.
+  incomplete-reports:
+    description: Number of input reports with SARIF run-completeness warnings.
   report:
     description: Path to the generated report.
 runs:

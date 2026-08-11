@@ -127,7 +127,7 @@ function exportDiffSarif(result: BaselineDiffResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.12",
+            semanticVersion: "0.4.13",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map(ruleFor),
           },
@@ -139,6 +139,8 @@ function exportDiffSarif(result: BaselineDiffResult): string {
               baselineComparison: result.summary,
               scanSetChange: result.scanSetChange,
               correlationOptions: result.options,
+              baselineReports: result.baselineReports,
+              currentReports: result.currentReports,
             },
           },
         ],

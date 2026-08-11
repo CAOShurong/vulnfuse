@@ -37,6 +37,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 | Quadratic scanner-pair output            | Complete pairwise coverage rows only when 20 or fewer tools are present                           |
 | Output destroys an input                 | CLI and Action reject identical resolved input/output paths                                       |
 | Baseline coverage drift is misread       | Structured scanner/report-count drift warning; optional post-write CLI/Action failure             |
+| Failed SARIF run looks complete          | Preserve partial findings; targeted run-health warnings; optional post-write CLI/Action failure   |
 | Malformed suppression bypasses a gate    | Unknown containers, kinds, or statuses warn and remain active; mixed clusters remain active       |
 | Malformed result kind bypasses a gate    | Unknown, non-string, or contradictory kinds warn and remain active; active corroboration wins     |
 | Untrusted OpenVEX bypasses a gate        | VEX status is preserved but never converted into suppression or non-finding state                 |
@@ -67,6 +68,7 @@ The Action runs inside the calling repository's runner. Glob expansion does not 
 13. **Suppression is an assertion, not independent validation.** A scanner or postprocessor can mark a SARIF result suppressed and provide a misleading justification. VulnFuse preserves that evidence and applies current SARIF disposition semantics, but it does not authenticate the producer, prove risk acceptance, or synchronize dismissal state with GitHub or another vulnerability-management system. Protect gate inputs and review consequential suppressions.
 14. **A non-finding result kind is also an assertion.** A compromised, buggy, or misconfigured producer can label a result `pass`, `informational`, or `notApplicable`. VulnFuse rejects malformed or contradictory combinations and lets active corroborating evidence win, but it does not rerun the rule, verify the target, or prove applicability. Protect gate inputs and retain scanner execution logs for consequential decisions.
 15. **OpenVEX status and authorship are not authenticated.** A standalone document can claim `not_affected` or `fixed` without a valid signature, complete product scope, or sound analysis. VulnFuse keeps those labels active and visible, does not fetch JSON-LD contexts or unwrap attestations, and does not verify signatures, authors, reachability, or remediation. Validate provenance through the distribution channel before relying on a VEX assertion outside VulnFuse.
+16. **Run-health metadata is useful but producer-controlled and optional.** VulnFuse warns on SARIF's documented incomplete-result signals and can fail after preserving the output. A compromised or buggy producer can falsely claim success, omit invocations, or fail to describe unscanned targets and rules. The absence of an incomplete warning is not proof of coverage; retain the scanner exit status, logs, configuration, and target inventory for consequential decisions.
 
 ## Non-goals
 

@@ -4,6 +4,33 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.13] - 2026-08-12
+
+### Added
+
+- Detect SARIF's documented incomplete-result signals: unsuccessful or
+  malformed invocations, error-level tool/configuration notifications, and
+  unavailable, invalid, or externally referenced result arrays.
+- Add opt-in CLI and Action `fail-on-incomplete` gates that retain partial
+  findings, finish the selected export, and then return failure.
+- Expose the Action `incomplete-reports` count, retain per-run health metadata,
+  and carry source report warnings through correlation, baseline JSON, and
+  SARIF invocation properties.
+
+### Safety
+
+- Preserve every available inline finding instead of rejecting a partial run;
+  warnings identify uncertainty without turning producer failure metadata into
+  a vulnerability disposition.
+- Add no runtime dependency, make no external-property request, and never
+  execute a SARIF-recorded command line.
+
+### Limitations
+
+- VulnFuse does not perform full SARIF schema validation, retrieve external
+  property files, prove which targets or rules ran, or infer that missing
+  run-health metadata means a scan was complete.
+
 ## [0.4.12] - 2026-08-12
 
 ### Added
@@ -271,7 +298,15 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 - Local-only browser workbench with safe synthetic demo and multi-format downloads.
 - CI, CodeQL, Pages deployment, dependency updates, security policy, threat model, and contribution guidance.
 
-[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/CAOShurong/vulnfuse/compare/v0.4.13...HEAD
+[0.4.13]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.13
+[0.4.12]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.12
+[0.4.11]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.11
+[0.4.10]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.10
+[0.4.9]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.9
+[0.4.8]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.8
+[0.4.7]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.7
+[0.4.6]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.6
 [0.4.5]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.5
 [0.4.4]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.4
 [0.4.3]: https://github.com/CAOShurong/vulnfuse/releases/tag/v0.4.3

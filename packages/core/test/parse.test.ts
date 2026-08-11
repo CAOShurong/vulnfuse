@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { detectFormat, parseReport } from "../src/index.js";
+import {
+  countIncompleteReports,
+  detectFormat,
+  isIncompleteReportWarning,
+  parseReport,
+} from "../src/index.js";
 
 function fixture(name: string): string {
   return readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), "utf8");
@@ -228,6 +233,77 @@ describe("report parsing", () => {
         }),
       ]),
     );
+  });
+
+  it("retains partial SARIF findings while surfacing every run-completeness signal", () => {
+    const parsed = parseReport({
+      name: "sarif-incomplete.json",
+      content: fixture("sarif-incomplete.json"),
+    });
+
+    expect(parsed.findings).toHaveLength(1);
+    expect(parsed.findings[0]?.title).toBe("Partial evidence must be retained.");
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "sarif.execution-failed",
+          path: "runs[0].invocations[0].executionSuccessful",
+        }),
+        expect.objectContaining({
+          code: "sarif.tool-execution-error",
+          path: "runs[0].invocations[0].toolExecutionNotifications[0]",
+        }),
+        expect.objectContaining({
+          code: "sarif.tool-configuration-error",
+          path: "runs[0].invocations[0].toolConfigurationNotifications[0]",
+        }),
+        expect.objectContaining({
+          code: "sarif.invalid-invocation",
+          path: "runs[0].invocations[1]",
+        }),
+        expect.objectContaining({
+          code: "sarif.execution-status-unknown",
+          path: "runs[0].invocations[2].executionSuccessful",
+        }),
+      ]),
+    );
+    expect(parsed.warnings.filter(isIncompleteReportWarning)).toHaveLength(5);
+    expect(countIncompleteReports([parsed])).toBe(1);
+  });
+
+  it("warns when SARIF results are unavailable or externally referenced", () => {
+    const unavailable = parseReport({
+      name: "unavailable.sarif",
+      content: JSON.stringify({
+        version: "2.1.0",
+        runs: [{ tool: { driver: { name: "Unavailable Scanner" } } }],
+      }),
+    });
+    const external = parseReport({
+      name: "external.sarif",
+      content: JSON.stringify({
+        version: "2.1.0",
+        runs: [
+          {
+            tool: { driver: { name: "External Scanner" } },
+            externalPropertyFileReferences: {
+              results: [{ location: { uri: "results.sarif-external-properties" } }],
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(unavailable.warnings).toContainEqual(
+      expect.objectContaining({ code: "sarif.results-unavailable", path: "runs[0].results" }),
+    );
+    expect(external.warnings).toContainEqual(
+      expect.objectContaining({
+        code: "sarif.external-results-unsupported",
+        path: "runs[0].externalPropertyFileReferences.results",
+      }),
+    );
+    expect(countIncompleteReports([unavailable, external])).toBe(2);
   });
 
   it("keeps non-problem SARIF result kinds as evidence without treating them as findings", () => {

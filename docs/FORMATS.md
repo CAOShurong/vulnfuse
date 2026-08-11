@@ -29,12 +29,15 @@ Missing evidence is not fabricated. For example, a CVSS score is not inferred wh
 VulnFuse reads:
 
 - `runs[].tool.driver` name, version, rules, descriptions, tags, and `security-severity`;
+- `runs[].invocations[]` boolean execution status plus error-level tool and configuration notifications;
 - `results[]` rule ID, kind, level, message, properties, fingerprints, partial fingerprints, and references;
 - first physical and logical location, including URI, region, and fully qualified symbol.
 
 SARIF results default to `sast`; rule tags can classify SCA, container, IaC, secret, DAST, or license findings. A rule's numeric `security-severity` takes precedence over SARIF's diagnostic `level`.
 
 SARIF `result.kind` defaults to `fail` when omitted. Valid `pass`, `informational`, and `notApplicable` values become non-finding evidence when `level` is `none` or omitted. `fail`, `open`, and `review` remain active. An unknown or non-string kind emits `sarif.invalid-result-kind`; a non-fail kind paired with an explicit level other than `none` emits `sarif.inconsistent-result-kind`. Both conservative failure cases preserve the raw value under `properties["sarif.resultKind"]` and remain gate-eligible.
+
+SARIF run completeness is independent of finding disposition. VulnFuse emits targeted warnings when an invocation declares `executionSuccessful: false`, omits a valid boolean execution status, contains an error-level tool/configuration notification, or is malformed. A null, absent, invalid, or externally referenced `results` value also warns because external property files are not fetched. Available inline results are still parsed and correlated. CLI/Action `fail-on-incomplete` is opt-in and applies only after requested output is written; a missing warning does not prove that the producer scanned every intended target and rule.
 
 VulnFuse also reads `results[].suppressions`. An absent, `null`, or empty list is active. A non-empty valid list is effectively suppressed when every entry has status `accepted` or omits status. If any entry is `underReview` or `rejected`, the result remains active. An unrecognized container, object, kind, or status emits `sarif.invalid-suppression` and keeps the result active rather than granting a quiet gate bypass. Kinds are limited to SARIF's `inSource` and `external` values.
 
@@ -154,7 +157,7 @@ Canonical VulnFuse JSON can be supplied again as input. Valid cluster members ar
 
 ## Output contracts
 
-A plain correlation exports the complete `CorrelationResult`. A baseline comparison exports a `BaselineDiffResult` containing baseline/current summaries, a structured `scanSetChange`, and one item per `new`, `updated`, `unchanged`, or `absent` cluster. JSON preserves full evidence; each emitted CSV finding row repeats the scan-set warning plus `baseline_state` and changed fields, while an empty CSV has only its header; Markdown focuses on changes; SARIF writes `baselineState` on every result, a stable `primaryLocationLineHash` partial fingerprint, and the scan-set structure in invocation properties.
+A plain correlation exports the complete `CorrelationResult`. A baseline comparison exports a `BaselineDiffResult` containing baseline/current report summaries and warnings, correlation summaries, a structured `scanSetChange`, and one item per `new`, `updated`, `unchanged`, or `absent` cluster. JSON preserves full evidence; each emitted CSV finding row repeats the scan-set warning plus `baseline_state` and changed fields, while an empty CSV has only its header; Markdown focuses on changes; SARIF writes `baselineState` on every result, a stable `primaryLocationLineHash` partial fingerprint, and source-report health plus scan-set structure in invocation properties.
 
 Every report summary has a primary `tool` plus a sorted `tools` list. The list records every producer represented by a mixed CSV file or multi-run SARIF document, including declared SARIF runs with zero findings.
 

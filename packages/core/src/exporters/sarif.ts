@@ -11,7 +11,7 @@ export function exportSarif(result: CorrelationResult): string {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.12",
+            semanticVersion: "0.4.13",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => ruleFor(cluster)),
           },
@@ -19,7 +19,11 @@ export function exportSarif(result: CorrelationResult): string {
         invocations: [
           {
             executionSuccessful: true,
-            properties: { summary: result.summary, correlationOptions: result.options },
+            properties: {
+              summary: result.summary,
+              correlationOptions: result.options,
+              sourceReports: result.reports,
+            },
           },
         ],
         results: emittedClusters.map((cluster) => resultFor(cluster)),

@@ -224,6 +224,7 @@ export interface CorrelationResult {
     tools: string[];
     findings: number;
     warnings: ParseWarning[];
+    metadata: Record<string, JsonValue>;
   }>;
   clusters: FindingCluster[];
   rejectedCandidates: ClusterEdge[];
@@ -269,6 +270,8 @@ export interface BaselineDiffResult {
   options: CorrelationOptions;
   baselineSummary: CorrelationSummary;
   currentSummary: CorrelationSummary;
+  baselineReports: CorrelationResult["reports"];
+  currentReports: CorrelationResult["reports"];
   scanSetChange: ScanSetChange;
   items: BaselineDiffItem[];
   summary: BaselineDiffSummary;

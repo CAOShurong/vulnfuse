@@ -1,6 +1,6 @@
 {
   "name": "@vulnfuse/action",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
@@ -13,7 +13,7 @@
   "dependencies": {
     "@actions/core": "3.0.1",
     "@actions/glob": "0.7.0",
-    "@vulnfuse/core": "0.4.12"
+    "@vulnfuse/core": "0.4.13"
   },
   "devDependencies": {
     "esbuild": "0.28.2"
