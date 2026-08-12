@@ -42,7 +42,20 @@ VulnFuse reads:
 - `results[]` rule ID, kind, level, message, properties, fingerprints, partial fingerprints, and references;
 - first physical and logical location, including URI, region, and fully qualified symbol.
 
-SARIF results default to `sast`; rule tags can classify SCA, container, IaC, secret, DAST, or license findings. A rule's numeric `security-severity` takes precedence over SARIF's diagnostic `level`.
+SARIF results default to `sast`; rule names and tags can classify SCA,
+container, IaC, secret, DAST, or license findings. A rule's numeric
+`security-severity` takes precedence over SARIF's diagnostic `level`.
+
+For runs whose driver name is exactly `Trivy` (case-insensitive), VulnFuse also
+reads the producer's bounded `properties.imageName` and
+`properties.repoDigests` container fields. One unambiguous
+`<repository>@sha256:<64 hex>` identity becomes a canonical basename OCI PURL
+and image asset; the original artifact URI remains the finding location. This
+lets product-scoped OpenVEX evidence correlate on the exact product and
+vulnerability ID. Different producers, malformed references, and multiple
+distinct valid identities are not guessed into a product PURL. These fields are
+producer assertions: they are not fetched, authenticated, or converted into a
+VEX verdict.
 
 SARIF `result.kind` defaults to `fail` when omitted. Valid `pass`, `informational`, and `notApplicable` values become non-finding evidence when `level` is `none` or omitted. `fail`, `open`, and `review` remain active. An unknown or non-string kind emits `sarif.invalid-result-kind`; a non-fail kind paired with an explicit level other than `none` emits `sarif.inconsistent-result-kind`. Both conservative failure cases preserve the raw value under `properties["sarif.resultKind"]` and remain gate-eligible.
 

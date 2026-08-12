@@ -89,6 +89,43 @@ documents, unwrap or verify attestations, authenticate authors, apply version
 ranges, or prove reachability or exploitability. This makes OpenVEX reviewable
 beside scanner output without turning an unverified file into a gate bypass.
 
+## Trivy SARIF container identity compatibility (v0.4.24)
+
+The public v0.4.23 CLI packages and Action bundle detected three Apache-2.0
+upstream reports but lost a relationship already present in their producer
+metadata. The pinned `openvex/vexctl` v0.4.4 examples at commit
+`d344883b69c29d7b8ec11b146743db77630fc6b8` contain a Trivy 0.42.1 SARIF report
+and a two-statement OpenVEX document for the same nginx workflow. Their
+SHA-256 values were
+`F7E17D76E74E79C509BBBA2FE7763309ADD64B7FC1900DD6115788E6E77FD89D`
+and `8871FB050E23EF16F24969067CB77D60DBEFCDD50870F0390C83B0C8AA6C4128`.
+A third native Trivy JSON fixture came from Trivy v0.73.0 commit
+`40c73e5d6166dcc0346a1ab4e94499d1572854e4` and had SHA-256
+`DF6055C1B1CD54229A3095EAD3A41455F0C48C7538F8FA8D6413ABB2ADAF7D06`.
+See the pinned [`vexctl` examples](https://github.com/openvex/vexctl/tree/d344883b69c29d7b8ec11b146743db77630fc6b8/examples/sarif),
+the [Trivy fixture](https://github.com/aquasecurity/trivy/blob/40c73e5d6166dcc0346a1ab4e94499d1572854e4/integration/testdata/gomod-vex.json.golden),
+and Trivy's [SARIF writer](https://github.com/aquasecurity/trivy/blob/40c73e5d6166dcc0346a1ab4e94499d1572854e4/pkg/report/sarif.go#L137-L143).
+
+The Trivy SARIF run supplies `imageName` and `repoDigests` for
+`nginx@sha256:13d22e...`, while the OpenVEX products use the equivalent OCI
+PURL. VulnFuse v0.4.23 ignored the run properties, modeled 99 container results
+as SAST on `file:library/nginx`, and kept both matching OpenVEX statements in
+separate single-tool clusters even under root-cause scope. Across both the
+installed CLI and extracted Action, 105 source records became 66 clusters with
+zero multi-tool clusters. Two different checkout roots produced byte-identical
+outputs, proving that the already-fixed source-report label was not the cause.
+
+Trivy v0.73.0 still emits the same four run properties for container images.
+The selected repair therefore extends the existing defensive SARIF mapping
+rather than adding a converter, scanner, service, or dependency. Only a
+Trivy-named run with one unambiguous SHA-256 container identity gets an OCI PURL
+and image asset; different, malformed, or ambiguous metadata stays unguessed.
+The fixed real merge retains all 105 source records in 64 clusters, including
+two multi-tool clusters for the matching CVEs. Both OpenVEX records remain
+active and gate-eligible. This is interoperability evidence from upstream test
+fixtures, not independent adoption or proof that either producer's security
+conclusion is correct.
+
 ## Why an external VEX reference can carry package identity
 
 CycloneDX explicitly recommends separating dynamic VEX statements from a

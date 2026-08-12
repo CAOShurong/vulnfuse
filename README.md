@@ -49,10 +49,10 @@ Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or
 
 ### CLI from a release
 
-VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.23 packages directly from the GitHub release:
+VulnFuse currently requires Node.js 22.12 or newer. Install the two checksummed v0.4.24 packages directly from the GitHub release:
 
 ```bash
-npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.23/vulnfuse-core-0.4.23.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.23/vulnfuse-0.4.23.tgz
+npm install --global https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.24/vulnfuse-core-0.4.24.tgz https://github.com/CAOShurong/vulnfuse/releases/download/v0.4.24/vulnfuse-0.4.24.tgz
 vulnfuse --version
 ```
 
@@ -68,10 +68,10 @@ sha256sum -c SHA256SUMS.txt
 For online provenance verification, use a current GitHub CLI and constrain the expected repository, workflow, tag, and hosted-runner environment:
 
 ```bash
-gh attestation verify vulnfuse-0.4.23.tgz \
+gh attestation verify vulnfuse-0.4.24.tgz \
   --repo CAOShurong/vulnfuse \
   --signer-workflow CAOShurong/vulnfuse/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.4.23 \
+  --source-ref refs/tags/v0.4.24 \
   --deny-self-hosted-runners
 ```
 
@@ -193,7 +193,7 @@ The Action accepts paths or newline-separated glob patterns. Generate scanner re
 ```yaml
 - name: Correlate scanner evidence
   id: vulnfuse
-  uses: CAOShurong/vulnfuse@v0.4.23
+  uses: CAOShurong/vulnfuse@v0.4.24
   with:
     reports: |
       reports/trivy.json
@@ -291,7 +291,7 @@ Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) before using untrusted reports in a
 
 ## Project status
 
-`v0.4.23` is a public, reasonably mature v0.4 release for the documented
+`v0.4.24` is a public, reasonably mature v0.4 release for the documented
 workflows. It provides explainable, cluster-safe cross-scanner
 correlation; standalone OpenVEX and CycloneDX JSON/XML VEX input; three-state
 SARIF disposition; portable URI-base paths; bounded hosted-SARIF rule tags and
@@ -300,6 +300,9 @@ hosted SARIF. It also includes incomplete-run gates, scanner coverage,
 scan-set-aware baselines, and self-contained offline HTML review across the core
 library, CLI, browser workbench, and GitHub Action. Source-report labels and IDs
 are portable across checkout roots for the same relative workflow layout.
+Trivy container SARIF also retains its run-level image digest as canonical
+product evidence, allowing same-product OpenVEX statements to be reviewed in
+the same active cluster without treating their status as a gate verdict.
 
 Release checksums and GitHub build-provenance attestations establish byte
 integrity and tag-workflow provenance under their documented trust assumptions,

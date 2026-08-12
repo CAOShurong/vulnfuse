@@ -4,6 +4,31 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+## [0.4.24] - 2026-08-12
+
+### Fixed
+
+- Preserve Trivy container-image identity from bounded SARIF run properties,
+  normalize an unambiguous SHA-256 reference to an OCI PURL, and classify its
+  OS-package findings as container evidence instead of SAST.
+- Correlate product-scoped OpenVEX statements with Trivy SARIF findings only
+  when their vulnerability identifier and normalized image identity agree.
+
+### Security
+
+- Keep `not_affected` and `fixed` OpenVEX records active after correlation;
+  neither status becomes suppression, non-finding state, or a gate bypass.
+- Ignore non-Trivy and ambiguous run metadata for product-PURL inference. The
+  parser remains offline and adds no dependency or remote lookup.
+
+### Verification
+
+- Reproduced the defect with Apache-2.0 fixtures pinned from vexctl v0.4.4 and
+  Trivy v0.73.0 through the public v0.4.23 CLI packages and Action bundle.
+- The real three-report merge changed from 66 single-tool clusters to 62
+  single-tool and two multi-tool clusters while retaining all 105 source
+  records; CLI and Action outputs remained byte-identical across checkout roots.
+
 ## [0.4.23] - 2026-08-12
 
 ### Fixed

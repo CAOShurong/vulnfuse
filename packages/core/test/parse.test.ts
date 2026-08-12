@@ -149,6 +149,142 @@ describe("report parsing", () => {
     expect(reconstructed.sarifAutomationCategories).toEqual(parsed.sarifAutomationCategories);
   });
 
+  it("preserves Trivy SARIF container identity without guessing from other producers", () => {
+    const digest = "13d22ec63300e16014d4a42aed735207a8b33c223cff19627dd3042e5a10a3a0";
+    const imagePurl = `pkg:oci/nginx@sha256:${digest}`;
+    const trivySarif = {
+      version: "2.1.0",
+      runs: [
+        {
+          tool: {
+            driver: {
+              name: "Trivy",
+              version: "0.73.0",
+              rules: [
+                {
+                  id: "CVE-2023-27103",
+                  name: "OsPackageVulnerability",
+                  properties: { tags: ["vulnerability", "security", "HIGH"] },
+                },
+              ],
+            },
+          },
+          properties: {
+            imageName: `nginx@sha256:${digest}`,
+            repoDigests: [`nginx@sha256:${digest}`],
+          },
+          results: [
+            {
+              ruleId: "CVE-2023-27103",
+              message: { text: "Package: libde265-0" },
+              locations: [{ physicalLocation: { artifactLocation: { uri: "library/nginx" } } }],
+            },
+          ],
+        },
+      ],
+    };
+    const parsed = parseReport({ name: "trivy.sarif.json", content: JSON.stringify(trivySarif) });
+
+    expect(parsed.findings[0]).toMatchObject({
+      kind: "container",
+      component: { purl: imagePurl, path: "library/nginx" },
+      asset: { type: "image", name: imagePurl, key: imagePurl },
+      location: { uri: "library/nginx" },
+      properties: {
+        "sarif.trivyImagePurl": imagePurl,
+        "sarif.trivyImageName": `nginx@sha256:${digest}`,
+        "sarif.trivyRepoDigests": [`nginx@sha256:${digest}`],
+      },
+    });
+
+    trivySarif.runs[0]!.tool.driver.name = "Other Scanner";
+    const other = parseReport({ name: "other.sarif.json", content: JSON.stringify(trivySarif) });
+    expect(other.findings[0]).toMatchObject({
+      kind: "sca",
+      component: { path: "library/nginx" },
+      asset: { type: "file", name: "library/nginx" },
+    });
+    expect(other.findings[0]?.component?.purl).toBeUndefined();
+    expect(other.findings[0]?.properties["sarif.trivyImagePurl"]).toBeUndefined();
+
+    trivySarif.runs[0]!.tool.driver.name = "Trivy";
+    trivySarif.runs[0]!.properties.imageName = `nginx@sha256:${"1".repeat(64)}`;
+    const ambiguous = parseReport({
+      name: "ambiguous-trivy.sarif.json",
+      content: JSON.stringify(trivySarif),
+    });
+    expect(ambiguous.findings[0]?.component?.purl).toBeUndefined();
+    expect(ambiguous.findings[0]?.properties["sarif.trivyImagePurl"]).toBeUndefined();
+  });
+
+  it("correlates same-digest Trivy SARIF and OpenVEX evidence without trusting VEX status", () => {
+    const digest = "13d22ec63300e16014d4a42aed735207a8b33c223cff19627dd3042e5a10a3a0";
+    const product = `pkg:oci/nginx@sha256%3A${digest}`;
+    const vulnerability = "CVE-2023-27103";
+    const sarif = parseReport({
+      name: "trivy.sarif.json",
+      content: JSON.stringify({
+        version: "2.1.0",
+        runs: [
+          {
+            tool: {
+              driver: {
+                name: "Trivy",
+                version: "0.73.0",
+                rules: [
+                  {
+                    id: vulnerability,
+                    name: "OsPackageVulnerability",
+                    properties: { tags: ["vulnerability", "security", "HIGH"] },
+                  },
+                ],
+              },
+            },
+            properties: {
+              imageName: `nginx@sha256:${digest}`,
+              repoDigests: [`nginx@sha256:${digest}`],
+            },
+            results: [
+              {
+                ruleId: vulnerability,
+                message: { text: "Package: libde265-0" },
+                locations: [{ physicalLocation: { artifactLocation: { uri: "library/nginx" } } }],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    const openvex = parseReport({
+      name: "product.openvex.json",
+      content: JSON.stringify({
+        "@context": "https://openvex.dev/ns/v0.2.0",
+        "@id": "https://example.test/vex/trivy-container",
+        author: "Example VEX Producer",
+        timestamp: "2026-08-12T00:00:00Z",
+        version: 1,
+        statements: [
+          {
+            vulnerability: { name: vulnerability },
+            products: [{ "@id": product }],
+            status: "not_affected",
+            justification: "component_not_present",
+          },
+        ],
+      }),
+    });
+
+    const correlated = correlateReports([sarif, openvex]);
+    expect(correlated.clusters).toHaveLength(1);
+    expect(correlated.clusters[0]).toMatchObject({ suppressed: false, nonFinding: false });
+    expect(correlated.clusters[0]?.members).toHaveLength(2);
+    expect(correlated.clusters[0]?.sourceTools).toEqual([
+      "OpenVEX (Example VEX Producer)",
+      "Trivy",
+    ]);
+    expect(correlated.summary.coverage.multiToolClusters).toBe(1);
+  });
+
   it("parses supported evidence from the official CycloneDX XML VEX fixture", () => {
     const parsed = parseReport({
       name: "cyclonedx-vex.xml",

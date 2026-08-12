@@ -21,7 +21,7 @@ export function exportSarif(result: CorrelationResult, options: ExportOptions = 
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.23",
+            semanticVersion: "0.4.24",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) =>
               hostedSarifRule(cluster, securityScore(cluster.severity)),

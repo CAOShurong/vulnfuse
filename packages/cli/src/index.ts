@@ -22,7 +22,7 @@ import { Command, InvalidArgumentError, Option } from "commander";
 import { glob, isDynamicPattern } from "tinyglobby";
 import { portableReportNames, readFileLimited, writeFileAtomic } from "@vulnfuse/core/node";
 
-const version = "0.4.23";
+const version = "0.4.24";
 const maxReports = 1_000;
 
 interface MergeOptions {
