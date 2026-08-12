@@ -27007,7 +27007,7 @@ function renderPortableReport(report) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <meta name="generator" content="VulnFuse 0.4.23">
+  <meta name="generator" content="VulnFuse 0.4.24">
   <title>${escapeHtml(report.title)}</title>
   <style>${portableStyles}${coverageStyles}</style>
 </head>
@@ -27602,7 +27602,7 @@ function exportDiffSarif(result, options) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.23",
+            semanticVersion: "0.4.24",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: clusters.map((cluster) => hostedSarifRule(cluster, securityScore(cluster.severity)))
           }
@@ -27789,7 +27789,7 @@ function exportSarif(result, options = {}) {
         tool: {
           driver: {
             name: "VulnFuse",
-            semanticVersion: "0.4.23",
+            semanticVersion: "0.4.24",
             informationUri: "https://github.com/CAOShurong/vulnfuse",
             rules: emittedClusters.map((cluster) => hostedSarifRule(cluster, securityScore2(cluster.severity)))
           }
@@ -43532,6 +43532,7 @@ function parseSarif(root, reportName) {
     if (healthValue !== void 0)
       runHealth.push(healthValue);
     const originalUriBaseIds = asRecord(run2?.["originalUriBaseIds"]) ?? {};
+    const runIdentity = trivyRunIdentity(toolName, asRecord(run2?.["properties"]) ?? {});
     const rules = /* @__PURE__ */ new Map();
     for (const ruleValue of asArray(driver?.["rules"])) {
       const rule = asRecord(ruleValue);
@@ -43552,6 +43553,7 @@ function parseSarif(root, reportName) {
       const title = asString(message?.["text"]) ?? asString(message?.["markdown"]) ?? asString(asRecord(rule?.["shortDescription"])?.["text"]) ?? ruleId ?? "SARIF finding";
       const description = asString(asRecord(rule?.["fullDescription"])?.["text"]) ?? asString(asRecord(rule?.["help"])?.["text"]);
       const tags = asArray(ruleProperties["tags"]).map(asString).filter((value2) => Boolean(value2));
+      const kind = sarifKind([...tags, asString(rule?.["name"]) ?? "", runIdentity.productPurl ? "container" : ""], resultProperties);
       const identifiers = extractIdentifiers([ruleId, title, description, ...tags], "related");
       if (ruleId) {
         const identifier = normalizeIdentifier(ruleId, "rule", "RULE");
@@ -43594,18 +43596,22 @@ function parseSarif(root, reportName) {
       const resultKind = parseResultKind(result, runIndex, resultIndex, warnings);
       const properties = asJsonValue({
         ...resultProperties,
+        ...runIdentity.properties,
         ...resolvedLocation.properties,
         "sarif.resultKind": resultKind.value,
         ...rawSuppressions !== void 0 ? { "sarif.suppressions": rawSuppressions } : {}
       });
       findings.push(makeFinding({
         source: source(toolName, reportName, toolVersion, `run-${runIndex + 1}`),
-        kind: sarifKind(tags, resultProperties),
+        kind,
         title,
         ...description ? { description } : {},
         severity,
         identifiers: uniqueIdentifiers(identifiers),
-        ...uri ? { component: { path: uri }, ...fileAsset ? { asset: fileAsset } : {} } : {},
+        ...runIdentity.productPurl && kind === "container" ? {
+          component: { purl: runIdentity.productPurl, ...uri ? { path: uri } : {} }
+        } : uri ? { component: { path: uri } } : {},
+        ...runIdentity.asset ? { asset: runIdentity.asset } : fileAsset ? { asset: fileAsset } : {},
         ...uri || region || logical ? {
           location: {
             ...uri ? { uri } : {},
@@ -43646,6 +43652,45 @@ function parseSarif(root, reportName) {
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown", runHealth }
   };
+}
+function trivyRunIdentity(toolName, properties) {
+  if (toolName.trim().toLowerCase() !== "trivy")
+    return { properties: {} };
+  const imageName = boundedIdentity(asString(properties["imageName"]));
+  const repoDigests = asArray(properties["repoDigests"]).map(asString).map(boundedIdentity).filter((value2) => Boolean(value2));
+  const productPurls = [
+    ...new Set([imageName, ...repoDigests].map(ociDigestPurl).filter((value2) => Boolean(value2)))
+  ];
+  const productPurl = productPurls.length === 1 ? productPurls[0] : void 0;
+  const imageIdentity = productPurl ?? imageName;
+  const imageAsset = asset("image", imageIdentity);
+  return {
+    ...imageAsset ? { asset: imageAsset } : {},
+    ...productPurl ? { productPurl } : {},
+    properties: {
+      ...productPurl ? { "sarif.trivyImagePurl": productPurl } : {},
+      ...imageName ? { "sarif.trivyImageName": imageName } : {},
+      ...repoDigests.length > 0 ? { "sarif.trivyRepoDigests": repoDigests } : {}
+    }
+  };
+}
+function boundedIdentity(value2) {
+  const trimmed = value2?.trim();
+  return trimmed && trimmed.length <= 2048 ? trimmed : void 0;
+}
+function ociDigestPurl(reference) {
+  if (!reference || reference.includes("\\") || /[\s?#]/.test(reference))
+    return void 0;
+  const match3 = /^([^@]+)@sha256:([a-f\d]{64})$/i.exec(reference);
+  if (!match3)
+    return void 0;
+  const repository = match3[1]?.replace(/^https?:\/\//i, "").replace(/^\/+|\/+$/g, "");
+  const name = repository?.split("/").at(-1)?.toLowerCase();
+  const digest = match3[2]?.toLowerCase();
+  if (!name || !digest || name === "." || name === ".." || !/^[a-z\d][a-z\d._-]*$/.test(name)) {
+    return void 0;
+  }
+  return canonicalizePurl(`pkg:oci/${name}@sha256:${digest}`);
 }
 function resolvePortableSarifLocation(options) {
   const { uri, uriBaseId, originalUriBaseIds, runIndex, resultIndex, warnings } = options;

@@ -1,6 +1,7 @@
 import { extractIdentifiers, normalizeIdentifier, uniqueIdentifiers } from "../identifiers.js";
 import type {
   CanonicalFinding,
+  FindingAsset,
   FindingIdentifier,
   FindingKind,
   FindingSuppression,
@@ -13,6 +14,7 @@ import {
   asNumber,
   asRecord,
   asString,
+  canonicalizePurl,
   normalizeSeverity,
   safeHttpReference,
 } from "../utils.js";
@@ -20,6 +22,12 @@ import { asset, makeFinding, source } from "./common.js";
 
 type SarifLocationResolution = {
   uri: string | undefined;
+  properties: Record<string, JsonValue>;
+};
+
+type SarifRunIdentity = {
+  asset?: FindingAsset;
+  productPurl?: string;
   properties: Record<string, JsonValue>;
 };
 
@@ -74,6 +82,7 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
     const healthValue = asJsonValue(health);
     if (healthValue !== undefined) runHealth.push(healthValue);
     const originalUriBaseIds = asRecord(run?.["originalUriBaseIds"]) ?? {};
+    const runIdentity = trivyRunIdentity(toolName, asRecord(run?.["properties"]) ?? {});
     const rules = new Map<string, Record<string, unknown>>();
     for (const ruleValue of asArray(driver?.["rules"])) {
       const rule = asRecord(ruleValue);
@@ -107,6 +116,10 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
       const tags = asArray(ruleProperties["tags"])
         .map(asString)
         .filter((value): value is string => Boolean(value));
+      const kind = sarifKind(
+        [...tags, asString(rule?.["name"]) ?? "", runIdentity.productPurl ? "container" : ""],
+        resultProperties,
+      );
       const identifiers: FindingIdentifier[] = extractIdentifiers(
         [ruleId, title, description, ...tags],
         "related",
@@ -154,6 +167,7 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
       const resultKind = parseResultKind(result, runIndex, resultIndex, warnings);
       const properties = asJsonValue({
         ...resultProperties,
+        ...runIdentity.properties,
         ...resolvedLocation.properties,
         "sarif.resultKind": resultKind.value,
         ...(rawSuppressions !== undefined ? { "sarif.suppressions": rawSuppressions } : {}),
@@ -162,12 +176,23 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
       findings.push(
         makeFinding({
           source: source(toolName, reportName, toolVersion, `run-${runIndex + 1}`),
-          kind: sarifKind(tags, resultProperties),
+          kind,
           title,
           ...(description ? { description } : {}),
           severity,
           identifiers: uniqueIdentifiers(identifiers),
-          ...(uri ? { component: { path: uri }, ...(fileAsset ? { asset: fileAsset } : {}) } : {}),
+          ...(runIdentity.productPurl && kind === "container"
+            ? {
+                component: { purl: runIdentity.productPurl, ...(uri ? { path: uri } : {}) },
+              }
+            : uri
+              ? { component: { path: uri } }
+              : {}),
+          ...(runIdentity.asset
+            ? { asset: runIdentity.asset }
+            : fileAsset
+              ? { asset: fileAsset }
+              : {}),
           ...(uri || region || logical
             ? {
                 location: {
@@ -222,6 +247,54 @@ export function parseSarif(root: Record<string, unknown>, reportName: string): P
     warnings,
     metadata: { version: asString(root["version"]) ?? "unknown", runHealth },
   };
+}
+
+function trivyRunIdentity(toolName: string, properties: Record<string, unknown>): SarifRunIdentity {
+  if (toolName.trim().toLowerCase() !== "trivy") return { properties: {} };
+
+  const imageName = boundedIdentity(asString(properties["imageName"]));
+  const repoDigests = asArray(properties["repoDigests"])
+    .map(asString)
+    .map(boundedIdentity)
+    .filter((value): value is string => Boolean(value));
+  const productPurls = [
+    ...new Set(
+      [imageName, ...repoDigests]
+        .map(ociDigestPurl)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+  const productPurl = productPurls.length === 1 ? productPurls[0] : undefined;
+  const imageIdentity = productPurl ?? imageName;
+  const imageAsset = asset("image", imageIdentity);
+
+  return {
+    ...(imageAsset ? { asset: imageAsset } : {}),
+    ...(productPurl ? { productPurl } : {}),
+    properties: {
+      ...(productPurl ? { "sarif.trivyImagePurl": productPurl } : {}),
+      ...(imageName ? { "sarif.trivyImageName": imageName } : {}),
+      ...(repoDigests.length > 0 ? { "sarif.trivyRepoDigests": repoDigests } : {}),
+    },
+  };
+}
+
+function boundedIdentity(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length <= 2_048 ? trimmed : undefined;
+}
+
+function ociDigestPurl(reference: string | undefined): string | undefined {
+  if (!reference || reference.includes("\\") || /[\s?#]/.test(reference)) return undefined;
+  const match = /^([^@]+)@sha256:([a-f\d]{64})$/i.exec(reference);
+  if (!match) return undefined;
+  const repository = match[1]?.replace(/^https?:\/\//i, "").replace(/^\/+|\/+$/g, "");
+  const name = repository?.split("/").at(-1)?.toLowerCase();
+  const digest = match[2]?.toLowerCase();
+  if (!name || !digest || name === "." || name === ".." || !/^[a-z\d][a-z\d._-]*$/.test(name)) {
+    return undefined;
+  }
+  return canonicalizePurl(`pkg:oci/${name}@sha256:${digest}`);
 }
 
 function resolvePortableSarifLocation(options: {
