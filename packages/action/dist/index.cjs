@@ -20010,66 +20010,6 @@ var require_papaparse = __commonJS({
       if (typeof PAPA_BROWSER_CONTEXT === "undefined") {
         Papa4.DuplexStreamStreamer = DuplexStreamStreamer;
       }
-      if (global2.jQuery) {
-        var $ = global2.jQuery;
-        $.fn.parse = function(options) {
-          var config2 = options.config || {};
-          var queue = [];
-          this.each(function(idx) {
-            var supported = $(this).prop("tagName").toUpperCase() === "INPUT" && $(this).attr("type").toLowerCase() === "file" && global2.FileReader;
-            if (!supported || !this.files || this.files.length === 0)
-              return true;
-            for (var i = 0; i < this.files.length; i++) {
-              queue.push({
-                file: this.files[i],
-                inputElem: this,
-                instanceConfig: $.extend({}, config2)
-              });
-            }
-          });
-          parseNextFile();
-          return this;
-          function parseNextFile() {
-            if (queue.length === 0) {
-              if (isFunction(options.complete))
-                options.complete();
-              return;
-            }
-            var f = queue[0];
-            if (isFunction(options.before)) {
-              var returned = options.before(f.file, f.inputElem);
-              if (typeof returned === "object") {
-                if (returned.action === "abort") {
-                  error52("AbortError", f.file, f.inputElem, returned.reason);
-                  return;
-                } else if (returned.action === "skip") {
-                  fileComplete();
-                  return;
-                } else if (typeof returned.config === "object")
-                  f.instanceConfig = $.extend(f.instanceConfig, returned.config);
-              } else if (returned === "skip") {
-                fileComplete();
-                return;
-              }
-            }
-            var userCompleteFunc = f.instanceConfig.complete;
-            f.instanceConfig.complete = function(results) {
-              if (isFunction(userCompleteFunc))
-                userCompleteFunc(results, f.file, f.inputElem);
-              fileComplete();
-            };
-            Papa4.parse(f.file, f.instanceConfig);
-          }
-          function error52(name, file2, elem, reason) {
-            if (isFunction(options.error))
-              options.error({ name }, file2, elem, reason);
-          }
-          function fileComplete() {
-            queue.splice(0, 1);
-            parseNextFile();
-          }
-        };
-      }
       if (IS_PAPA_WORKER) {
         global2.onmessage = workerThreadReceivedMessage;
       }
@@ -20237,8 +20177,11 @@ var require_papaparse = __commonJS({
         function safe(str, col) {
           if (typeof str === "undefined" || str === null)
             return "";
-          if (str.constructor === Date)
-            return JSON.stringify(str).slice(1, 25);
+          if (str.constructor === Date) {
+            if (isNaN(str.getTime()))
+              return "";
+            return str.toISOString();
+          }
           var needsQuotes = false;
           if (_escapeFormulae && typeof str === "string" && _escapeFormulae.test(str)) {
             str = "'" + str;
@@ -20876,7 +20819,7 @@ var require_papaparse = __commonJS({
             }
             if (preview.data.length > 0)
               avgFieldCount /= preview.data.length - emptyLinesCount;
-            if ((typeof bestDelta === "undefined" || delta <= bestDelta) && (typeof maxFieldCount === "undefined" || avgFieldCount > maxFieldCount) && avgFieldCount > 1.99) {
+            if (avgFieldCount > 1.99 && (typeof bestDelta === "undefined" || delta < bestDelta || delta === bestDelta && avgFieldCount > maxFieldCount)) {
               bestDelta = delta;
               bestDelim = delim;
               maxFieldCount = avgFieldCount;
@@ -44819,7 +44762,7 @@ packageurl-js/index.js:
 papaparse/papaparse.js:
   (* @license
   Papa Parse
-  v5.5.4
+  v5.6.0
   https://github.com/mholt/PapaParse
   License: MIT
   *)
