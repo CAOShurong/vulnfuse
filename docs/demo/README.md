@@ -7,11 +7,11 @@ secret is described. The CVE identifiers are real published vulnerabilities,
 which keeps correlation realistic, but the artifact and environment around them
 are invented.
 
-| File | Format | Findings |
-| --- | --- | ---: |
-| `demo-trivy.json` | Trivy JSON | 2 (Log4Shell CRITICAL, openssl HIGH) |
+| File              | Format     |                                      Findings |
+| ----------------- | ---------- | --------------------------------------------: |
+| `demo-trivy.json` | Trivy JSON |          2 (Log4Shell CRITICAL, openssl HIGH) |
 | `demo-grype.json` | Grype JSON | 2 (Log4Shell + alias, zlib MiniZip not-fixed) |
-| `demo-snyk.json`  | Snyk JSON  | 1 (Log4Shell via SNYK ID) |
+| `demo-snyk.json`  | Snyk JSON  |                     1 (Log4Shell via SNYK ID) |
 
 All three describe the same fictional image, so correlating them produces one
 multi-scanner Log4Shell cluster plus single-tool findings — enough to see
