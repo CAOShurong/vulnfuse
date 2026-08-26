@@ -64,6 +64,39 @@ The Log4Shell finding merges across Grype and Trivy — shared CVE identifier
 — while the Snyk record stays a separate reviewable cluster because its asset
 differs. Every source record remains attached; nothing is silently dropped.
 
+### A worked example: three scanners, one morning
+
+That demo is small enough to read end to end, so it is worth walking through —
+it is the triage this tool exists for. Three scanners report on the same
+fictional image:
+
+| Tool  | Findings | What they describe                                                      |
+| ----- | -------: | ----------------------------------------------------------------------- |
+| Trivy |        2 | Log4Shell (critical), an OpenSSL infinite loop (high)                   |
+| Grype |        2 | Log4Shell under a different ID format (critical), a zlib issue (medium) |
+| Snyk  |        1 | Log4Shell a third way, via a Snyk ID, against a different asset         |
+
+Five rows in the queue — but only four things to do, and the naive options get
+that wrong both ways. Deduplicating by CVE title collapses them into two
+findings and buries real differences; counting rows inflates the queue to five
+and sends you re-triaging the same vulnerability three times. The correlation
+report sorts it out:
+
+- **Log4Shell merges across Grype and Trivy** into one critical cluster that
+  keeps both identifiers, the evidence for why (`+40` shared CVE, `+25`
+  component identity, `+15` asset identity, `+10` matching location), and a
+  pointer back to each source record.
+- **The Snyk Log4Shell stays its own reviewable cluster.** Same CVE, but its
+  asset is `acme/payments-source` — the source repository, not the built image
+  the other two scanners scanned. Merging would have hidden where one report
+  says the component actually lives, so the conflict blocks it.
+- **OpenSSL and zlib stay single-tool clusters** — nothing else reported them,
+  so there is nothing to inflate and nothing to deduplicate.
+
+The coverage tables then make the disagreement measurable instead of something
+you eyeball across three dashboards: Trivy and Grype share exactly one of
+their three clusters (33% Jaccard overlap); Snyk shares none with either.
+
 ### Browser
 
 Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or more current reports, inspect the proposed clusters and scanner-overlap tables, and export the result. Add optional reports from a previous run to see a local baseline comparison. Choose **Load safe demo** to explore correlation, scanner divergence, and baseline states without using your own data.
