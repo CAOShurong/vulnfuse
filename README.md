@@ -43,6 +43,27 @@ VulnFuse converts those reports into one canonical evidence model, scores plausi
 
 ## Quick start
 
+No scanner output of your own yet? The repository ships three small **synthetic**
+reports — [Trivy](docs/demo/demo-trivy.json),
+[Grype](docs/demo/demo-grype.json) and [Snyk](docs/demo/demo-snyk.json) JSON
+describing the same fictional container image (`docs/demo/` has details). They
+are the same fixtures the workbench's **Load safe demo** button loads, kept as
+plain files so the CLI can use them too:
+
+```bash
+# from a clone of this repository:
+vulnfuse merge docs/demo/*.json --format html --output vulnfuse-demo.html
+
+# or without cloning, download the three files and point at them:
+vulnfuse merge demo-trivy.json demo-grype.json demo-snyk.json --format markdown
+```
+
+What comes out: five source records collapse into four explainable clusters.
+The Log4Shell finding merges across Grype and Trivy — shared CVE identifier
+(+40), component identity (+25), asset identity (+15), matching location (+10)
+— while the Snyk record stays a separate reviewable cluster because its asset
+differs. Every source record remains attached; nothing is silently dropped.
+
 ### Browser
 
 Open the [hosted workbench](https://caoshurong.github.io/vulnfuse/), drop two or more current reports, inspect the proposed clusters and scanner-overlap tables, and export the result. Add optional reports from a previous run to see a local baseline comparison. Choose **Load safe demo** to explore correlation, scanner divergence, and baseline states without using your own data.
