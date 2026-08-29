@@ -18,6 +18,16 @@ Security tools rarely describe the same issue in the same way. One scanner repor
 
 VulnFuse converts those reports into one canonical evidence model, scores plausible pairs, blocks unsafe merges, and keeps every source record attached to the resulting cluster. It is a correlation layer—not a scanner, vulnerability database, or false-positive oracle.
 
+**See it work in 30 seconds (no scanner output of your own):** open the
+[hosted workbench](https://caoshurong.github.io/vulnfuse/) and click **Load safe
+demo**. Three synthetic scanner reports (Trivy, Grype, Snyk) for the same
+container image collapse from **5 findings into 4 explainable clusters** — the
+Log4Shell alert merges across two scanners (shared CVE + component + asset) while
+the Snyk record stays its own cluster because its asset differs. That is the
+triage VulnFuse exists for, and every source record stays attached, nothing
+silently dropped. The same run is walked end to end in the
+[worked example](#a-worked-example-three-scanners-one-morning) below.
+
 ## What makes it useful
 
 - **Eight input families, five outputs.** Read SARIF 2.1, Trivy JSON, Grype JSON, Snyk JSON, CycloneDX VDR/VEX, standalone OpenVEX, OSV-Scanner JSON, and ordinary CSV. Write VulnFuse JSON, SARIF, CSV, Markdown, or one self-contained interactive HTML file.
