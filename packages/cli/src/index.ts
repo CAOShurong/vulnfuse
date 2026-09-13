@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import {
   compareCorrelations,
@@ -36,6 +36,7 @@ interface MergeOptions {
   failOn: Severity | "none";
   failOnIncomplete?: boolean;
   sarifFallbackLocation?: string;
+  demo?: boolean;
 }
 
 interface DiffOptions extends Omit<MergeOptions, "failOn"> {
@@ -57,7 +58,7 @@ export function createProgram(): Command {
   program
     .command("merge")
     .description("Parse and correlate two or more scanner reports.")
-    .argument("<reports...>", "Report paths, glob patterns, or '-' for standard input")
+    .argument("[reports...]", "Report paths, glob patterns, or '-' for standard input")
     .addOption(
       new Option("-f, --format <format>", "Output format")
         .choices(["json", "sarif", "csv", "markdown", "html"])
@@ -96,9 +97,10 @@ export function createProgram(): Command {
       "--sarif-fallback-location <repo-relative-path>",
       "Anchor locationless SARIF results to an explicit repository file",
     )
-    .action(async (reportPaths: string[], options: MergeOptions) => {
+    .option("--demo", "Use the bundled Trivy, Grype, and Snyk synthetic reports")
+    .action(async (reportPaths: string[] | undefined, options: MergeOptions) => {
       const exportOptions = sarifExportOptions(options.format, options.sarifFallbackLocation);
-      reportPaths = await expandReportPaths(reportPaths);
+      reportPaths = options.demo ? bundledDemoPaths() : await expandReportPaths(reportPaths ?? []);
       assertReportArguments(reportPaths);
       assertOutputIsNotInput(options.output, reportPaths);
       const inputs = await readInputs(reportPaths, options.maxBytes);
@@ -329,6 +331,11 @@ async function pathExists(path: string): Promise<boolean> {
     }
     throw error;
   }
+}
+
+function bundledDemoPaths(): string[] {
+  const dir = resolve(import.meta.dirname, "../demo");
+  return ["demo-trivy.json", "demo-grype.json", "demo-snyk.json"].map((name) => join(dir, name));
 }
 
 function portablePattern(pattern: string): string {

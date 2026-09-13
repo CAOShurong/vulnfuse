@@ -41,6 +41,18 @@ afterEach(async () => {
 });
 
 describe("CLI", () => {
+  it("merge --demo correlates the bundled scanner reports", async () => {
+    const { stdout } = await execute(process.execPath, [
+      cli,
+      "merge",
+      "--demo",
+      "--format",
+      "markdown",
+    ]);
+    expect(stdout).toMatch(/Log4Shell|CVE-2021-44228/i);
+    expect(stdout.toLowerCase()).toMatch(/cluster/);
+  });
+
   it("keeps SARIF byte-identical across working directories for identical relative globs", async () => {
     const workspaces = [join(testDirectory, "workspace-a"), join(testDirectory, "workspace-b")];
     const outputs: string[] = [];

@@ -4,6 +4,11 @@ All notable changes to VulnFuse are documented here. The project follows semanti
 
 ## [Unreleased]
 
+### Added
+
+- `vulnfuse merge --demo` runs the bundled Trivy, Grype, and Snyk synthetic
+  reports so the README one-liner works without a clone.
+
 ## [0.4.24] - 2026-08-12
 
 ### Fixed

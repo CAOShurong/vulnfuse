@@ -61,12 +61,11 @@ are the same fixtures the workbench's **Load safe demo** button loads, kept as
 plain files so the CLI can use them too:
 
 ```bash
-# from a clone of this repository:
-vulnfuse merge docs/demo/*.json --format html --output vulnfuse-demo.html
-
-# or without cloning, download the three files and point at them:
-vulnfuse merge demo-trivy.json demo-grype.json demo-snyk.json --format markdown
+npx vulnfuse merge --demo --format markdown
 ```
+
+That command needs no clone and no scanner output. From a checkout, the same
+three files are also at `docs/demo/*.json`.
 
 What comes out: five source records collapse into four explainable clusters.
 The Log4Shell finding merges across Grype and Trivy — shared CVE identifier
